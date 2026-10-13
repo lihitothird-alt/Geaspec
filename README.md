@@ -199,6 +199,7 @@ cd agent && python -m unittest discover -s tests
 | --- | --- | --- |
 | `SECRET_KEY` | ログイン用の秘密鍵。**本番では必ず長いランダム値に** | （未設定なら起動ごとに生成） |
 | `BASE_URL` | 公開 URL（Stripe の戻り先・接続コードに入る URL）。`https://` なら Cookie を Secure にする | `http://localhost:8000` |
+| `SIMPLE_MODE` | `1`（はじめから）だと試作版としてシンプルに見せ、フォロー・貸し手の紹介ページと評価・「アプリとして使う」を隠す。`0` で元に戻る（データは消えない） | `1` |
 | `INVITE_ONLY` | `1` にすると、Discord のボットが渡す本人専用リンク（14日有効）を開いた人だけがサイトを見られる。`GeaspecSite.cmd` は Discord ボットを使うとき自動で `1` にする（設定ファイルに `"invite_only": false` と書くと合言葉に戻る） | `0` |
 | `SITE_PASSWORD` | 設定すると、サイト全体に合言葉をかける（招待した人だけが見られる）。Agent・Stripe からの通知は合言葉なしで届く | なし |
 | `ADMIN_EMAILS` | 管理者のメールアドレス（カンマ区切り） | なし |

@@ -28,6 +28,8 @@ class Settings:
     paypal_env: str = "sandbox"  # "sandbox" | "live"
     # 無料の実験として動かす (お金を受け取らない)。料金の表示と支払いをすべて止める
     free_mode: bool = True
+    # 試作版としてシンプルに見せる: フォロー・貸し手ページと評価・「アプリとして使う」を隠す (データとコードは残す)
+    simple_mode: bool = False
     # 初回利用時に無料にする分数 (同じ Meta ユーザー名では 1 回だけ)
     trial_minutes: int = 30
     # 借り手のスクリーンショットの保存先と保存期間
@@ -78,6 +80,7 @@ class Settings:
             paypal_client_secret=os.environ.get("PAYPAL_CLIENT_SECRET", ""),
             paypal_env=os.environ.get("PAYPAL_ENV", cls.paypal_env),
             free_mode=os.environ.get("FREE_MODE", "1").strip().lower() not in ("0", "false", "no", "off"),
+            simple_mode=os.environ.get("SIMPLE_MODE", "1").strip().lower() not in ("0", "false", "no", "off"),
             trial_minutes=int(os.environ.get("TRIAL_MINUTES", cls.trial_minutes)),
             media_dir=os.environ.get("MEDIA_DIR", cls.media_dir),
             screenshot_days=int(os.environ.get("SCREENSHOT_DAYS", cls.screenshot_days)),

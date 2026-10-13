@@ -102,6 +102,7 @@ def create_app(
     templates.env.globals["provider_labels"] = PROVIDER_LABELS
     templates.env.globals["trial_minutes"] = 0 if settings.free_mode else settings.trial_minutes
     templates.env.globals["free_mode"] = settings.free_mode
+    templates.env.globals["simple"] = settings.simple_mode
     templates.env.globals["mail_enabled"] = app.state.mailer.enabled
 
     # --- 共通 ---------------------------------------------------------------
@@ -250,7 +251,13 @@ def create_app(
 
     @app.get("/app", response_class=HTMLResponse)
     def app_install(request: Request, db: Session = Depends(get_db)):
+        hidden_in_simple_mode()
         return render(request, db, "app.html")
+
+    def hidden_in_simple_mode() -> None:
+        """試作版では使わない機能 (フォロー・貸し手ページと評価・アプリとして使う) は、ないものとして扱う。"""
+        if settings.simple_mode:
+            raise HTTPException(404)
 
     def safe_next(next: str, default: str = "/") -> str:
         # オープンリダイレクト防止: サイト内のパスだけ許可
@@ -401,7 +408,7 @@ def create_app(
         user = current_user(request, db)
         items = services.available_slots(db, now, settings.hold_minutes)
         followed = {u.id for u in social.following_lenders(db, user)} if user else set()
-        if view == "following":
+        if view == "following" and not settings.simple_mode:
             items = [s for s in items if s.host.owner_id in followed]
         lenders = {}
         for s in items:
@@ -520,6 +527,7 @@ def create_app(
         db: Session = Depends(get_db),
     ):
         """利用が終わった予約を評価する (借り手は貸し手を、貸し手は借り手を)。"""
+        hidden_in_simple_mode()
         user = require_user(request, db)
         booking = db.get(Booking, booking_id)
         if not booking or social.review_role(booking, user) is None:
@@ -535,6 +543,7 @@ def create_app(
 
     @app.get("/lenders/{lender_id}", response_class=HTMLResponse)
     def lender_profile(lender_id: int, request: Request, db: Session = Depends(get_db)):
+        hidden_in_simple_mode()
         lender = db.get(User, lender_id) or _404()
         hosts = social.lender_hosts(db, lender)
         if not hosts:
@@ -552,6 +561,7 @@ def create_app(
     @app.post("/lenders/{lender_id}/follow")
     def follow_lender(lender_id: int, request: Request, on: int = Form(1), next: str = Form(""),
                       db: Session = Depends(get_db)):
+        hidden_in_simple_mode()
         user = require_user(request, db)
         lender = db.get(User, lender_id) or _404()
         try:
@@ -563,6 +573,7 @@ def create_app(
 
     @app.get("/following", response_class=HTMLResponse)
     def following_page(request: Request, db: Session = Depends(get_db)):
+        hidden_in_simple_mode()
         user = require_user(request, db)
         lenders = social.following_lenders(db, user)
         return render(

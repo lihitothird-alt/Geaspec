@@ -288,6 +288,9 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         threads[thread.id] = thread
         assert thread.users == [1]
         assert "gs:group" in custom_ids(thread.sent[0][1]["view"])
+        prep = thread.sent[1][0]  # 申し込んだらやっておくこと
+        assert "VPN を切る" in prep and "FPS と Ping の表示" in prep and "Allow remote connections" in prep
+        assert "https://lg.example.ts.net/guide#fps" in prep
         assert "hikari_meta" in ops_log[-1][0]
         assert custom_ids(ops_log[-1][1]) == ["gs:ready:1"]
 

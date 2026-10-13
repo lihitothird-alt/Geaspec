@@ -73,7 +73,7 @@ class StubPayPal:
         return self.result
 
 
-def make_app(tmp_path, payments=None, vpn=None, trial_minutes=0, screenshot_max_mb=250, site_password="", free_mode=False, invite_only=False):
+def make_app(tmp_path, payments=None, vpn=None, trial_minutes=0, screenshot_max_mb=250, site_password="", free_mode=False, invite_only=False, simple_mode=False):
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'test.db'}",
         secret_key="test",
@@ -85,6 +85,7 @@ def make_app(tmp_path, payments=None, vpn=None, trial_minutes=0, screenshot_max_
         site_password=site_password,
         free_mode=free_mode,
         invite_only=invite_only,
+        simple_mode=simple_mode,
     )
     vpn = vpn or FakeVpn()
     if payments is None:
@@ -977,3 +978,22 @@ def test_guide_and_terms_are_readable_before_joining(tmp_path):
         assert client.get(f"/static/guide/{img}.webp").status_code == 200
     assert client.get("/legal/terms", follow_redirects=False).status_code == 200
     assert client.get("/slots", follow_redirects=False).status_code == 303
+
+
+def test_simple_mode_hides_follow_reviews_and_the_app_page(tmp_path, now):
+    """試作版では、フォロー・貸し手ページと評価・「アプリとして使う」を出さない。"""
+    app, _ = make_app(tmp_path, simple_mode=True)
+    admin = TestClient(app)
+    admin_setup(admin)
+    user = TestClient(app)
+    signup(user, "user@example.com")
+    for page in ("/", "/slots", "/account"):
+        html = user.get(page).text
+        assert "フォロー中" not in html and 'href="/app"' not in html and "/lenders/" not in html, page
+    assert user.get("/following").status_code == 404
+    assert user.get("/app").status_code == 404
+    assert user.get("/lenders/1").status_code == 404
+    assert user.post("/lenders/1/follow", data={"on": 1}).status_code == 404
+    assert user.post("/bookings/1/review", data={"stars": 5}).status_code == 404
+    # 予約そのものはこれまでどおりできる
+    assert user.post("/slots/1/book", follow_redirects=False).status_code == 303
