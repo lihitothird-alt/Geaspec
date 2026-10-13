@@ -26,7 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import clock, feedback, services, social
+from . import clock, feedback, invite, services, social
 from .config import Settings
 from .db import Base, add_missing_columns, make_engine, make_sessionmaker
 from .models import Booking, BookingStatus, Feedback, Host, Slot, User
@@ -43,7 +43,7 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 META_USERNAME_RE = re.compile(r"^[A-Za-z0-9._-]{2,64}$")
 # 合言葉なしで通すパス。Agent・決済サービスからの通知は機械が呼ぶので、それぞれ別の方法で認証している
 SITE_GATE_OPEN_PREFIXES = (
-    "/site-login", "/healthz", "/robots.txt", "/static/", "/api/agent/", "/stripe/webhook",
+    "/site-login", "/join", "/healthz", "/robots.txt", "/static/", "/api/agent/", "/stripe/webhook",
     # ホーム画面アプリの設定と裏方のスクリプト。ブラウザは合言葉の Cookie を付けずに読みに来る
     "/manifest.webmanifest", "/sw.js",
 )
@@ -72,9 +72,9 @@ def create_app(
     (media_root / "screenshots").mkdir(parents=True, exist_ok=True)
     @app.middleware("http")
     async def private_site(request: Request, call_next):
-        """検索エンジンに載せない。合言葉が設定されていれば、知っている人だけに見せる。"""
+        """検索エンジンに載せない。合言葉か招待リンクを使う設定なら、招待した人だけに見せる。"""
         path = request.url.path
-        if settings.site_password and not path.startswith(SITE_GATE_OPEN_PREFIXES):
+        if (settings.site_password or settings.invite_only) and not path.startswith(SITE_GATE_OPEN_PREFIXES):
             if not request.session.get("site_ok"):
                 target = path + (f"?{request.url.query}" if request.url.query else "")
                 return RedirectResponse(f"/site-login?next={target}", status_code=303)
@@ -255,6 +255,19 @@ def create_app(
     def site_login_form(request: Request, next: str = "/", db: Session = Depends(get_db)):
         return render(request, db, "site_login.html", next=safe_next(next))
 
+    @app.get("/join")
+    def join(request: Request, t: str = "", next: str = "", db: Session = Depends(get_db)):
+        """Discord のボットが渡した本人専用リンク。開いた人はサイトに入れて、Meta ユーザー名も引き継ぐ。"""
+        data = invite.read_token(settings.secret_key, t, clock.utcnow().replace(tzinfo=dt.timezone.utc))
+        if data is None:
+            return render(request, db, "site_login.html", status_code=400, next="/", expired=True)
+        request.session["site_ok"] = True
+        if META_USERNAME_RE.match(data["meta"]):
+            request.session["invite_meta"] = data["meta"]
+        if next:
+            return redirect(safe_next(next))
+        return redirect("/slots" if current_user(request, db) else "/signup")
+
     @app.post("/site-login")
     async def site_login(request: Request, password: str = Form(""), next: str = Form("/")):
         if settings.site_password and hmac.compare_digest(password.encode(), settings.site_password.encode()):
@@ -294,7 +307,8 @@ def create_app(
             error = "利用規約とプライバシーポリシーへの同意が必要です"
         if error:
             return render(request, db, "signup.html", status_code=400, error=error, email=email)
-        user = User(email=email, password_hash=hash_password(password), signup_ref=request.session.get("ref", ""))
+        user = User(email=email, password_hash=hash_password(password), signup_ref=request.session.get("ref", ""),
+                    meta_username=request.session.get("invite_meta", ""))
         db.add(user)
         try:
             db.commit()
@@ -304,6 +318,9 @@ def create_app(
                 request, db, "signup.html", status_code=400, error="このメールアドレスは登録済みです", email=email
             )
         request.session["uid"] = user.id
+        if user.meta_username:
+            flash(request, "登録しました。空き枠から好きな時間をえらんでください")
+            return redirect("/slots")
         flash(request, "登録しました。Meta (Quest) のユーザー名を設定してください")
         return redirect("/account")
 
@@ -325,11 +342,14 @@ def create_app(
                 request, db, "login.html", status_code=400,
                 error="メールアドレスかパスワードが違います", next=next, email=email,
             )
-        site_ok = request.session.get("site_ok")
+        site_ok, invite_meta = request.session.get("site_ok"), request.session.get("invite_meta")
         request.session.clear()
         request.session["uid"] = user.id
         if site_ok:
             request.session["site_ok"] = True
+        if invite_meta and not user.meta_username:
+            user.meta_username = invite_meta
+            db.commit()
         return redirect(safe_next(next, "/slots"))
 
     @app.post("/logout")

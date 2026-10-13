@@ -20,13 +20,14 @@ import json
 import logging
 import re
 import threading
+import urllib.parse
 from pathlib import Path
 from typing import Callable
 
 import discord
 from discord import app_commands
 
-from . import booking_notice, feedback, version
+from . import booking_notice, feedback, invite, version
 from .tester_store import (FOLLOWUPS, GROUPS, MISSIONS, QUESTIONS, TesterStore, format_duration, option_label,
                            summary_lines)
 
@@ -85,9 +86,13 @@ def panel_text(hours: str) -> str:
 **流れ**
 1. 下の「テスターに申し込む」を押す
 2. あなた専用のスレッドができます。運営の準備ができたら、そこでお知らせします
-3. 予約サイトで予約する（サイトのアドレスと合言葉は、スレッドでお知らせします）
+3. スレッドに届くあなた専用のリンクから、予約サイトで予約する
 4. 当日、スレッドの「テストを始める」を押して、Virtual Desktop でつなぐ
 5. 遊び終わったら、ボタンで答えるアンケート（3分）と、評価フォーム（5分）
+
+**申し込む前に**
+・Meta ユーザー名: スマホの Meta Horizon アプリでプロフィールを開くと見られます（表示名ではなく、ユーザー名のほう）。Virtual Desktop を持っている人は、VD で使っているものと同じです
+・当日は PC 版の VRChat に、自分のアカウントでログインします。VRChat のメールアドレス（またはユーザー名）とパスワードを用意してください。2段階認証をしている人は、確認コードを受け取るスマホも手元に
 
 **テストができる時間: {hours}**
 貸し出す PC は運営がふだんも使っているので、それ以外の時間はテストできないことが多いです。
@@ -151,10 +156,11 @@ class ApplyModal(discord.ui.Modal):
         super().__init__(title="テスターに申し込む", timeout=1800)
         self.bot = bot
         t = tester or {}
-        self.vrchat = discord.ui.TextInput(label="VRChat の表示名", max_length=60, default=t.get("vrchat") or None)
+        self.vrchat = discord.ui.TextInput(label="VRChat の表示名（任意）", max_length=60, required=False,
+                                           default=t.get("vrchat") or None)
         self.meta = discord.ui.TextInput(
-            label="Meta ユーザー名（VD の登録に使います）", max_length=60, default=t.get("meta") or None,
-            placeholder="スマホの Meta Horizon アプリ → プロフィールで見られます")
+            label="Meta ユーザー名（表示名ではありません）", max_length=60, default=t.get("meta") or None,
+            placeholder="Meta Horizon アプリのプロフィールで見られます。VD を持っている人は VD と同じ")
         self.gear = discord.ui.TextInput(label="使っている機材", max_length=100, default=t.get("gear") or None,
                                          placeholder="例: Quest 3 だけ ／ Quest 3 + RTX 3060")
         self.region = discord.ui.TextInput(label="住んでいる地方（だいたいでOK）", max_length=30,
@@ -176,9 +182,7 @@ class PerfModal(discord.ui.Modal):
         self.fps_inputs = [discord.ui.TextInput(label=f"FPS: {w}"[:45], max_length=10, required=False, placeholder="例: 72")
                            for w in self.worlds]
         self.ping = discord.ui.TextInput(label="Ping（VRChat の表示）", max_length=10, required=False, placeholder="例: 30")
-        self.latency = discord.ui.TextInput(label="VD の遅れ（任意・VD の性能表示の ms）", max_length=10, required=False,
-                                            placeholder="例: 45")
-        for item in (*self.fps_inputs, self.ping, self.latency):
+        for item in (*self.fps_inputs, self.ping):
             self.add_item(item)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
@@ -202,7 +206,7 @@ class CommentModal(discord.ui.Modal):
 
 
 class TesterBot(discord.Client):
-    def __init__(self, store: TesterStore, shots_dir: Path, site_url: str, *, site_password: str = "",
+    def __init__(self, store: TesterStore, shots_dir: Path, site_url: str, *, site_password: str = "", invite_secret: str = "",
                  site_db: Path | None = None, message_content: bool = True,
                  clock: Callable[[], dt.datetime] = utcnow, say: Callable[[str], None] | None = None) -> None:
         intents = discord.Intents.default()
@@ -212,6 +216,7 @@ class TesterBot(discord.Client):
         self.shots_dir = shots_dir
         self.site_url = site_url
         self.site_password = site_password
+        self.invite_secret = invite_secret  # サイトの SECRET_KEY。あれば合言葉の代わりに本人専用リンクを渡す
         self.site_db = site_db
         self.clock = clock
         self.say = say or log.info
@@ -323,6 +328,13 @@ class TesterBot(discord.Client):
                     self.store.set_setting(key, value.strip()[:80])
             await self.cmd_setup(interaction, here, ops_channel, ops_role, pc_name)
 
+        @self.tree.command(name="geaspec-link", description="予約サイトに入るためのリンクを受け取る・テスターに送る（運営用）")
+        @app_commands.describe(member="このテスターのスレッドに、本人専用のリンクを送る（空なら自分用のリンクを受け取る）")
+        @app_commands.guild_only()
+        @manage
+        async def link(interaction: discord.Interaction, member: discord.Member | None = None) -> None:
+            await self.cmd_link(interaction, member)
+
         @self.tree.command(name="geaspec-results", description="テストの集計と CSV を受け取る（運営用）")
         @app_commands.guild_only()
         @manage
@@ -336,6 +348,22 @@ class TesterBot(discord.Client):
             await interaction.response.send_message(
                 "テスターの名前・VRChat の名前・Meta ユーザー名・都合のいい日時を消します。アンケートの答えと時間は残ります。",
                 view=make_view(button("消す", "gs:erase", discord.ButtonStyle.danger)), ephemeral=True)
+
+    async def cmd_link(self, interaction: discord.Interaction, member: discord.abc.User | None) -> None:
+        if member is None:
+            await interaction.response.send_message(
+                f"運営用のリンクです（{invite.LINK_DAYS}日有効・ほかの人には渡さないでください）\n"
+                f"{self.site_link({'user_id': interaction.user.id})}", ephemeral=True)
+            return
+        tester = self.store.tester(member.id)
+        thread = await self._existing_thread(tester) if tester else None
+        if thread is None:
+            await interaction.response.send_message("この人の申し込み（スレッド）が見つかりませんでした。", ephemeral=True)
+            return
+        await thread.send(f"<@{member.id}> 予約サイトに入るための、あなた専用のリンクです（{invite.LINK_DAYS}日有効・"
+                          f"ほかの人には渡さないでください）\n{self.site_link(tester)}",
+                          view=make_view(button("🔗 サイトを開く", "gs:link")))
+        await interaction.response.send_message(f"{thread.mention} にリンクを送りました。", ephemeral=True)
 
     # 権限
     def is_ops(self, user: discord.abc.User) -> bool:
@@ -600,7 +628,19 @@ class TesterBot(discord.Client):
         if first and thread:
             await self.send_ready(thread, self.store.tester(user_id))
 
-    def site_lines(self) -> str:
+    def site_link(self, tester: dict | None, next_path: str = "") -> str:
+        """本人専用のリンク。開くとサイトに入れて、申し込みの Meta ユーザー名が新規登録に引き継がれる。"""
+        if not self.invite_secret:
+            return self.site_url + next_path
+        token = invite.make_token(self.invite_secret, meta=(tester or {}).get("meta", ""),
+                                  discord_id=(tester or {}).get("user_id", 0), now=self.clock())
+        url = f"{self.site_url}/join?t={token}"
+        return url + (f"&next={urllib.parse.quote(next_path, safe='')}" if next_path else "")
+
+    def site_lines(self, tester: dict | None = None) -> str:
+        if self.invite_secret:
+            return (f"予約サイト（あなた専用のリンク）: {self.site_link(tester)}\n"
+                    f"　ほかの人には渡さないでください。{invite.LINK_DAYS}日で使えなくなったら「サイトを開く」ボタンで新しいリンクが届きます\n")
         text = f"予約サイト: {self.site_url}\n"
         if self.site_password:
             text += f"　サイトを開くと合言葉を聞かれます。合言葉: `{self.site_password}`（ほかの人には教えないでください）\n"
@@ -620,24 +660,26 @@ class TesterBot(discord.Client):
                 "　3. 予約サイトでアカウントを作り、アプリにそのメールアドレスとパスワードでログイン\n"
                 "　4. 運営が確認して承認すると、貸し出せるようになります\n"
                 "　※ 貸し出し中は PC の画面が幕で覆われ、終わると借りた人のデータが自動で消えます\n"
-                "**③ 借りる側も試せます**: " + self.site_lines() +
+                "**③ 借りる側も試せます**: " + self.site_lines(tester) +
                 f"テストができる時間: {self.hours()}",
                 view=make_view(button("📥 アプリを入れた", "gs:lenderapp", discord.ButtonStyle.primary),
-                               button("✅ 予約できた", "gs:booked", discord.ButtonStyle.success),
+                               button("🔗 サイトを開く", "gs:link"),
                                button("▶ テストを始める", "gs:start")))
             return
         await thread.send(
             f"<@{user_id}> 準備ができました！\n\n"
-            "**① 予約する**\n" + self.site_lines() +
-            "　1. 「新規登録」でメールアドレスとパスワードを決める\n"
-            "　2. 「アカウント」で Meta ユーザー名を入れる（ここで書いたものと同じ）\n"
-            "　3. 「空き枠」から好きな時間を選んで「予約する」\n"
-            "　予約できたら「予約できた」を、迷ったら「予約で迷った」を押してください\n\n"
+            "**① 予約する**\n" + self.site_lines(tester) +
+            ("　1. リンクを開いて、メールアドレスとパスワードを決める（Meta ユーザー名は申し込みのものを使います）\n"
+             if self.invite_secret else
+             "　1. 「新規登録」でメールアドレスとパスワードを決める\n"
+             "　2. 「アカウント」で Meta ユーザー名を入れる（ここで書いたものと同じ）\n") +
+            "　・「空き枠」から好きな時間を選んで「予約する」\n"
+            "　予約できると、ここに日時のお知らせが届きます。迷ったら「予約で迷った」を押してください\n\n"
             "**② 当日**\n"
             "　**開始 5分前**になったら「テストを始める」を押して、Quest で Virtual Desktop を開いてください\n"
             f"テストができる時間: {self.hours()}\n"
             "家の Wi-Fi で参加してください（スマホのテザリングだとつながらないことがあります）。途中でやめても大丈夫です。",
-            view=make_view(button("✅ 予約できた", "gs:booked", discord.ButtonStyle.success),
+            view=make_view(button("🔗 サイトを開く", "gs:link"),
                            button("🆘 予約で迷った", "gs:bookhelp", discord.ButtonStyle.danger),
                            button("▶ テストを始める", "gs:start", discord.ButtonStyle.primary)))
 
@@ -655,6 +697,10 @@ class TesterBot(discord.Client):
             return
         if action == "noop":
             await interaction.response.defer()
+            return
+        if action == "link":
+            await self.reply(interaction, f"あなた専用のリンクです（{invite.LINK_DAYS}日有効・ほかの人には渡さないでください）\n"
+                                          f"{self.site_link(tester)}")
             return
         if action in ("booked", "bookhelp", "lenderapp"):
             await self.on_tester_step(interaction, tester, action)
@@ -746,11 +792,11 @@ class TesterBot(discord.Client):
             await self.reply(interaction, "このテストはもう終わっています。")
             return
         fps = {w: parse_int(item.value) for w, item in zip(modal.worlds, modal.fps_inputs)}
-        ping, latency = parse_int(modal.ping.value), parse_int(modal.latency.value)
-        self.store.set_performance(session["id"], fps_by_world=fps, ping_ms=ping, latency_ms=latency)
+        ping = parse_int(modal.ping.value)
+        self.store.set_performance(session["id"], fps_by_world=fps, ping_ms=ping)
         shown = lambda v, unit="": "—" if v is None else f"{v}{unit}"  # noqa: E731
         fps_text = "・".join(f"{w} {shown(v)}" for w, v in fps.items())
-        await self.reply(interaction, f"記録しました（FPS {fps_text} ／ Ping {shown(ping, 'ms')} ／ VD {shown(latency, 'ms')}）。"
+        await self.reply(interaction, f"記録しました（FPS {fps_text} ／ Ping {shown(ping, 'ms')}）。"
                                       "ありがとうございます！")
 
     async def on_help(self, interaction, tester, session, args) -> None:
@@ -810,7 +856,8 @@ class TesterBot(discord.Client):
             await self.reply(interaction, "このテストはもう終わっています。")
             return
         self.store.complete(session["id"], self.clock(), stuck=modal.stuck.value, comment=modal.comment.value)
-        await interaction.response.send_message(self.thanks_text(session["id"]), view=self.again_view())
+        tester = self.store.tester(session["user_id"])
+        await interaction.response.send_message(self.thanks_text(session["id"], tester), view=self.again_view())
         await self.report_done(session["id"])
 
     async def on_skip(self, interaction, tester, session, args) -> None:
@@ -818,16 +865,15 @@ class TesterBot(discord.Client):
             await self.reply(interaction, "アンケートのあとで押せます。")
             return
         self.store.complete(session["id"], self.clock())
-        await interaction.response.edit_message(content=self.thanks_text(session["id"]), view=self.again_view())
+        await interaction.response.edit_message(content=self.thanks_text(session["id"], tester), view=self.again_view())
         await self.report_done(session["id"])
 
-    def thanks_text(self, session_id: int) -> str:
+    def thanks_text(self, session_id: int, tester: dict | None = None) -> str:
         return ("**ありがとうございました！ 記録しました。**\n"
                 "時間になると自動で終わり、ログイン情報はパソコンから消えます。\n\n"
                 "**最後に、評価フォーム（5分）に答えてください**\n"
-                f"{self.site_url}/feedback?t={session_id}\n"
+                f"{self.site_link(tester, f'/feedback?t={session_id}')}\n"
                 "サイトの見た目・名前・使いやすさの 6段階評価と、回線の速さ・住んでいる場所・払ってもいい金額などを聞きます。\n\n"
-                "お礼に、正式オープンのときに使える「1時間無料券」をお渡しします。\n"
                 f"3日後にもう一度だけ、ここで3つ質問させてください。よければ 15分ほどお話も聞かせてください（運営から連絡します）。")
 
     @staticmethod
@@ -966,10 +1012,10 @@ class TesterBot(discord.Client):
 
 
 async def _run(token: str, store: TesterStore, shots_dir: Path, site_url: str, say: Callable[[str], None],
-               site_password: str = "") -> None:
+               site_password: str = "", invite_secret: str = "") -> None:
     message_content = True
     while True:
-        bot = TesterBot(store, shots_dir, site_url, site_password=site_password, site_db=shots_dir.parent / "geaspec.db",
+        bot = TesterBot(store, shots_dir, site_url, site_password=site_password, invite_secret=invite_secret, site_db=shots_dir.parent / "geaspec.db",
                         message_content=message_content, say=say)
         try:
             await bot.start(token)
@@ -991,7 +1037,7 @@ async def _run(token: str, store: TesterStore, shots_dir: Path, site_url: str, s
                 await bot.close()
 
 
-def start_tester_bot(token: str, data: Path, site_url: str, site_password: str = "",
+def start_tester_bot(token: str, data: Path, site_url: str, site_password: str = "", invite_secret: str = "",
                      say: Callable[[str], None] = print) -> threading.Thread:
     """予約サイトと同じ黒い画面の中で、別のスレッドとしてボットを動かす。"""
     data.mkdir(parents=True, exist_ok=True)
@@ -999,7 +1045,7 @@ def start_tester_bot(token: str, data: Path, site_url: str, site_password: str =
 
     def target() -> None:
         try:
-            asyncio.run(_run(token, store, data / "tester_screenshots", site_url, say, site_password))
+            asyncio.run(_run(token, store, data / "tester_screenshots", site_url, say, site_password, invite_secret))
         except Exception as exc:  # noqa: BLE001 - ボットが止まってもサイトは動かし続ける
             say(f"Discord ボットが止まりました: {exc}")
 

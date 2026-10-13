@@ -61,3 +61,23 @@ def test_discord_bot_starts_only_with_a_token(tmp_path, monkeypatch):
     monkeypatch.setattr(bot, "start_tester_bot", lambda *args: started.append(args))
     assert s.start_discord_bot({"discord_token": "t", "site_password": "himitsu"}, "", tmp_path) is True
     assert started == [("t", tmp_path, "http://localhost:8000", "himitsu")]
+
+
+def test_with_a_discord_bot_the_site_uses_personal_links_instead_of_a_password(tmp_path, monkeypatch):
+    import app.tester_bot as bot
+
+    config = {"discord_token": "t", "secret_key": "k", "admin_email": "a@example.com", "site_password": "himitsu"}
+    env = s.site_environment(config, "", tmp_path)
+    assert env["INVITE_ONLY"] == "1" and env["SITE_PASSWORD"] == ""
+    started = []
+    monkeypatch.setattr(bot, "start_tester_bot", lambda *args, **kw: started.append((args, kw)))
+    assert s.start_discord_bot(config, "", tmp_path) is True
+    assert started == [(("t", tmp_path, "http://localhost:8000"), {"invite_secret": "k"})]
+    # 合言葉に戻すこともできる
+    back = s.site_environment({**config, "invite_only": False}, "", tmp_path)
+    assert back["INVITE_ONLY"] == "0" and back["SITE_PASSWORD"] == "himitsu"
+    # ボットがないときは、合言葉を聞く
+    asked = s.ask_first_settings({"admin_email": "a@example.com", "mail_user": ""}, input_fn=lambda _: "pw")
+    assert asked["site_password"] == "pw"
+    assert "site_password" not in s.ask_first_settings(
+        {"admin_email": "a@example.com", "mail_user": "", "discord_token": "t"}, input_fn=lambda _: "")

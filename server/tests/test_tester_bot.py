@@ -306,7 +306,7 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         ready_text = thread.sent[-1][0]
         assert "https://lg.example.ts.net" in ready_text and "`aikotoba`" in ready_text
         assert "平日は19時以降、土日は終日" in ready_text
-        assert custom_ids(thread.sent[-1][1]["view"]) == ["gs:booked", "gs:bookhelp", "gs:start"]
+        assert custom_ids(thread.sent[-1][1]["view"]) == ["gs:link", "gs:bookhelp", "gs:start"]
 
         # 予約で迷った → 予約できた (準備から予約までの時間を記録)
         await press(tester, thread.id, "gs:bookhelp")
@@ -349,7 +349,7 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         perf = i.log[0][1]
         assert [f.label for f in perf.fps_inputs] == ["FPS: ひまり旅館", "FPS: 日本語話者向け集会場"]
         perf.fps_inputs = [Field("72 fps"), Field("")]
-        perf.ping, perf.latency = Field("約30"), Field("")
+        perf.ping = Field("約30")
         await bot.on_perf(FakeInteraction(tester, thread.id), perf)
 
         # 遊び終わった → アンケートを全部ボタンで答える
@@ -602,7 +602,7 @@ def test_group_c_gets_lender_guide(tmp_path, monkeypatch):
         await bot.on_interaction(i)
         text, kw = thread.sent[-1]
         assert "PC を貸す側" in text and tb.DEFAULT_AGENT_URL in text and "詳細情報" in text and "土日だけ" in text
-        assert custom_ids(kw["view"]) == ["gs:lenderapp", "gs:booked", "gs:start"]
+        assert custom_ids(kw["view"]) == ["gs:lenderapp", "gs:link", "gs:start"]
         i = FakeInteraction(FakeUser(3), 30, "gs:lenderapp")
         await bot.on_interaction(i)
         assert "承認" in ops_log[-1] and store.summary()["lender_app"] == 1
@@ -641,7 +641,7 @@ def test_default_worlds_and_fps_by_world(tmp_path, store):
     async def scenario():
         bot = tb.TesterBot(store, tmp_path, "https://x")
         assert bot.worlds() == ["日本語話者向け集会場", "Japan Shrine", "Nagisa"]
-        assert len(tb.PerfModal(bot, bot.worlds()).children) == 5  # Discord の入力欄は 5 つまで
+        assert len(tb.PerfModal(bot, bot.worlds()).children) == 4  # FPS × 3 ワールド + Ping (Discord の入力欄は 5 つまで)
         store.set_setting("worlds", "A, B, C, D")
         assert bot.worlds() == ["A", "B", "C"]
 
@@ -774,6 +774,65 @@ def test_no_agent_warning_when_pc_is_running(tmp_path, monkeypatch):
         # サイトのデータベースがまだない・読めないときは何もしない
         bot.site_db = tmp_path / "none.db"
         assert await bot.send_booking_notices() == 0
+        store.close()
+
+    asyncio.run(scenario())
+
+
+# ---- 本人専用リンク ----
+
+def test_invite_token_expires_and_rejects_tampering():
+    from app import invite
+
+    token = invite.make_token("s3cret", meta="hikari", discord_id=7, now=T0)
+    assert invite.read_token("s3cret", token, T0 + dt.timedelta(days=13)) == {"meta": "hikari", "discord_id": 7}
+    assert invite.read_token("s3cret", token, T0 + dt.timedelta(days=15)) is None
+    assert invite.read_token("other", token, T0) is None
+    body, sig = token.rsplit(".", 1)
+    assert invite.read_token("s3cret", body + "x." + sig, T0) is None
+    assert invite.read_token("s3cret", "", T0) is None
+
+
+def test_ready_message_gives_a_personal_link_instead_of_a_password(tmp_path, monkeypatch):
+    from app import invite
+
+    async def scenario():
+        now = [T0]
+        thread = FakeThread(10)
+        store, bot = make_bot(tmp_path, monkeypatch, now, {10: thread})
+        bot.invite_secret = "s3cret"
+        apply(store, 1, thread_id=10)
+        await bot.send_ready(thread, store.tester(1))
+        text, kw = thread.sent[-1]
+        assert "合言葉" not in text and "https://x/join?t=" in text
+        assert custom_ids(kw["view"]) == ["gs:link", "gs:bookhelp", "gs:start"]
+        token = text.split("/join?t=")[1].split()[0]
+        assert invite.read_token("s3cret", token, T0)["meta"] == "meta1"
+
+        i = FakeInteraction(FakeUser(1), 10, "gs:link")
+        await bot.on_interaction(i)
+        assert "/join?t=" in i.log[0][1] and i.log[0][2].get("ephemeral")
+
+        link = bot.thanks_text(5, store.tester(1))
+        assert "&next=%2Ffeedback%3Ft%3D5" in link
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_ops_can_send_a_link_to_a_tester_who_was_ready_before(tmp_path, monkeypatch):
+    async def scenario():
+        thread = FakeThread(10)
+        store, bot = make_bot(tmp_path, monkeypatch, [T0], {10: thread})
+        bot.invite_secret = "s3cret"
+        apply(store, 1, thread_id=10)
+        i = FakeInteraction(FakeUser(99), 500)
+        await bot.cmd_link(i, FakeUser(1))
+        assert "/join?t=" in thread.sent[-1][0] and custom_ids(thread.sent[-1][1]["view"]) == ["gs:link"]
+        assert "送りました" in i.log[0][1]
+        mine = FakeInteraction(FakeUser(99), 500)
+        await bot.cmd_link(mine, None)
+        assert "/join?t=" in mine.log[0][1] and mine.log[0][2].get("ephemeral")
         store.close()
 
     asyncio.run(scenario())
