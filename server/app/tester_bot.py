@@ -121,6 +121,16 @@ def prep_text(site_url: str = "") -> str:
     )
 
 
+def vd_install_text(tester: dict) -> str:
+    """Quest の Virtual Desktop を持っていない人への案内。持っている人には何も出さない。"""
+    if tester.get("has_vd") != 0:
+        return ""
+    return ("**⓪ Quest に Virtual Desktop を入れる**\n"
+            "　テストには Quest 用の **Virtual Desktop**（Meta のストアで買うアプリ）が必要です。"
+            "Quest のストアで「Virtual Desktop」を検索して入れてください\n"
+            "　入れたら一度開いて、Meta アカウントでそのまま使える状態にしておいてください（PC 用のソフトは入れなくて大丈夫です）\n\n")
+
+
 def survey_message(answers: dict) -> tuple[str, discord.ui.View]:
     """次の質問 (全部答えたら、ひとこと欄への案内) を作る。"""
     key = TesterStore.next_question(answers)
@@ -276,6 +286,11 @@ class TesterBot(discord.Client):
             await self.first_setup(self.guilds[0])
         if self.guilds:
             await self.announce_version(self.guilds[0])
+        for tester in self.store.waiting_testers():
+            try:
+                await self.send_ready_if_chosen(tester)
+            except discord.HTTPException as exc:
+                log.warning("準備の案内を送れませんでした (%s): %s", tester["user_id"], exc)
 
     def news_text(self, ver: str = "") -> str:
         ver = ver or version.VERSION
@@ -510,7 +525,8 @@ class TesterBot(discord.Client):
         await ops_channel.send(
             f"準備ができました。{panel.mention} に申し込みボタンを置きました。\n"
             "・申し込み・テスト開始・「困った」・テスト完了のお知らせは、このチャンネルに届きます\n"
-            "・申し込みが来たら、LG の Virtual Desktop Streamer に Meta ユーザー名を入れて「VD に登録した」を押してください\n"
+            "・申し込みが来ると、テスターのスレッドに予約の案内が自動で届きます。予約が入るまでに、LG の Virtual Desktop Streamer に"
+            "その人の Meta ユーザー名を入れておいてください\n"
             f"・テスターは家の外からつなぐので、LG の {REMOTE_SETTING}に必ずチェックを入れておいてください\n"
             "・予約が入ったときと、開始 15 分前にもここでお知らせします\n"
             "・集計と表は `/geaspec-results`、テストが終わったら `/geaspec-erase` で名前などを消せます\n"
@@ -622,7 +638,7 @@ class TesterBot(discord.Client):
             tester = self.store.tester(user.id)
             await thread.send(
                 f"{user.mention} さん、申し込みありがとうございます！ここがあなた専用のスレッドです（運営とあなただけが見られます）。\n"
-                "下の2つをえらんでください。運営が準備できたら、ここでお知らせします。",
+                "下の2つをえらんでください。えらぶと、すぐにここで次の案内（予約のしかた）が届きます。",
                 view=welcome_view(tester))
             await thread.send(prep_text(self.site_url))
         await interaction.followup.send(f"受け付けました。続きは {thread.mention} でどうぞ。", ephemeral=True)
@@ -635,13 +651,10 @@ class TesterBot(discord.Client):
             lines.append(f"【注意】Meta ユーザー名が変わりました: `{before['meta']}` → `{tester['meta']}`")
             if tester["status"] == "ready":
                 lines.append("→ LG の Virtual Desktop Streamer に入れたユーザー名も直してください（古いままだとつながりません）。")
-        if tester["status"] == "ready":
-            await self.notify_ops("\n".join(lines))
-        else:
-            lines.append("→ LG の Virtual Desktop Streamer にこのユーザー名を追加し、"
-                         "「Allow remote connections」にチェックが入っているのを確かめたら、下のボタンを押してください。")
-            await self.notify_ops("\n".join(lines), make_view(
-                button("✅ VD に登録した", f"gs:ready:{user.id}", discord.ButtonStyle.success)))
+        if tester["status"] != "ready":
+            lines.append("→ 案内はスレッドに自動で届きます。予約が入るまでに、LG の Virtual Desktop Streamer に"
+                         "このユーザー名を追加しておいてください。")
+        await self.notify_ops("\n".join(lines))
 
     async def _existing_thread(self, tester: dict) -> discord.Thread | None:
         if not tester.get("thread_id"):
@@ -667,6 +680,20 @@ class TesterBot(discord.Client):
         else:
             self.store.set_has_vd(tester["user_id"], value == "1")
         await interaction.response.edit_message(view=welcome_view(self.store.tester(tester["user_id"])))
+        await self.send_ready_if_chosen(self.store.tester(tester["user_id"]))
+
+    async def send_ready_if_chosen(self, tester: dict) -> bool:
+        """グループと VD の2つがえらばれたら、運営を待たずにスレッドへ準備の案内を送る (1 回だけ)。"""
+        if not tester.get("grp") or tester.get("has_vd") is None:
+            return False
+        if not self.store.mark_ready(tester["user_id"], self.clock()):
+            return False
+        thread = await self._existing_thread(tester)
+        if thread:
+            await self.send_ready(thread, self.store.tester(tester["user_id"]))
+        await self.notify_ops(f"<@{tester['user_id']}> さんに予約の案内を送りました{' ' + thread.mention if thread else ''}。"
+                              f"LG の Virtual Desktop Streamer に `{tester['meta']}` が入っているか確かめてください。")
+        return True
 
     async def on_ready_pressed(self, interaction: discord.Interaction, user_id: int) -> None:
         if not self.is_ops(interaction.user):
@@ -708,6 +735,7 @@ class TesterBot(discord.Client):
             agent_url = self.store.get_setting("agent_url", DEFAULT_AGENT_URL)
             await thread.send(
                 f"<@{user_id}> 準備ができました！ あなたには **PC を貸す側** の目線でもお話を聞かせてほしいです。\n\n"
+                + vd_install_text(tester) +
                 "**① 15分ほどのお話**: 「貸すならいくらほしいか」「何が心配か」などを聞かせてください（運営から日程の連絡をします）\n"
                 "**② 貸し手ベータ（希望する人だけ）**: 自分の PC に Geaspec アプリを入れて、貸し出しを試せます\n"
                 f"　1. Virtual Desktop Streamer（無料）を {STREAMER_URL} から入れて、「Allow remote connections」にチェック\n"
@@ -723,7 +751,7 @@ class TesterBot(discord.Client):
                                button("▶ テストを始める", "gs:start")))
             return
         await thread.send(
-            f"<@{user_id}> 準備ができました！\n\n"
+            f"<@{user_id}> 準備ができました！ ここから先は、このスレッドだけで進められます。\n\n" + vd_install_text(tester) +
             "**① 予約する**\n" + self.site_lines(tester) +
             ("　1. リンクを開いて、メールアドレスとパスワードを決める（Meta ユーザー名は申し込みのものを使います）\n"
              if self.invite_secret else
@@ -999,7 +1027,8 @@ class TesterBot(discord.Client):
             who = booking_notice.who(b) + (f" <@{tester['user_id']}>" if tester else "")
             where = f" {thread.mention}" if thread else ""
             if kind == "booked":
-                await self.notify_ops(f"予約が入りました: **{when}**（{b['host']}）{who}{where}")
+                await self.notify_ops(f"予約が入りました: **{when}**（{b['host']}）{who}{where}\n"
+                                      f"→ {b['host']} の Virtual Desktop Streamer に `{b['meta']}` が入っているか確かめてください")
                 if tester:
                     self.store.mark_booked(tester["user_id"], now)
                 if thread:
@@ -1007,7 +1036,8 @@ class TesterBot(discord.Client):
                                       f"開始 {booking_notice.SOON_MINUTES} 分前に、ここでお知らせします。")
             elif kind == "soon":
                 lines = [f"{booking_notice.SOON_MINUTES} 分後に予約があります: **{when}**（{b['host']}）{who}{where}",
-                         f"確認: {b['host']} の電源が入っている／Geaspec アプリが動いている／{REMOTE_SETTING}にチェック"]
+                         f"確認: {b['host']} の電源が入っている／Geaspec アプリが動いている／{REMOTE_SETTING}にチェック"
+                         f"／VD Streamer に `{b['meta']}` が入っている"]
                 # 前の人が使っている最中は、アプリがサイトに問い合わせないので「連絡なし」とは見なさない
                 in_use = any(o["host"] == b["host"] and o["status"] == "active" for o in bookings)
                 if not in_use and not booking_notice.agent_running(b, now):

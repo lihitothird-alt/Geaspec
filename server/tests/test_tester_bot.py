@@ -291,22 +291,27 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         prep = thread.sent[1][0]  # 申し込んだらやっておくこと
         assert "VPN を切る" in prep and "FPS と Ping の表示" in prep and "Allow remote connections" in prep
         assert "https://lg.example.ts.net/guide#fps" in prep
-        assert "hikari_meta" in ops_log[-1][0]
-        assert custom_ids(ops_log[-1][1]) == ["gs:ready:1"]
+        assert "hikari_meta" in ops_log[-1][0] and ops_log[-1][1] is None  # 運営のボタンを待たない
 
-        # 本人がグループと VD をえらぶ
+        # 本人がグループをえらぶ。1つだけでは、まだ始められない
         await press(tester, thread.id, "gs:group", ["A"])
-        await press(tester, thread.id, "gs:vd", ["1"])
-        assert store.tester(1)["grp"] == "A" and store.tester(1)["has_vd"] == 1
-
-        # 準備前は始められない。運営以外は「VD に登録した」を押せない
         i = await press(tester, thread.id, "gs:start")
         assert "準備" in i.log[0][1]
+        sent_before = len(thread.sent)
+        # 2つめをえらぶと、運営を待たずにスレッドへ案内が届く
+        await press(tester, thread.id, "gs:vd", ["1"])
+        assert store.tester(1)["grp"] == "A" and store.tester(1)["has_vd"] == 1
+        assert store.tester(1)["status"] == "ready" and len(thread.sent) == sent_before + 1
+        assert "hikari_meta" in ops_log[-1][0]
+        await press(tester, thread.id, "gs:vd", ["1"])  # えらび直しても 2 回は送らない
+        assert len(thread.sent) == sent_before + 1
+        # 前の版の「VD に登録した」ボタンは、運営以外は押せない (押しても 2 回は送らない)
         i = await press(tester, 5, "gs:ready:1")
         assert "運営だけ" in i.log[0][1]
         await press(ops, 5, "gs:ready:1")
-        assert store.tester(1)["status"] == "ready"
+        assert len(thread.sent) == sent_before + 1
         ready_text = thread.sent[-1][0]
+        assert "Virtual Desktop を入れる" not in ready_text  # VD を持っている人には出さない
         assert "https://lg.example.ts.net" in ready_text and "`aikotoba`" in ready_text
         assert "平日は19時以降、土日は終日" in ready_text
         assert custom_ids(thread.sent[-1][1]["view"]) == ["gs:link", "gs:bookhelp", "gs:start"]
@@ -870,5 +875,39 @@ def test_ops_can_send_a_link_to_a_tester_who_was_ready_before(tmp_path, monkeypa
         await bot.cmd_link(mine, None)
         assert "/join?t=" in mine.log[0][1] and mine.log[0][2].get("ephemeral")
         store.close()
+
+    asyncio.run(scenario())
+
+
+def test_testers_waiting_from_an_older_version_get_their_guide(tmp_path, store, monkeypatch):
+    async def scenario():
+        bot = tb.TesterBot(store, tmp_path, "https://x")
+        sent_ops = []
+
+        async def notify_ops(content, view=None):
+            sent_ops.append(content)
+
+        monkeypatch.setattr(bot, "notify_ops", notify_ops)
+        thread = FakeThread(500)
+
+        async def existing_thread(tester):
+            return thread if tester.get("thread_id") == 500 else None
+
+        monkeypatch.setattr(bot, "_existing_thread", existing_thread)
+        store.apply(1, "a", vrchat="", meta="no_vd_user", gear="Quest 3", region="関東", schedule="", now=at(0))
+        store.set_thread(1, 500)
+        store.set_group(1, "A")
+        store.set_has_vd(1, False)
+        store.apply(2, "b", vrchat="", meta="half", gear="Quest 3", region="関東", schedule="", now=at(0))
+        store.set_thread(2, 501)
+        store.set_group(2, "A")  # VD をまだえらんでいない人には送らない
+        assert [t["user_id"] for t in store.waiting_testers()] == [1]
+
+        for tester in store.waiting_testers():
+            assert await bot.send_ready_if_chosen(tester) is True
+        assert store.waiting_testers() == []
+        text = thread.sent[-1][0]
+        assert "Virtual Desktop を入れる" in text and "このスレッドだけ" in text
+        assert "no_vd_user" in sent_ops[-1]
 
     asyncio.run(scenario())
