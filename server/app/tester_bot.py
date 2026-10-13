@@ -102,6 +102,22 @@ def panel_text(hours: str, site_url: str = "") -> str:
 記録するのは、つながるまでの時間・「困った」の回数・FPS などの数字・アンケートの答えです。名前を出して公開することはありません。"""
 
 
+def prep_text(site_url: str = "") -> str:
+    """申し込んだ人に、当日までにやっておくことをまとめて伝える。"""
+    guide = f"（画像つきの説明: {site_url}/guide#fps）" if site_url else ""
+    return (
+        "**申し込んだら、やっておくこと**\n"
+        "1. **VPN を切る**: Quest・スマホ・パソコン・家のルーターで VPN を使っている人は、テストの間はオフにしてください。"
+        "つながらない原因になります\n"
+        "2. **VRChat のログイン情報を用意する**: メールアドレス（またはユーザー名）とパスワード。"
+        "2段階認証をしている人は、確認コードを受け取るスマホも手元に\n"
+        "3. **当日、VRChat に入ったら FPS と Ping の表示をオンにする**: Launch Pad の歯車（設定）→ いちばん下の"
+        f"「デバッグ」→「FPS と Ping の表示」{guide}。貸し出しの PC は毎回設定が消えるので、テストのたびにオンにしてください\n"
+        "4. **（自分の PC を貸す人だけ）** 自分の PC の Virtual Desktop Streamer で「Allow remote connections」"
+        "（外からの接続を許可）にチェックを入れる。借りるだけの人は何もしなくて大丈夫です"
+    )
+
+
 def survey_message(answers: dict) -> tuple[str, discord.ui.View]:
     """次の質問 (全部答えたら、ひとこと欄への案内) を作る。"""
     key = TesterStore.next_question(answers)
@@ -570,6 +586,7 @@ class TesterBot(discord.Client):
                 f"{user.mention} さん、申し込みありがとうございます！ここがあなた専用のスレッドです（運営とあなただけが見られます）。\n"
                 "下の2つをえらんでください。運営が準備できたら、ここでお知らせします。",
                 view=welcome_view(tester))
+            await thread.send(prep_text(self.site_url))
         await interaction.followup.send(f"受け付けました。続きは {thread.mention} でどうぞ。", ephemeral=True)
 
         updated = "（申し込み内容の更新）" if before else ""
