@@ -79,7 +79,7 @@ def button(label: str, custom_id: str, style=discord.ButtonStyle.secondary, *, r
     return discord.ui.Button(label=label, custom_id=custom_id, style=style, row=row, disabled=disabled)
 
 
-def panel_text(hours: str) -> str:
+def panel_text(hours: str, site_url: str = "") -> str:
     return f"""Quest から遠くのゲーミング PC を借りて、PC 版 VRChat を遊ぶテストです。
 お金もうけではない、このコミュニティ限定の実験です。参加は無料です。
 
@@ -93,7 +93,7 @@ def panel_text(hours: str) -> str:
 **申し込む前に**
 ・Meta ユーザー名: スマホの Meta Horizon アプリでプロフィールを開くと見られます（表示名ではなく、ユーザー名のほう）。Virtual Desktop を持っている人は、VD で使っているものと同じです
 ・当日は PC 版の VRChat に、自分のアカウントでログインします。VRChat のメールアドレス（またはユーザー名）とパスワードを用意してください。2段階認証をしている人は、確認コードを受け取るスマホも手元に
-
+{f"・画像つきの説明: {site_url}/guide" + chr(10) if site_url else ""}
 **テストができる時間: {hours}**
 貸し出す PC は運営がふだんも使っているので、それ以外の時間はテストできないことが多いです。
 この時間の外では、ボタンを押しても反応しないことがあります（そのときは時間内にもう一度押してください）。
@@ -449,7 +449,7 @@ class TesterBot(discord.Client):
         # 同じチャンネルに 2 つ目のボタンは置かない (PC の名前を変えるだけのとき など)
         if not force_panel and self.store.get_setting("panel_channel_id") == str(panel.id):
             return panel, ops_channel, ops_role
-        embed = discord.Embed(title="Geaspec テスト", description=panel_text(self.hours()), color=0x5B3CF0)
+        embed = discord.Embed(title="Geaspec テスト", description=panel_text(self.hours(), self.site_url), color=0x5B3CF0)
         await panel.send(embed=embed, view=make_view(
             button("🙋 テスターに申し込む", "gs:apply", discord.ButtonStyle.primary)))
         self.store.set_setting("panel_channel_id", str(panel.id))
@@ -770,7 +770,8 @@ class TesterBot(discord.Client):
         await interaction.followup.send(
             "楽しんでください！ 遊びながら、できたらお願いします。\n\n"
             "**数字の測り方**\n"
-            "1. VRChat のメニュー（Launchpad）→ 設定 → 一番下の項目で、FPS と Ping の表示をオンにする\n"
+            "1. VRChat のメニュー（Launch Pad）の歯車（設定）→ いちばん下の「デバッグ」→「FPS と Ping の表示」をオン"
+            f"（画像: {self.site_url}/guide#fps）\n"
             f"2. 「{worlds}」に行き、それぞれ**スポーン地点で 30秒立ったまま** FPS と Ping を見る\n"
             "3. 「数字を入れる」から入力する（画面のスクショを**このスレッドに貼る**だけでもOK）\n\n"
             "左手首に残り時間が出ます。遊び終わったら「遊び終わった」を押してください。",

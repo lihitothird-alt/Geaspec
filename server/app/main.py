@@ -43,7 +43,7 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 META_USERNAME_RE = re.compile(r"^[A-Za-z0-9._-]{2,64}$")
 # 合言葉なしで通すパス。Agent・決済サービスからの通知は機械が呼ぶので、それぞれ別の方法で認証している
 SITE_GATE_OPEN_PREFIXES = (
-    "/site-login", "/join", "/healthz", "/robots.txt", "/static/", "/api/agent/", "/stripe/webhook",
+    "/site-login", "/join", "/guide", "/legal/", "/healthz", "/robots.txt", "/static/", "/api/agent/", "/stripe/webhook",
     # ホーム画面アプリの設定と裏方のスクリプト。ブラウザは合言葉の Cookie を付けずに読みに来る
     "/manifest.webmanifest", "/sw.js",
 )
@@ -199,6 +199,11 @@ def create_app(
         slots = services.available_slots(db, clock.utcnow(), settings.hold_minutes)
         min_price = min((s.price_yen for s in slots), default=None)
         return render(request, db, "index.html", slot_count=len(slots), min_price=min_price)
+
+    @app.get("/guide", response_class=HTMLResponse)
+    def guide(request: Request, db: Session = Depends(get_db)):
+        """画像つきの「はじめての方へ」。申し込む前にも読めるよう、招待リンクなしで見られる。"""
+        return render(request, db, "guide.html")
 
     @app.get("/legal/{page}", response_class=HTMLResponse)
     def legal(page: str, request: Request, db: Session = Depends(get_db)):
