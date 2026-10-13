@@ -1115,3 +1115,14 @@ td a.badge:hover { text-decoration: underline; }
   text-align: center;
 }
 .experiment-bar a { color: inherit; font-weight: 700; margin-left: .5em; }
+
+/* ===== Guide (はじめての方へ) ===== */
+.guide h2 { margin-top: 40px; scroll-margin-top: 80px; }
+.guide-toc { display: flex; flex-direction: column; gap: 6px; margin: 16px 0 8px; }
+.guide-steps, .guide-list { padding-left: 1.4em; }
+.guide-steps li, .guide-list li { margin: 12px 0; }
+.guide-steps img {
+  display: block; width: 100%; height: auto; margin-top: 8px;
+  border: 2px solid var(--edge); border-radius: var(--radius); background: var(--surface-2);
+}
+.guide-steps img[src*="meta-2"], .guide-steps img[src*="meta-3"] { max-width: 320px; }

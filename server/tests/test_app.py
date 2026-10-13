@@ -582,7 +582,7 @@ def test_site_password_gates_every_page_but_machines(tmp_path, now, monkeypatch)
     monkeypatch.setattr("app.main.asyncio.sleep", lambda s, _orig=asyncio.sleep: _orig(0))
     app, _ = make_app(tmp_path, site_password="geaspec-secret")
     c = TestClient(app)
-    for path in ("/", "/slots", "/signup", "/legal/terms", "/bookings/1"):
+    for path in ("/", "/slots", "/signup", "/bookings/1"):
         r = c.get(path, follow_redirects=False)
         assert r.status_code == 303 and r.headers["location"].startswith("/site-login"), path
     # 機械が呼ぶところは合言葉なしで届く (それぞれ別の認証がある)
@@ -965,3 +965,15 @@ def test_invite_link_lets_testers_in_and_carries_the_meta_username(tmp_path, now
 
 def clock_now(now):
     return now["t"].replace(tzinfo=dt.timezone.utc)
+
+
+def test_guide_and_terms_are_readable_before_joining(tmp_path):
+    app, _ = make_app(tmp_path, invite_only=True)
+    client = TestClient(app)
+    page = client.get("/guide", follow_redirects=False)
+    assert page.status_code == 200 and "Meta ユーザー名の見つけ方" in page.text
+    for img in ("meta-1-app", "meta-2-home", "meta-3-profile", "fps-1-setting", "fps-2-shown"):
+        assert f"/static/guide/{img}.webp" in page.text
+        assert client.get(f"/static/guide/{img}.webp").status_code == 200
+    assert client.get("/legal/terms", follow_redirects=False).status_code == 200
+    assert client.get("/slots", follow_redirects=False).status_code == 303

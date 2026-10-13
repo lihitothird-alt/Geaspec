@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}はじめての方へ | {{ settings.service_name }}{% endblock %}
+{% block content %}
+<section class="wrap narrow section tight guide">
+  <h1>はじめての方へ</h1>
+  <p class="intro">テストに参加するときに使う画面を、画像で説明します。</p>
+  <nav class="guide-toc" aria-label="もくじ">
+    <a href="#meta">1. Meta ユーザー名の見つけ方</a>
+    <a href="#login">2. 当日までの準備</a>
+    <a href="#connect">3. 当日のつなぎ方</a>
+    <a href="#fps">4. FPS と Ping の見方</a>
+  </nav>
+
+  <h2 id="meta">1. Meta ユーザー名の見つけ方</h2>
+  <p>Discord で申し込むときに使います。<strong>表示名ではなく、ユーザー名</strong>のほうです。Virtual Desktop を持っている人は、VD で使っているものと同じです。</p>
+  <ol class="guide-steps">
+    <li>
+      <p>スマホで <strong>Meta Horizon</strong> アプリを開きます。</p>
+      <img src="/static/guide/meta-1-app.webp" alt="スマホのアプリ一覧にある Meta Horizon アプリ" width="600" height="267" loading="lazy">
+    </li>
+    <li>
+      <p>下に並んでいるボタンの、まん中の<strong>人の形のボタン（プロフィール）</strong>を押します。</p>
+      <img src="/static/guide/meta-2-home.webp" alt="Meta Horizon アプリのホーム画面。下のプロフィールボタンに印" width="600" height="1304" loading="lazy">
+    </li>
+    <li>
+      <p>名前の下にある、<strong>@ で始まる文字</strong>がユーザー名です。申し込みには @ のあとの部分を入れてください。</p>
+      <img src="/static/guide/meta-3-profile.webp" alt="プロフィール画面。名前の下の @ で始まるユーザー名に印（画像ではぼかしています）" width="600" height="900" loading="lazy">
+    </li>
+  </ol>
+
+  <h2 id="login">2. 当日までの準備</h2>
+  <ul class="guide-list">
+    <li>当日は PC 版の VRChat に、<strong>自分のアカウントでログイン</strong>します。VRChat のメールアドレス（またはユーザー名）とパスワードを用意してください。</li>
+    <li>2段階認証をしている人は、確認コードを受け取るスマホも手元に置いてください。</li>
+    <li>家の Wi-Fi で参加してください（スマホのテザリングだとつながらないことがあります）。</li>
+  </ul>
+
+  <h2 id="connect">3. 当日のつなぎ方</h2>
+  <ol class="guide-list">
+    <li>開始 5分前に、Discord のスレッドで「テストを始める」を押します。</li>
+    <li>Quest で <strong>Virtual Desktop</strong> を開き、パソコンの一覧から貸し出しの PC を選びます。</li>
+    <li>VRChat が自動で立ち上がったら、自分のアカウントでログインします。</li>
+    <li>終わりの時間になると自動で終わり、ログイン情報はパソコンから消えます。</li>
+  </ol>
+
+  <h2 id="fps">4. FPS と Ping の見方</h2>
+  <ol class="guide-steps">
+    <li>
+      <p>VRChat のメニュー（Launch Pad）の下にある<strong>歯車のボタン（設定）</strong>を押します。</p>
+    </li>
+    <li>
+      <p>設定をいちばん下までスクロールし、<strong>「デバッグ」</strong>の中の<strong>「FPS と Ping の表示」</strong>をオンにします。</p>
+      <img src="/static/guide/fps-1-setting.webp" alt="VRChat の設定画面。デバッグの中の FPS と Ping の表示のスイッチに印" width="900" height="730" loading="lazy">
+    </li>
+    <li>
+      <p>画面に <strong>FPS と PING</strong> の数字が出ます。決められたワールドのスポーン地点で 30秒立ったまま、この数字を見てください。</p>
+      <img src="/static/guide/fps-2-shown.webp" alt="VRChat の画面に出た FPS: 74 PING: 52 の表示に印" width="900" height="470" loading="lazy">
+    </li>
+  </ol>
+  <p class="muted">数字は Discord の「数字を入れる」から入れるか、スクショをスレッドに貼ってください。</p>
+</section>
+{% endblock %}

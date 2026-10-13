@@ -613,6 +613,7 @@ def test_group_c_gets_lender_guide(tmp_path, monkeypatch):
 
 def test_panel_shows_hours():
     assert "平日は19時以降、土日は終日" in tb.panel_text(tb.DEFAULT_HOURS)
+    assert "https://x/guide" in tb.panel_text("土日", "https://x") and "/guide" not in tb.panel_text("土日")
     assert "反応しない" in tb.panel_text("土日")
 
 
