@@ -44,6 +44,8 @@ DEFAULT_HOURS = "平日は19時以降、土日は終日"
 DEFAULT_WORLDS = "日本語話者向け集会場, Japan Shrine, Nagisa"
 MAX_WORLDS = 3
 DEFAULT_AGENT_URL = "https://github.com/lihitothird-alt/Geaspec/releases/latest"
+# 貸す人の PC に入れる Virtual Desktop Streamer (無料)。借りる人は Quest の VD アプリだけでよい
+STREAMER_URL = "https://www.vrdesktop.net/"
 FOLLOWUP_CHECK_SECONDS = 30 * 60
 BOOKING_CHECK_SECONDS = 60
 # テスターは LG の家の外からつなぐので、VD Streamer でこれがオンになっていないとつながらない
@@ -113,8 +115,9 @@ def prep_text(site_url: str = "") -> str:
         "2段階認証をしている人は、確認コードを受け取るスマホも手元に\n"
         "3. **当日、VRChat に入ったら FPS と Ping の表示をオンにする**: Launch Pad の歯車（設定）→ いちばん下の"
         f"「デバッグ」→「FPS と Ping の表示」{guide}。貸し出しの PC は毎回設定が消えるので、テストのたびにオンにしてください\n"
-        "4. **（自分の PC を貸す人だけ）** 自分の PC の Virtual Desktop Streamer で「Allow remote connections」"
-        "（外からの接続を許可）にチェックを入れる。借りるだけの人は何もしなくて大丈夫です"
+        "4. **（自分の PC を貸す人だけ）** 自分の PC に Virtual Desktop Streamer（無料）を入れて、"
+        "「Allow remote connections」（外からの接続を許可）にチェックを入れる。"
+        f"Streamer のダウンロード: {STREAMER_URL}（「Download Streamer」ボタン）。借りるだけの人は何もしなくて大丈夫です"
     )
 
 
@@ -221,6 +224,20 @@ class CommentModal(discord.ui.Modal):
         await self.bot.on_comment(interaction, self)
 
 
+def _version_key(ver: str) -> tuple[int, ...]:
+    return tuple(int(n) for n in re.findall(r"\d+", ver))
+
+
+def unannounced_versions(last: str) -> list[str]:
+    """前に「更新情報」に書いた版 last より新しく、今の版までの版を古い順に。はじめてなら今の版だけ。"""
+    now = _version_key(version.VERSION)
+    if last:
+        newer = sorted((v for v in version.CHANGES if _version_key(last) < _version_key(v) <= now), key=_version_key)
+        if newer:
+            return newer
+    return [version.VERSION]
+
+
 class TesterBot(discord.Client):
     def __init__(self, store: TesterStore, shots_dir: Path, site_url: str, *, site_password: str = "", invite_secret: str = "",
                  site_db: Path | None = None, message_content: bool = True,
@@ -260,23 +277,34 @@ class TesterBot(discord.Client):
         if self.guilds:
             await self.announce_version(self.guilds[0])
 
-    def news_text(self) -> str:
-        lines = [f"🆕 **Geaspec {version.VERSION}** になりました", ""]
-        lines += [f"・{c}" for c in version.CHANGES.get(version.VERSION, [])]
-        lines += ["", f"ダウンロード（運営・貸し手ベータ向け）: {version.RELEASE_URL}"]
+    def news_text(self, ver: str = "") -> str:
+        ver = ver or version.VERSION
+        lines = [f"🆕 **Geaspec {ver}** になりました", ""]
+        lines += [f"・{c}" for c in version.CHANGES.get(ver, [])]
+        if ver == version.VERSION:
+            lines += ["", f"ダウンロード（運営・貸し手ベータ向け）: {version.RELEASE_URL}"]
         return "\n".join(lines)[:1990]
 
     async def announce_version(self, guild: discord.Guild) -> bool:
-        """新しい版ではじめて動いたときに、名前に「更新情報」を含む場所へ 1 回だけ書く。"""
-        if self.store.get_setting("announced_version") == version.VERSION:
+        """新しい版ではじめて動いたときに、名前に「更新情報」を含む場所へ 1 回だけ書く。
+
+        前に書いた版から間が空いていたら (途中の版を飛ばして入れ替えたとき)、その間の版の分も古い順に書く。
+        """
+        last = self.store.get_setting("announced_version")
+        if last == version.VERSION:
             return False
+        ok, message = await self.post_news(guild, unannounced_versions(last))
+        self.say(f"Discord ボット: {message}")
+        return ok
+
+    async def post_news(self, guild: discord.Guild, versions: list[str]) -> tuple[bool, str]:
+        """versions のお知らせを書く。(書けたか, 運営向けの説明) を返す。"""
         targets = [c for c in [*guild.text_channels, *getattr(guild, "forums", []), *guild.threads]
                    if NEWS_NAME in c.name]
         if not targets:
             if not guild.me.guild_permissions.manage_channels:
-                self.say(f"Discord ボット: 名前に「{NEWS_NAME}」を含むチャンネルがなく、作る権限もないので、"
-                         "新しい版のお知らせは書きませんでした。")
-                return False
+                return False, (f"名前に「{NEWS_NAME}」を含むチャンネルがなく、作る権限もないので、"
+                               "新しい版のお知らせは書きませんでした。")
             try:
                 # 誰でも読めて、書けるのは運営 (サーバーの管理者) とボットだけ
                 targets = [await guild.create_text_channel(NEWS_CHANNEL_NAME, reason="Geaspec の更新情報", overwrites={
@@ -284,22 +312,26 @@ class TesterBot(discord.Client):
                     guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, embed_links=True),
                 })]
             except discord.HTTPException as exc:
-                self.say(f"Discord ボット: 「{NEWS_CHANNEL_NAME}」チャンネルを作れませんでした（{exc}）")
-                return False
+                return False, f"「{NEWS_CHANNEL_NAME}」チャンネルを作れませんでした（{exc}）"
         target = targets[0]
         try:
-            if isinstance(target, discord.ForumChannel):
-                await target.create_thread(name=f"Geaspec {version.VERSION}", content=self.news_text())
-            else:
-                if isinstance(target, discord.Thread) and target.archived:
-                    await target.edit(archived=False)
-                await target.send(self.news_text())
+            for ver in versions:
+                if isinstance(target, discord.ForumChannel):
+                    await target.create_thread(name=f"Geaspec {ver}", content=self.news_text(ver))
+                else:
+                    if isinstance(target, discord.Thread) and target.archived:
+                        await target.edit(archived=False)
+                    await target.send(self.news_text(ver))
         except discord.HTTPException as exc:
-            self.say(f"Discord ボット: 「{target.name}」に新しい版のお知らせを書けませんでした（{exc}）")
-            return False
+            return False, f"「{target.name}」に新しい版のお知らせを書けませんでした（{exc}）"
         self.store.set_setting("announced_version", version.VERSION)
-        self.say(f"Discord ボット: 「{target.name}」に {version.VERSION} のお知らせを書きました")
-        return True
+        return True, f"「{target.name}」に {', '.join(versions)} のお知らせを書きました"
+
+    async def cmd_news(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        ok, message = await self.post_news(interaction.guild, [version.VERSION])
+        head = f"いま動いているのは Geaspec {version.VERSION} です。"
+        await interaction.followup.send(head + message, ephemeral=True)
 
     async def first_setup(self, guild: discord.Guild) -> None:
         """はじめて動いたときに、ロールとチャンネルを作って申し込みボタンを置く。"""
@@ -356,6 +388,12 @@ class TesterBot(discord.Client):
         @manage
         async def results(interaction: discord.Interaction) -> None:
             await self.cmd_results(interaction)
+
+        @self.tree.command(name="geaspec-news", description="いまの版の更新情報を「更新情報」チャンネルに書き直す（運営用）")
+        @app_commands.guild_only()
+        @manage
+        async def news(interaction: discord.Interaction) -> None:
+            await self.cmd_news(interaction)
 
         @self.tree.command(name="geaspec-erase", description="テスターの名前・Meta ユーザー名などを消す（運営用・テストが終わったら）")
         @app_commands.guild_only()
@@ -672,10 +710,11 @@ class TesterBot(discord.Client):
                 f"<@{user_id}> 準備ができました！ あなたには **PC を貸す側** の目線でもお話を聞かせてほしいです。\n\n"
                 "**① 15分ほどのお話**: 「貸すならいくらほしいか」「何が心配か」などを聞かせてください（運営から日程の連絡をします）\n"
                 "**② 貸し手ベータ（希望する人だけ）**: 自分の PC に Geaspec アプリを入れて、貸し出しを試せます\n"
-                f"　1. {agent_url} から `GeaspecAgent-…-setup.exe` をダウンロード\n"
-                "　2. 「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」（まだ署名をしていないためです）\n"
-                "　3. 予約サイトでアカウントを作り、アプリにそのメールアドレスとパスワードでログイン\n"
-                "　4. 運営が確認して承認すると、貸し出せるようになります\n"
+                f"　1. Virtual Desktop Streamer（無料）を {STREAMER_URL} から入れて、「Allow remote connections」にチェック\n"
+                f"　2. {agent_url} から `GeaspecAgent-Setup-….exe` をダウンロード\n"
+                "　3. 「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」（まだ署名をしていないためです）\n"
+                "　4. 予約サイトでアカウントを作り、アプリにそのメールアドレスとパスワードでログイン\n"
+                "　5. 運営が確認して承認すると、貸し出せるようになります\n"
                 "　※ 貸し出し中は PC の画面が幕で覆われ、終わると借りた人のデータが自動で消えます\n"
                 "**③ 借りる側も試せます**: " + self.site_lines(tester) +
                 f"テストができる時間: {self.hours()}",

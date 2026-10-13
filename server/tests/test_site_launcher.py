@@ -81,3 +81,14 @@ def test_with_a_discord_bot_the_site_uses_personal_links_instead_of_a_password(t
     assert asked["site_password"] == "pw"
     assert "site_password" not in s.ask_first_settings(
         {"admin_email": "a@example.com", "mail_user": "", "discord_token": "t"}, input_fn=lambda _: "")
+
+
+def test_port_in_use_detects_an_old_window():
+    import socket
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        sock.listen()
+        port = sock.getsockname()[1]
+        assert s.port_in_use(port) is True
+    assert s.port_in_use(port) is False
