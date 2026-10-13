@@ -117,7 +117,9 @@ def prep_text(site_url: str = "") -> str:
         f"「デバッグ」→「FPS と Ping の表示」{guide}。貸し出しの PC は毎回設定が消えるので、テストのたびにオンにしてください\n"
         "4. **（自分の PC を貸す人だけ）** 自分の PC に Virtual Desktop Streamer（無料）を入れて、"
         "「Allow remote connections」（外からの接続を許可）にチェックを入れる。"
-        f"Streamer のダウンロード: {STREAMER_URL}（「Download Streamer」ボタン）。借りるだけの人は何もしなくて大丈夫です"
+        f"Streamer のダウンロード: {STREAMER_URL}（「Download Streamer」ボタン）。"
+        "Geaspec アプリを入れるときに青い画面「Windows によって PC が保護されました」が出たら、"
+        "「詳細情報」→「実行」で進めます。借りるだけの人は何もしなくて大丈夫です"
     )
 
 
@@ -740,7 +742,8 @@ class TesterBot(discord.Client):
                 "**② 貸し手ベータ（希望する人だけ）**: 自分の PC に Geaspec アプリを入れて、貸し出しを試せます\n"
                 f"　1. Virtual Desktop Streamer（無料）を {STREAMER_URL} から入れて、「Allow remote connections」にチェック\n"
                 f"　2. {agent_url} から `GeaspecAgent-Setup-….exe` をダウンロード\n"
-                "　3. 「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」（まだ署名をしていないためです）\n"
+                "　3. 青い画面「Windows によって PC が保護されました」が出たら、左の「詳細情報」を押し、"
+                "出てきた「実行」を押す（まだ署名をしていないために出ます。中身は公開しているプログラムです）\n"
                 "　4. 予約サイトでアカウントを作り、アプリにそのメールアドレスとパスワードでログイン\n"
                 "　5. 運営が確認して承認すると、貸し出せるようになります\n"
                 "　※ 貸し出し中は PC の画面が幕で覆われ、終わると借りた人のデータが自動で消えます\n"
