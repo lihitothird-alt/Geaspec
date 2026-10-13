@@ -860,7 +860,7 @@ class TesterBot(discord.Client):
             "**数字の測り方**\n"
             "1. VRChat のメニュー（Launch Pad）の歯車（設定）→ いちばん下の「デバッグ」→「FPS と Ping の表示」をオン"
             f"（画像: {self.site_url}/guide#fps）\n"
-            f"2. 「{worlds}」に行き、それぞれ**スポーン地点で 30秒立ったまま** FPS と Ping を見る\n"
+            f"2. 「{worlds}」に行き、それぞれ**30秒ほど歩き回りながら** FPS と Ping を見る（だいたいの数字でOK）\n"
             "3. 「数字を入れる」から入力する（画面のスクショを**このスレッドに貼る**だけでもOK）\n\n"
             "左手首に残り時間が出ます。遊び終わったら「遊び終わった」を押してください。",
             view=play_view(json.loads(session["missions"])))
