@@ -1,10 +1,14 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.12"
+VERSION = "0.7.13"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.13": [
+        "申し込んで2つをえらぶと、運営を待たずに、すぐ自分のスレッドに予約の案内が届くようになりました。テストは自分のスレッドだけで最後まで進められます",
+        "Quest の Virtual Desktop を持っていない人には、入れ方の案内が出るようになりました",
+    ],
     "0.7.12": [
         "「更新情報」に新しい版のお知らせが届かないことがあったのを直しました。間の版を飛ばして入れ替えても、その間の変更をまとめて書きます",
         "PC を貸す人向けに、Virtual Desktop Streamer のダウンロードリンクを申し込み後の「やっておくこと」と案内に入れました",

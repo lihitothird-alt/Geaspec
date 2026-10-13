@@ -216,10 +216,15 @@ class TesterStore:
         self._run("UPDATE testers SET thread_id = ? WHERE user_id = ?", (thread_id, user_id))
 
     def mark_ready(self, user_id: int, now: dt.datetime) -> bool:
-        """運営が VD に登録した。はじめて準備できたときだけ True。"""
+        """準備の案内を送る状態にする。はじめてのときだけ True。"""
         cur = self._run("UPDATE testers SET status = 'ready', ready_at = ? WHERE user_id = ? AND status = 'applied'",
                         (_iso(now), user_id))
         return cur.rowcount == 1
+
+    def waiting_testers(self) -> list[dict]:
+        """2つをえらび終えたのに、まだ準備の案内を受け取っていない人 (前の版で運営のボタンを待っていた人)。"""
+        return self._all("SELECT * FROM testers WHERE status = 'applied' AND grp IS NOT NULL AND has_vd IS NOT NULL "
+                         "AND thread_id IS NOT NULL")
 
     def mark_booked(self, user_id: int, now: dt.datetime) -> bool:
         """予約できた。はじめてのときだけ True。"""
