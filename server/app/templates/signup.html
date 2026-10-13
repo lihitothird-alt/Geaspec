@@ -4,7 +4,12 @@
 <section class="wrap auth">
   <div class="auth-card">
     <h1>新規登録</h1>
+    {% set invite_meta = request.session.get("invite_meta") %}
+    {% if invite_meta %}
+    <p class="intro">Meta ユーザー名は、Discord で申し込んだときの <strong>{{ invite_meta }}</strong> を使います。メールアドレスとパスワードを決めれば、すぐに予約できます。</p>
+    {% else %}
     <p class="intro">登録後に Meta (Quest) のユーザー名を設定すると、空き枠を予約できるようになります。</p>
+    {% endif %}
     {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
     <form method="post" class="form">
       <label>メールアドレス<input type="email" name="email" value="{{ email or '' }}" required autocomplete="email" inputmode="email"></label>

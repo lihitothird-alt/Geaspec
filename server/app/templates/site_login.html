@@ -3,6 +3,12 @@
 {% block content %}
 <section class="wrap auth">
   <div class="auth-card">
+    {% if expired or not settings.site_password %}
+    <h1>招待制です</h1>
+    {% if expired %}<div class="flash error" role="alert">このリンクは使えません（期限切れか、途中で切れています）。</div>{% endif %}
+    <p class="intro">{{ settings.service_name }} は、Discord のコミュニティ限定で試しているところです。</p>
+    <p class="intro">Discord のあなた専用のスレッドで「サイトを開く」ボタンを押すと、入るためのリンクが届きます。</p>
+    {% else %}
     <h1>合言葉を入力</h1>
     <p class="intro">{{ settings.service_name }} は招待制のテスト期間中です。招待された方は、受け取った合言葉を入力してください。</p>
     {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
@@ -11,6 +17,7 @@
       <label>合言葉<input type="password" name="password" required autocomplete="current-password" autofocus></label>
       <button class="btn lg block">入る</button>
     </form>
+    {% endif %}
   </div>
 </section>
 {% endblock %}

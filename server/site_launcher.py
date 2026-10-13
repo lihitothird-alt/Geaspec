@@ -39,6 +39,12 @@ def load_config(path: Path) -> dict:
         return {}
 
 
+def invite_mode(config: dict) -> bool:
+    """Discord ボットがあれば、合言葉の代わりにボットが渡す本人専用リンクで入ってもらう ("invite_only": false で合言葉に戻す)。"""
+    return (bool(str(config.get("discord_token") or "").strip()) and bool(config.get("secret_key"))
+            and config.get("invite_only", True) is not False)
+
+
 def ask_first_settings(config: dict, input_fn=input) -> dict:
     """はじめてのときだけ聞く。決まっているものは聞かない。"""
     config = dict(config)
@@ -48,7 +54,7 @@ def ask_first_settings(config: dict, input_fn=input) -> dict:
         print("管理者（運営）のメールアドレスを入れてください。")
         print("このメールアドレスでサイトに登録すると「管理」画面が使えます。")
         config["admin_email"] = input_fn("メールアドレス: ").strip()
-    if "site_password" not in config:
+    if "site_password" not in config and not invite_mode(config):
         print()
         print("サイトの合言葉を決めてください。知っている人だけがサイトを見られるようになります。")
         print("（合言葉なしで公開する場合は、何も入れずに Enter）")
@@ -119,7 +125,8 @@ def site_environment(config: dict, address: str, data: Path) -> dict[str, str]:
     env = {
         "SECRET_KEY": config["secret_key"],
         "ADMIN_EMAILS": config["admin_email"],
-        "SITE_PASSWORD": config.get("site_password", ""),
+        "SITE_PASSWORD": "" if invite_mode(config) else config.get("site_password", ""),
+        "INVITE_ONLY": "1" if invite_mode(config) else "0",
         "PAYMENT_PROVIDERS": config.get("payment_providers", "fake"),
         "DATABASE_URL": f"sqlite:///{(data / 'geaspec.db').as_posix()}",
         "MEDIA_DIR": str(data / "media"),
@@ -184,8 +191,11 @@ def start_discord_bot(config: dict, address: str, data: Path) -> bool:
     except ImportError as exc:
         print(f"Discord ボットを読み込めませんでした: {exc}")
         return False
-    # 合言葉は、準備ができたテスターの専用スレッド (本人と運営だけが見られる) で伝える
-    start_tester_bot(token, data, address or f"http://localhost:{PORT}", str(config.get("site_password") or ""))
+    # サイトに入るためのリンク (または合言葉) は、準備ができたテスターの専用スレッド (本人と運営だけが見られる) で伝える
+    if invite_mode(config):
+        start_tester_bot(token, data, address or f"http://localhost:{PORT}", invite_secret=config["secret_key"])
+    else:
+        start_tester_bot(token, data, address or f"http://localhost:{PORT}", str(config.get("site_password") or ""))
     return True
 
 

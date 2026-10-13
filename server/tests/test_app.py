@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app import clock  # noqa: E402
 from app.config import Settings  # noqa: E402
 from app.main import create_app  # noqa: E402
-from app.models import Booking, BookingStatus, Host, Slot  # noqa: E402
+from app.models import Booking, BookingStatus, Host, Slot, User  # noqa: E402
 from app.payments import CaptureResult, FakePayments, PayPalPayments, WebhookResult  # noqa: E402
 from app.vpn import TailscaleVpn, VpnGrant  # noqa: E402
 
@@ -73,7 +73,7 @@ class StubPayPal:
         return self.result
 
 
-def make_app(tmp_path, payments=None, vpn=None, trial_minutes=0, screenshot_max_mb=250, site_password="", free_mode=False):
+def make_app(tmp_path, payments=None, vpn=None, trial_minutes=0, screenshot_max_mb=250, site_password="", free_mode=False, invite_only=False):
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'test.db'}",
         secret_key="test",
@@ -84,6 +84,7 @@ def make_app(tmp_path, payments=None, vpn=None, trial_minutes=0, screenshot_max_
         screenshot_max_mb=screenshot_max_mb,
         site_password=site_password,
         free_mode=free_mode,
+        invite_only=invite_only,
     )
     vpn = vpn or FakeVpn()
     if payments is None:
@@ -926,3 +927,41 @@ def test_free_mode_is_on_unless_turned_off(monkeypatch):
     assert Settings.from_env().free_mode is True
     monkeypatch.setenv("FREE_MODE", "0")
     assert Settings.from_env().free_mode is False
+
+
+def test_invite_link_lets_testers_in_and_carries_the_meta_username(tmp_path, now):
+    """合言葉の代わりに、Discord のボットが渡す本人専用リンクで入る。Meta ユーザー名は入れ直さなくてよい。"""
+    from app import invite
+
+    app, _ = make_app(tmp_path, invite_only=True, free_mode=True)
+    admin = TestClient(app)
+    admin.get(f"/join?t={invite.make_token('test', meta='', discord_id=9, now=clock_now(now))}")
+    admin_setup(admin)
+
+    stranger = TestClient(app)
+    r = stranger.get("/slots", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/site-login")
+    page = stranger.get("/site-login").text
+    assert "招待制" in page and "合言葉" not in page
+    assert "使えません" in stranger.get("/join?t=broken.token").text
+
+    tester = TestClient(app)
+    token = invite.make_token("test", meta="hikari_quest", discord_id=1, now=clock_now(now))
+    r = tester.get(f"/join?t={token}", follow_redirects=False)
+    assert r.headers["location"] == "/signup"
+    assert "hikari_quest" in tester.get("/signup").text
+    r = tester.post("/signup", data={"email": "hikari@example.com", "password": "password123", "agree": "1"},
+                    follow_redirects=False)
+    assert r.headers["location"] == "/slots"
+    user = next(u for u in db(app).query(User).all() if u.email == "hikari@example.com")
+    assert user.meta_username == "hikari_quest"
+    assert tester.post("/slots/1/book", follow_redirects=False).headers["location"] == "/bookings/1"
+
+    # 評価フォームへのリンクも、同じしくみで直接開ける
+    other = TestClient(app)
+    r = other.get(f"/join?t={token}&next=%2Ffeedback%3Ft%3D3", follow_redirects=False)
+    assert r.headers["location"] == "/feedback?t=3"
+
+
+def clock_now(now):
+    return now["t"].replace(tzinfo=dt.timezone.utc)
