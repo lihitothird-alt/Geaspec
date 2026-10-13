@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ settings.service_name }}{% endblock %}
+{% block content %}
+<section class="wrap auth">
+  <div class="auth-card">
+    <h1>合言葉を入力</h1>
+    <p class="intro">{{ settings.service_name }} は招待制のテスト期間中です。招待された方は、受け取った合言葉を入力してください。</p>
+    {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/site-login" class="form">
+      <input type="hidden" name="next" value="{{ next }}">
+      <label>合言葉<input type="password" name="password" required autocomplete="current-password" autofocus></label>
+      <button class="btn lg block">入る</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

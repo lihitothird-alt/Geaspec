@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}テストの評価 | {{ settings.service_name }}{% endblock %}
+{% macro picked(key, value) -%}{% if value|string in values.get(key, []) %} checked{% endif %}{%- endmacro %}
+{% macro choice(q) -%}
+  <fieldset class="fb-q">
+    <legend>{{ q.label }}</legend>
+    {% if q.select %}
+      <select name="{{ q.key }}" required aria-label="{{ q.label }}">
+        <option value="">えらんでください</option>
+        {% for v, label in q.options %}<option value="{{ v }}"{% if v in values.get(q.key, []) %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    {% else %}
+      <div class="fb-chips">
+        {% for v, label in q.options %}
+        <label class="fb-pick"><input type="{{ 'checkbox' if q.multi else 'radio' }}" name="{{ q.key }}" value="{{ v }}"{% if not q.multi %} required{% endif %}{{ picked(q.key, v) }}><span>{{ label }}</span></label>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </fieldset>
+{%- endmacro %}
+{% block content %}
+<section class="wrap section tight fb">
+  {% if done %}
+  <div class="auth-card">
+    <h1>ありがとうございました！</h1>
+    <p class="intro">答えを受け取りました。いただいた声は、料金やデザイン、貸し出しの条件を決めるのに使わせていただきます。このページは閉じて大丈夫です。</p>
+  </div>
+  {% else %}
+  <div class="page-head">
+    <h1>テストの評価フォーム</h1>
+    <p class="muted">5分ほどで終わります。正解はないので、思ったままに答えてください。名前を出して公開することはありません。</p>
+  </div>
+  {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/feedback" class="fb-form">
+    <input type="hidden" name="t" value="{{ t }}">
+
+    <h2>サイトとアプリの印象</h2>
+    <p class="hint">1 がとても悪い、6 がとても良い です。使っていないものは「わからない」をえらんでください。</p>
+    {% for key, label in fb.RATINGS %}
+    <fieldset class="fb-q">
+      <legend>{{ label }}</legend>
+      <div class="fb-scale">
+        {% for n, word in fb.SCALE %}
+        <label class="fb-pick"><input type="radio" name="{{ key }}" value="{{ n }}" required{{ picked(key, n) }}><span>{{ n }}<small class="visually-hidden">（{{ word }}）</small></span></label>
+        {% endfor %}
+        <label class="fb-pick fb-none"><input type="radio" name="{{ key }}" value="0"{{ picked(key, 0) }}><span>わからない・使っていない</span></label>
+      </div>
+      <p class="fb-ends" aria-hidden="true"><span>とても悪い</span><span>とても良い</span></p>
+    </fieldset>
+    {% endfor %}
+
+    {% for section, title in sections.items() %}
+    <h2>{{ title }}</h2>
+    {% for q in fb.CHOICES if q.section == section %}{{ choice(q) }}{% endfor %}
+    {% if section == "env" %}
+    <fieldset class="fb-q">
+      <legend>家の回線の速さ <span class="opt">（わかる範囲で）</span></legend>
+      <p class="hint">Quest のブラウザで <strong>fast.com</strong> を開き、「詳細を表示」を押すと3つとも出ます。スマホを同じ Wi-Fi につないで、Google で「スピードテスト」と検索して測ってもかまいません。</p>
+      <div class="fb-numbers">
+        {% for q in fb.NUMBERS %}
+        <label>{{ q.label }}
+          <span class="fb-unit"><input type="text" inputmode="decimal" name="{{ q.key }}" value="{{ (values.get(q.key) or [''])[0] }}" placeholder="例: 300" autocomplete="off"><span>{{ q.unit }}</span></span>
+        </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    {% endif %}
+    {% endfor %}
+
+    <h2>ひとこと <span class="opt">（なくても大丈夫です）</span></h2>
+    {% for key, label in fb.TEXTS %}
+    <label class="fb-text">{{ label }}
+      <textarea name="{{ key }}" rows="3" maxlength="1000">{{ (values.get(key) or [''])[0] }}</textarea>
+    </label>
+    {% endfor %}
+
+    <button class="btn lg block">送る</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

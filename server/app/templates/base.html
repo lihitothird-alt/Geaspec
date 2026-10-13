@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}{{ settings.service_name }} | Quest ひとつで PC版VRChat を時間単位で{% endblock %}</title>
+  <meta name="description" content="ゲーミングPCがなくても、Quest ひとつで PC 版 VRChat を。ご自身のアカウントで、予約した時間だけ。終了時にログイン情報やキャッシュは自動で削除されます。">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f7f5ff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#110e21" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Ccircle cx='22' cy='22' r='18' fill='none' stroke='%231c1733' stroke-width='7' stroke-dasharray='7.07 7.07'/%3E%3Ccircle cx='22' cy='22' r='15.5' fill='%235b3cf0' stroke='%231c1733' stroke-width='2.5'/%3E%3Cpath d='M12 19.6c0-1.7 1.3-3 3-3h14c1.7 0 3 1.3 3 3v4.6c0 2.1-1.7 3.8-3.8 3.8h-2.1c-1.1 0-2.1-.6-2.6-1.6l-.5-.9a1.2 1.2 0 0 0-2 0l-.5.9c-.5 1-1.5 1.6-2.6 1.6h-2.1c-2.1 0-3.8-1.7-3.8-3.8z' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&family=Unbounded:wght@600;800&display=swap">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="{{ settings.service_name }}">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+</head>
+{% set path = request.url.path %}
+<body class="{% block body_class %}{% endblock %}">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 19.5c1-3.5 3.5-5.5 6.5-5.5s5.5 2 6.5 5.5"/><path d="M15.5 5.2a3.5 3.5 0 0 1 0 6.6M17.5 14.3c2 .8 3.3 2.6 4 5.2"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4.5"/><path d="M11.2 11.8L20 3M16 7l3 3M13.5 9.5l2 2"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-quest" viewBox="0 0 24 24"><path d="M2.5 10.5A3.5 3.5 0 0 1 6 7h12a3.5 3.5 0 0 1 3.5 3.5v3A3.5 3.5 0 0 1 18 17h-2.4a2 2 0 0 1-1.7-1l-.8-1.3a1.3 1.3 0 0 0-2.2 0l-.8 1.3a2 2 0 0 1-1.7 1H6a3.5 3.5 0 0 1-3.5-3.5z"/><path d="M6.5 7V5.5M17.5 7V5.5"/></symbol>
+    <symbol id="i-pc" viewBox="0 0 24 24"><rect x="2" y="4.5" width="12.5" height="9" rx="1.5"/><path d="M5.5 18h5.5M8.2 13.5V18"/><rect x="16.5" y="3" width="5.5" height="18" rx="1.5"/><path d="M19.25 7h0M19.25 10h0"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M7 15h4"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l5.5-3.5z"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v8M7 6.3a7 7 0 1 0 10 0"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.8 15.8a5 5 0 0 1 6.4 0"/><path d="M12 19.2h0"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.8 5.5 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.5-3.8-9S9.5 5.5 12 3z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 7l8.5 6 8.5-6"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.1A4.4 4.4 0 0 1 12 7.3a4.4 4.4 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h0"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.2h0"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h0M4.5 12h0M4.5 18h0"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 1.5l2.6 7.9 7.9 2.6-7.9 2.6L12 22.5l-2.6-7.9L1.5 12l7.9-2.6z"/></symbol>
+  </svg>
+
+  {%- macro logo_mark() -%}
+  <svg class="logo-mark" viewBox="0 0 44 44" aria-hidden="true" focusable="false">
+    <circle class="lm-teeth" cx="22" cy="22" r="18" stroke-dasharray="7.07 7.07"/>
+    <circle class="lm-bg" cx="22" cy="22" r="15.5"/>
+    <path class="lm-visor" d="M12 19.6c0-1.7 1.3-3 3-3h14c1.7 0 3 1.3 3 3v4.6c0 2.1-1.7 3.8-3.8 3.8h-2.1c-1.1 0-2.1-.6-2.6-1.6l-.5-.9a1.2 1.2 0 0 0-2 0l-.5.9c-.5 1-1.5 1.6-2.6 1.6h-2.1c-2.1 0-3.8-1.7-3.8-3.8z"/>
+    <circle class="lm-lens" cx="17" cy="22" r="2"/><circle class="lm-lens" cx="27" cy="22" r="2"/>
+    <path class="lm-spark" d="M36 2.5l1.5 4.5 4.5 1.5-4.5 1.5L36 14.5 34.5 10 30 8.5 34.5 7z"/>
+  </svg>
+  {%- endmacro -%}
+
+  <a class="skip" href="#main">本文へスキップ</a>
+  {% if free_mode %}
+  <p class="experiment-bar">{{ settings.service_name }} は、お金もうけではない<strong>コミュニティ限定の実験</strong>です。利用はすべて無料です。<a href="/legal/terms">くわしく</a></p>
+  {% endif %}
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="logo" href="/">{{ logo_mark() }}<span class="logo-text">{{ settings.service_name }}</span></a>
+
+      <nav class="nav-desktop" aria-label="メインメニュー">
+        <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}>空き枠</a>
+        {% if user %}
+          <a class="nav-link" href="/bookings"{% if path.startswith("/bookings") %} aria-current="page"{% endif %}>予約一覧</a>
+          <a class="nav-link" href="/following"{% if path == "/following" %} aria-current="page"{% endif %}>フォロー中</a>
+          {% if is_lender %}<a class="nav-link" href="/lend"{% if path == "/lend" %} aria-current="page"{% endif %}>貸し出し</a>{% endif %}
+          <a class="nav-link" href="/account"{% if path == "/account" %} aria-current="page"{% endif %}>アカウント</a>
+          {% if is_admin %}<a class="nav-link" href="/admin"{% if path.startswith("/admin") %} aria-current="page"{% endif %}>管理</a>{% endif %}
+          <form method="post" action="/logout" class="inline"><button class="nav-link subtle">ログアウト</button></form>
+        {% else %}
+          <a class="nav-link" href="/login"{% if path == "/login" %} aria-current="page"{% endif %}>ログイン</a>
+          <a class="btn small" href="/signup">新規登録</a>
+        {% endif %}
+      </nav>
+
+      <div class="nav-mobile">
+        {% if path != "/slots" %}<a class="btn small" href="/slots">空き枠</a>{% endif %}
+        <details class="menu">
+          <summary><svg class="i ic-open"><use href="#i-menu"/></svg><svg class="i ic-close"><use href="#i-close"/></svg><span class="visually-hidden">メニュー</span></summary>
+          <nav class="menu-panel" aria-label="メニュー">
+            <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-calendar"/></svg>空き枠</a>
+            {% if user %}
+              <a class="nav-link" href="/bookings"{% if path.startswith("/bookings") %} aria-current="page"{% endif %}><svg class="i"><use href="#i-list"/></svg>予約一覧</a>
+              <a class="nav-link" href="/following"{% if path == "/following" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-heart"/></svg>フォロー中</a>
+              {% if is_lender %}<a class="nav-link" href="/lend"{% if path == "/lend" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-pc"/></svg>貸し出し</a>{% endif %}
+              <a class="nav-link" href="/account"{% if path == "/account" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-user"/></svg>アカウント</a>
+              {% if is_admin %}<a class="nav-link" href="/admin"{% if path.startswith("/admin") %} aria-current="page"{% endif %}><svg class="i"><use href="#i-gear"/></svg>管理</a>{% endif %}
+              <a class="nav-link" href="/app"{% if path == "/app" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-phone"/></svg>アプリとして使う</a>
+              <hr>
+              <form method="post" action="/logout" class="inline"><button class="nav-link subtle"><svg class="i"><use href="#i-logout"/></svg>ログアウト</button></form>
+            {% else %}
+              <a class="nav-link" href="/login"{% if path == "/login" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-user"/></svg>ログイン</a>
+              <a class="btn" href="/signup">新規登録</a>
+            {% endif %}
+          </nav>
+        </details>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    {% if messages %}
+    <div class="wrap flash-stack" role="status">
+      {% for m in messages %}<div class="flash {{ m.kind }}">{{ m.message }}</div>{% endfor %}
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <span class="footer-brand">{{ logo_mark() }}{{ settings.service_name }}</span>
+      <nav class="footer-links" aria-label="規約・表記">
+        <a href="/app">スマホのアプリとして使う</a>
+        <a href="/legal/terms">利用規約</a>
+        <a href="/legal/privacy">プライバシーポリシー</a>
+        {% if not free_mode %}<a href="/legal/tokushoho">特定商取引法に基づく表記</a>{% endif %}
+      </nav>
+      <p class="muted">VRChat は VRChat Inc. の商標です。本サービスは VRChat Inc. および Meta とは関係ありません。</p>
+    </div>
+  </footer>
+
+  <div id="live" class="visually-hidden" aria-live="polite"></div>
+  <script>
+  (function () {
+    // コピー用ボタン（JS が無い環境では非表示のまま。テキストはタップで全選択できる）
+    var live = document.getElementById("live");
+    document.querySelectorAll("[data-copy]").forEach(function (b) {
+      b.hidden = false;
+      var label = b.querySelector(".copy-label");
+      b.addEventListener("click", function () {
+        var el = document.getElementById(b.getAttribute("data-copy"));
+        if (!el) return;
+        var text = el.textContent.trim();
+        function selectText() {
+          var r = document.createRange(); r.selectNodeContents(el);
+          var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+        }
+        function done(ok) {
+          label.textContent = ok ? "コピーしました" : "選択しました";
+          live.textContent = ok ? "コピーしました" : "テキストを選択しました。長押しでコピーしてください";
+          b.classList.add("is-done");
+          setTimeout(function () { label.textContent = "コピー"; b.classList.remove("is-done"); }, 2200);
+        }
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(function () { done(true); }, function () { selectText(); done(false); });
+        } else { selectText(); done(false); }
+      });
+    });
+    // ホーム画面アプリ: 電波がないときに案内を出すための裏方を登録
+    if ("serviceWorker" in navigator && window.isSecureContext) {
+      navigator.serviceWorker.register("/sw.js").catch(function () {});
+    }
+    // スマホメニュー: 外側タップ / Esc で閉じる
+    var menu = document.querySelector(".menu");
+    if (menu) {
+      document.addEventListener("click", function (e) { if (menu.open && !menu.contains(e.target)) menu.open = false; });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && menu.open) { menu.open = false; menu.querySelector("summary").focus(); }
+      });
+    }
+  })();
+  </script>
+</body>
+</html>

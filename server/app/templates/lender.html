@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "_social.html" import stars, follow_button %}
+{% block title %}{{ lender.display_name }} さん | {{ settings.service_name }}{% endblock %}
+{% block content %}
+<section class="wrap narrow section tight">
+  <div class="profile-head">
+    <div class="avatar" aria-hidden="true">{{ lender.display_name[:1] }}</div>
+    <div class="profile-main">
+      <h1>{{ lender.display_name }} さん</h1>
+      <p class="profile-meta">{{ stars(rating) }}<span class="muted">フォロワー {{ follower_count }} 人</span></p>
+    </div>
+    {% if user and user.id != lender.id %}
+      {{ follow_button(lender, following) }}
+    {% elif not user %}
+      <a class="btn small ghost" href="/login?next=/lenders/{{ lender.id }}">ログインしてフォロー</a>
+    {% endif %}
+  </div>
+
+  <h2 class="sub-head">貸し出している PC</h2>
+  <ul class="pc-list">
+    {% for h in hosts %}
+    <li class="pc-card">
+      <svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>
+      <span class="td-strong">{{ h.name }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <h2 class="sub-head">予約できる時間</h2>
+  {% if slots %}
+  <ul class="slot-list">
+    {% for s in slots %}
+    <li class="slot">
+      <div>
+        <div class="slot-time"><span class="num">{{ s.start_at|jst("%m/%d") }}（{{ s.start_at|wday }}） {{ s.start_at|jst("%H:%M") }}〜{{ s.play_end_at|jst("%H:%M") }}</span></div>
+        <div class="slot-meta"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>{{ s.host.name }}</div>
+      </div>
+      <div class="slot-buy">
+        <span class="price">{% if free_mode %}無料{% else %}{{ s.price_yen|yen }}{% endif %}</span>
+        {% if user %}<a class="btn small" href="/slots/{{ s.id }}/confirm">予約する</a>{% else %}<a class="btn small ghost" href="/login?next=/lenders/{{ lender.id }}">ログインして予約</a>{% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">いま予約できる時間はありません。{% if user and not following and user.id != lender.id %}フォローしておくと、新しい時間を公開したときにメールでお知らせします。{% endif %}</p>
+  {% endif %}
+
+  <h2 class="sub-head">借りた人の声</h2>
+  {% if reviews %}
+  <ul class="review-list">
+    {% for r in reviews %}
+    <li class="review">
+      <div class="review-head">
+        <span class="review-stars" aria-label="星 {{ r.stars }}">{% for n in range(5) %}<svg class="i{% if n >= r.stars %} off{% endif %}" aria-hidden="true"><use href="#i-star"/></svg>{% endfor %}</span>
+        <span class="muted">{{ r.author.display_name }} さん · {{ r.created_at|jst("%Y/%m/%d") }}</span>
+      </div>
+      {% if r.comment %}<p>{{ r.comment }}</p>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">まだ評価はありません。</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}管理 | {{ settings.service_name }}{% endblock %}
+{% block body_class %}admin-page{% endblock %}
+{% block content %}
+{% set ns = namespace(online=0, active_hosts=0, open=0, live=0, attention=0) %}
+{% for h in hosts %}
+  {% if h.active %}{% set ns.active_hosts = ns.active_hosts + 1 %}{% endif %}
+  {% if h.active and h.last_seen_at and (now - h.last_seen_at).total_seconds() < 120 %}{% set ns.online = ns.online + 1 %}{% endif %}
+{% endfor %}
+{% for s in slots %}
+  {% if not (s.bookings|rejectattr("status", "in", ["cancelled", "expired"])|list) %}{% set ns.open = ns.open + 1 %}{% endif %}
+{% endfor %}
+{% for b in bookings %}
+  {% if b.status == "active" %}{% set ns.live = ns.live + 1 %}{% endif %}
+  {% if b.clean is sameas false %}{% set ns.attention = ns.attention + 1 %}{% endif %}
+{% endfor %}
+<section class="wrap section">
+  <div class="admin-head">
+    <h1>管理</h1>
+    <nav class="admin-tabs" aria-label="管理メニュー">
+      <a href="#hosts">PC</a><a href="#slots">予約枠</a><a href="#bookings">最近の予約</a><a href="/admin/feedback">評価フォーム</a>
+    </nav>
+  </div>
+
+  <dl class="kpis">
+    <div class="kpi"><dt>オンラインの PC</dt><dd>{{ ns.online }}<small>/ {{ ns.active_hosts }} 台</small></dd></div>
+    <div class="kpi"><dt>利用中</dt><dd>{{ ns.live }}<small>件</small></dd></div>
+    <div class="kpi"><dt>今後の枠</dt><dd>{{ slots|length }}<small>件（空き {{ ns.open }}）</small></dd></div>
+    <div class="kpi{% if ns.attention %} alert{% endif %}"><dt>クリーン要確認</dt><dd>{{ ns.attention }}<small>件</small></dd></div>
+  </dl>
+
+  <div class="notice mail-status">
+    <svg class="i" aria-hidden="true"><use href="#i-info"/></svg>
+    {% if mail_enabled %}
+      <p>お知らせメールは <strong>{{ settings.smtp_user }}</strong> から送ります（予約の確定・新しい予約・PC の確認待ちと承認・利用の終了）。</p>
+      <form method="post" action="/admin/test-mail"><button class="btn small ghost">テストメールを送る</button></form>
+    {% else %}
+      <p>お知らせメールはまだ送っていません。サイトを起動する黒い画面で、送り元の Gmail を設定すると送れるようになります。</p>
+    {% endif %}
+  </div>
+
+  <div class="panel" id="hosts">
+    <div class="panel-head">
+      <h2>PC <span class="count">{{ hosts|length }}</span></h2>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>名前</th><th>状態</th><th>最終応答</th><th>接続先</th><th>借り手タグ</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+      <tbody>
+      {% for h in hosts %}
+      <tr>
+        <td class="td-strong">{{ h.name }}{% if h.owner %}<br><span class="muted">貸し手: {{ h.owner.email }}</span>{% endif %}</td>
+        <td>
+          {% if h.pending %}<span class="badge pending_payment">承認待ち</span>
+          {% elif not h.active %}<span class="badge cancelled">停止中</span>
+          {% elif h.last_seen_at and (now - h.last_seen_at).total_seconds() < 120 %}<span class="badge confirmed">オンライン</span>
+          {% else %}<span class="badge expired">オフライン</span>{% endif %}
+        </td>
+        <td class="nowrap">{{ h.last_seen_at|jst }}</td>
+        <td><code>{{ h.vpn_address or "-" }}</code></td>
+        <td><code>{{ h.vpn_borrower_tag or "-" }}</code></td>
+        <td>
+          {% if h.pending %}
+          <form method="post" action="/admin/hosts/{{ h.id }}/approve" class="approve-form">
+            <input name="vpn_address" placeholder="接続先 100.x.y.z" aria-label="接続先 (Tailscale の IP)">
+            <input name="vpn_borrower_tag" placeholder="tag:borrower-pc1" aria-label="借り手タグ">
+            <button class="btn small">承認する</button>
+          </form>
+          {% endif %}
+          <div class="actions">
+            <a class="btn small" href="/admin/hosts/{{ h.id }}/schedule">貸し出す時間</a>
+            {% if not h.pending %}<form method="post" action="/admin/hosts/{{ h.id }}/toggle"><button class="btn small quiet">{{ "停止" if h.active else "再開" }}</button></form>{% endif %}
+            <form method="post" action="/admin/hosts/{{ h.id }}/token" onsubmit="return confirm('接続コードを再発行すると、古いコードは使えなくなります')"><button class="btn small quiet">接続コード再発行</button></form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-row">まだ PC がありません</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+
+  <details class="disclosure"><summary><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>PC を追加</summary>
+    <form method="post" action="/admin/hosts" class="form grid-form">
+      <label>名前<input name="name" required placeholder="例: 大阪PC-1"></label>
+      <label>接続先 (Tailscale の IP か MagicDNS 名)<input name="vpn_address" placeholder="100.x.y.z"></label>
+      <label>借り手タグ<input name="vpn_borrower_tag" placeholder="tag:borrower-pc1"></label>
+      <button class="btn">追加して接続コードを発行</button>
+    </form>
+  </details>
+
+  <div class="panel" id="slots">
+    <div class="panel-head">
+      <h2>予約枠 <span class="count">{{ slots|length }}</span></h2>
+    </div>
+    <details class="disclosure"><summary><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>日時を指定して枠を追加（カレンダーで選ぶ場合は PC の「貸し出す時間」から）</summary>
+      <form method="post" action="/admin/slots" class="form grid-form">
+        <label>PC<select name="host_id">{% for h in hosts %}<option value="{{ h.id }}">{{ h.name }}</option>{% endfor %}</select></label>
+        <label>日付<input type="date" name="date" required></label>
+        <label>開始時刻 (JST)<input type="time" name="start_time" required></label>
+        <label>長さ (分)<input type="number" name="minutes" value="60" min="15" step="15" required></label>
+        <label>料金 (円)<input type="number" name="price_yen" value="500" min="50" required></label>
+        <label>何日分くり返す<input type="number" name="repeat_days" value="1" min="1" max="31"></label>
+        <button class="btn">作成</button>
+      </form>
+    </details>
+    <div class="table-wrap"><table>
+      <thead><tr><th>日時</th><th>PC</th><th>料金</th><th>予約</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+      <tbody>
+      {% for s in slots %}
+      {% set live = s.bookings|rejectattr("status", "in", ["cancelled", "expired"])|list %}
+      <tr>
+        <td class="td-strong">{{ s.start_at|jst("%m/%d") }}（{{ s.start_at|wday }}）{{ s.start_at|jst("%H:%M") }}〜{{ s.end_at|jst("%H:%M") }}</td>
+        <td>{{ s.host.name }}</td>
+        <td class="nowrap">{{ s.price_yen|yen }}</td>
+        <td>{% for b in live %}<a class="badge {{ b.status }}" href="/admin/bookings/{{ b.id }}">#{{ b.id }} {{ b.status_label }}</a>{% else %}<span class="muted">空き</span>{% endfor %}</td>
+        <td><div class="actions">{% if not s.bookings %}<form method="post" action="/admin/slots/{{ s.id }}/delete"><button class="btn small quiet">削除</button></form>{% endif %}</div></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-row">今後の枠はありません</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="panel" id="bookings">
+    <div class="panel-head">
+      <h2>最近の予約 <span class="count">{{ bookings|length }}</span></h2>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>日時</th><th>借り手</th><th>状態</th><th>クリーン</th><th>メモ</th></tr></thead>
+      <tbody>
+      {% for b in bookings %}
+      <tr>
+        <td class="td-strong"><a href="/admin/bookings/{{ b.id }}">#{{ b.id }}</a></td>
+        <td class="nowrap">{{ b.slot.start_at|jst("%m/%d %H:%M") }}</td>
+        <td>{{ b.user.email }}</td>
+        <td><span class="badge {{ b.status }}">{{ b.status_label }}</span></td>
+        <td>{% if b.clean is none %}<span class="muted">-</span>{% elif b.clean %}<span class="ok" aria-label="問題なし">✓</span>{% else %}<strong class="danger">要確認</strong>{% endif %}</td>
+        <td class="note">{{ b.note }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-row">まだ予約はありません</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+</section>
+{% endblock %}

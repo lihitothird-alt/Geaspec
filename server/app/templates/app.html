@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}アプリとして使う | {{ settings.service_name }}{% endblock %}
+{% block content %}
+<section class="wrap auth">
+  <div class="auth-card app-install">
+    <img class="app-icon" src="/static/icons/icon-192.png" alt="" width="72" height="72">
+    <h1>スマホのアプリとして使う</h1>
+    <p class="intro">ホーム画面に {{ settings.service_name }} のアイコンを置くと、アプリと同じように開けます。ダウンロードやお金はいりません。</p>
+
+    <p class="flash info" data-app-installed hidden>いまアプリとして開いています。準備はできています。</p>
+
+    <div data-app-steps>
+      <button class="btn block lg" type="button" data-app-install hidden>ホーム画面に追加する</button>
+
+      <h2 class="app-os">iPhone の場合</h2>
+      <ol class="app-steps">
+        <li><strong>Safari</strong> でこのページを開きます</li>
+        <li>画面の下にある <strong>共有ボタン</strong>（四角から矢印が出ているマーク）を押します</li>
+        <li>「<strong>ホーム画面に追加</strong>」を選び、右上の「追加」を押します</li>
+      </ol>
+
+      <h2 class="app-os">Android の場合</h2>
+      <ol class="app-steps">
+        <li><strong>Chrome</strong> でこのページを開きます</li>
+        <li>上の「ホーム画面に追加する」ボタンを押します。<br>ボタンが出ないときは、右上の <strong>︙</strong> から「<strong>ホーム画面に追加</strong>」（または「アプリをインストール」）を選びます</li>
+      </ol>
+    </div>
+
+    <div class="notice">
+      <svg class="i" aria-hidden="true"><use href="#i-info"/></svg>
+      <p class="hint">はじめてアプリで開いたときは、合言葉とログインをもう一度入れてください（ブラウザとアプリは別あつかいのため）。</p>
+    </div>
+  </div>
+</section>
+<script>
+(function () {
+  var standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  if (standalone) {
+    document.querySelector("[data-app-installed]").hidden = false;
+    document.querySelector("[data-app-steps]").hidden = true;
+    return;
+  }
+  var button = document.querySelector("[data-app-install]");
+  var prompt = null;
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    prompt = e;
+    button.hidden = false;
+  });
+  button.addEventListener("click", function () {
+    if (!prompt) return;
+    prompt.prompt();
+    prompt.userChoice.finally(function () { prompt = null; button.hidden = true; });
+  });
+  window.addEventListener("appinstalled", function () { button.hidden = true; });
+})();
+</script>
+{% endblock %}

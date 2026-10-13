@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}貸し出す時間: {{ host.name }}（管理） | {{ settings.service_name }}{% endblock %}
+{% block body_class %}admin-page{% endblock %}
+{% block content %}
+{% set wdays = "月火水木金土日" %}
+<section class="wrap section">
+  <a class="back" href="/admin"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg>管理に戻る</a>
+  <h1>貸し出す時間: {{ host.name }}</h1>
+  <p class="muted">受け付ける時間のマスをクリックしてください（ドラッグでまとめて選べます）。1 マス = 1 時間の枠です。最後に「保存」を押すと予約サイトに並びます。</p>
+
+  <form method="post" action="/admin/hosts/{{ host.id }}/schedule" class="schedule-form">
+    <input type="hidden" name="week" value="{{ week.isoformat() }}">
+    <div class="schedule-bar">
+      <nav class="schedule-nav" aria-label="週の切り替え">
+        <a class="btn small quiet" href="?week={{ prev_week.isoformat() }}">◀ 前の週</a>
+        <a class="btn small quiet" href="?week={{ today.isoformat() }}">今日から</a>
+        <a class="btn small quiet" href="?week={{ next_week.isoformat() }}">次の週 ▶</a>
+      </nav>
+      <label class="schedule-price">1 時間の料金
+        <input type="number" name="price_yen" value="{{ price_yen }}" min="50" step="10" required> 円</label>
+      <button class="btn">保存</button>
+    </div>
+    <ul class="schedule-legend">
+      <li><span class="cell-sample open"></span>受付中</li>
+      <li><span class="cell-sample booked"></span>予約あり</li>
+      <li><span class="cell-sample holding"></span>支払い待ち</li>
+      <li><span class="cell-sample past"></span>過ぎた時間</li>
+    </ul>
+    <div class="table-wrap">
+    <table class="schedule-grid">
+      <thead><tr><th scope="col"><span class="visually-hidden">時刻</span></th>
+        {% for d in days %}{% set wd = wdays[d.weekday()] %}
+        <th scope="col" class="{% if wd == '土' %}wd-sat{% elif wd == '日' %}wd-sun{% endif %}">{{ d.strftime("%m/%d") }}<small>（{{ wd }}）</small></th>
+        {% endfor %}
+      </tr></thead>
+      <tbody>
+      {% for hour in range(24) %}
+      <tr>
+        <th scope="row">{{ hour }}:00</th>
+        {% for d in days %}
+          {% set t = d + timedelta(hours=hour) %}
+          {% set item = cells.get(t) %}
+          {% if item and not item.editable %}
+            {% set st = item.state if item.state in ("booked", "holding", "past") else "fixed" %}
+            <td class="cell {{ st }}" title="{{ {'booked': '予約あり', 'holding': '支払い待ち', 'past': '過ぎた時間', 'fixed': '別に作った枠'}[st] }}"></td>
+          {% elif t < now_jst %}
+            <td class="cell past"></td>
+          {% else %}
+            <td class="cell"><label><input type="checkbox" name="starts" value="{{ t.strftime('%Y-%m-%dT%H:%M') }}"{% if item and item.state == "open" %} checked{% endif %}><span class="visually-hidden">{{ t.strftime("%m/%d %H:%M") }}</span></label></td>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </form>
+</section>
+<script>
+  (function () {
+    var grid = document.querySelector(".schedule-grid");
+    if (!grid) return;
+    var painting = null;
+    grid.addEventListener("pointerdown", function (e) {
+      var box = e.target.closest("td.cell") && e.target.closest("td.cell").querySelector("input");
+      if (!box) return;
+      e.preventDefault();
+      painting = !box.checked;
+      box.checked = painting;
+    });
+    grid.addEventListener("pointerover", function (e) {
+      if (painting === null) return;
+      var cell = e.target.closest("td.cell");
+      var box = cell && cell.querySelector("input");
+      if (box) box.checked = painting;
+    });
+        // マウスのクリックは pointerdown で切り替え済み (キーボードのスペースキーはそのまま使える)
+    grid.addEventListener("click", function (e) { if (e.detail > 0 && e.target.closest("td.cell")) e.preventDefault(); });
+    document.addEventListener("pointerup", function () { painting = null; });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,183 @@
+# 貸し手 PC 用 Agent と、自分の PC で動かす予約サイト一式を Windows でテスト・ビルドする。
+# - ブランチへの push / PR: テストとビルドを行い、成果物を Actions の Artifacts に置く
+# - main への push (PR のマージ): AGENT_VERSION のリリースがまだなければ、
+#   タグ agent-vX.Y.Z を作って GitHub Releases にインストーラーを公開する
+# - タグ agent-vX.Y.Z の push: 同じく Releases に公開する
+name: Agent (Windows)
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    tags: ["agent-v*"]
+    paths: ["agent/**", "server/**", ".github/workflows/agent-windows.yml"]
+  pull_request:
+    paths: ["agent/**", "server/**", ".github/workflows/agent-windows.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # 同梱する埋め込み版 Python と同じバージョンにする (tkinter をここからコピーするため)
+          python-version: "3.12.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test
+        run: python -m unittest discover -s tests -v
+
+      - name: Test the booking site
+        working-directory: server
+        run: |
+          pip install -r requirements-dev.txt
+          python -m pytest -q
+
+      - name: Read version
+        id: ver
+        run: |
+          $v = python -c "import host_agent; print(host_agent.AGENT_VERSION)"
+          "version=$v" >> $env:GITHUB_OUTPUT
+          if ($env:GITHUB_REF -like 'refs/tags/agent-v*' -and $env:GITHUB_REF_NAME -ne "agent-v$v") {
+            throw "タグ $env:GITHUB_REF_NAME と AGENT_VERSION $v が一致しません"
+          }
+
+      - name: Decide whether to publish
+        id: rel
+        run: |
+          $tag = "agent-v${{ steps.ver.outputs.version }}"
+          $publish = "false"
+          if ($env:GITHUB_REF -like 'refs/tags/agent-v*') {
+            $publish = "true"
+          } elseif ($env:GITHUB_REF -eq 'refs/heads/main') {
+            $existing = git ls-remote --tags origin "refs/tags/$tag"
+            if (-not $existing) { $publish = "true" } else { Write-Host "$tag は公開済みのためスキップします" }
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "publish=$publish" >> $env:GITHUB_OUTPUT
+
+      # 自前の exe (PyInstaller) は Windows Defender に誤検知されやすいので、
+      # 署名付きの公式 Python (埋め込み版) を同梱して、それで host_agent.py を動かす
+      - name: Bundle official Python and the agent
+        env:
+          EMBED_PYTHON: "3.12.10"
+        run: |
+          $out = "dist\GeaspecAgent"
+          New-Item $out -ItemType Directory -Force | Out-Null
+          $zip = "$env:RUNNER_TEMP\python-embed.zip"
+          Invoke-WebRequest "https://www.python.org/ftp/python/$env:EMBED_PYTHON/python-$env:EMBED_PYTHON-embed-amd64.zip" -OutFile $zip
+          Expand-Archive $zip "$out\python"
+          python -m pip install psutil openvr pillow --only-binary=:all: --python-version 3.12 --platform win_amd64 --target "$out\lib"
+          Copy-Item host_agent.py, geaspec_gui.py, vr_timer.py $out
+          # 予約サイトのアドレスが決まっていれば組み込む (貸し手はログインするだけでよくなる)
+          if (Test-Path server_url.txt) { Copy-Item server_url.txt $out; Write-Host "予約サイト: $(Get-Content server_url.txt)" }
+          Copy-Item packaging\GeaspecAgent.cmd $out
+          # 画面 (tkinter) は埋め込み版に入っていないので、同じバージョンの公式 Python からコピーする
+          $base = python -c "import sys; print(sys.base_prefix)"
+          Copy-Item "$base\DLLs\_tkinter.pyd" "$out\python\"
+          # _tkinter が使う DLL (tcl/tk と、その依存) のうち、埋め込み版に無いものをすべてコピーする
+          Get-ChildItem "$base\DLLs\*.dll" | Where-Object { -not (Test-Path "$out\python\$($_.Name)") } | ForEach-Object {
+            Write-Host "copy $($_.Name)"
+            Copy-Item $_.FullName "$out\python\"
+          }
+          Write-Host "--- 同梱した Python フォルダの DLL / PYD ---"
+          Get-ChildItem "$out\python" -Include *.dll, *.pyd -Recurse | ForEach-Object { Write-Host $_.Name }
+          Copy-Item "$base\tcl" "$out\python\tcl" -Recurse
+          Copy-Item "$base\Lib\tkinter" "$out\lib\tkinter" -Recurse
+          # 埋め込み版 Python が lib と host_agent.py を見つけられるようにする
+          $pth = Get-ChildItem "$out\python\python*._pth" | Select-Object -First 1
+          Add-Content $pth.FullName "..\lib`r`n.."
+          $sig = Get-AuthenticodeSignature "$out\python\python.exe"
+          Write-Host "python.exe の署名: $($sig.Status) / $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne "Valid") { throw "同梱する python.exe の署名を確認できません" }
+
+      - name: Smoke test bundle
+        run: |
+          $out = "dist\GeaspecAgent"
+          & "$out\python\python.exe" "$out\host_agent.py" --version
+          if ($LASTEXITCODE -ne 0) { throw "--version failed" }
+          & "$out\python\python.exe" "$out\host_agent.py" --cleanup-only --dry-run --config "$env:RUNNER_TEMP\none.json"
+          if ($LASTEXITCODE -ne 0) { throw "dry-run failed" }
+          & "$out\python\python.exe" -c "import sys; sys.path.insert(0, r'$out'); import tkinter, geaspec_gui; print('tcl', tkinter.Tcl().eval('info patchlevel'))"
+          if ($LASTEXITCODE -ne 0) { throw "tkinter / GUI import failed" }
+          # VR の中のタイマーの部品 (SteamVR がなくても読み込めること・文字の画像を作れること)
+          & "$out\python\python.exe" -c "import sys; sys.path.insert(0, r'$out'); import openvr, vr_timer, pathlib, tempfile; p = vr_timer.render('残り 42分', vr_timer.WATCH_SIZE, pathlib.Path(tempfile.gettempdir()) / 'w.png'); print('vr timer ok', p)"
+          if ($LASTEXITCODE -ne 0) { throw "VR timer import failed" }
+          # 画面を実際に作れるか (CI の環境によっては作れないので失敗しても止めない)
+          & "$out\python\python.exe" -c "import tkinter; r = tkinter.Tk(); r.update(); r.destroy(); print('tk window ok')"
+          if ($LASTEXITCODE -ne 0) { Write-Warning "Tk window test failed on the runner"; $global:LASTEXITCODE = 0 }
+
+      - name: Build installer
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" packaging\installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+
+      - name: Portable zip
+        run: Compress-Archive -Path dist\GeaspecAgent\* -DestinationPath "dist\GeaspecAgent-${{ steps.ver.outputs.version }}-portable.zip"
+
+      # 予約サイト一式 (運営の PC で動かす)。Python を入れなくても GeaspecSite.cmd だけで動くようにする
+      - name: Bundle the booking site
+        env:
+          EMBED_PYTHON: "3.12.10"
+        run: |
+          $out = "dist\GeaspecSite"
+          New-Item $out -ItemType Directory -Force | Out-Null
+          Expand-Archive "$env:RUNNER_TEMP\python-embed.zip" "$out\python"
+          python -m pip install -r ..\server\requirements.txt --target "$out\lib"
+          Copy-Item ..\server\app "$out\app" -Recurse
+          Get-ChildItem "$out\app" -Include __pycache__ -Recurse -Directory | Remove-Item -Recurse -Force
+          Copy-Item ..\server\site_launcher.py, ..\server\GeaspecSite.cmd $out
+          $pth = Get-ChildItem "$out\python\python*._pth" | Select-Object -First 1
+          Add-Content $pth.FullName "..\lib`r`n.."
+          & "$out\python\python.exe" -c "import sys; sys.path.insert(0, r'$out'); import site_launcher, uvicorn; from app.main import create_app; print('site ok')"
+          if ($LASTEXITCODE -ne 0) { throw "site bundle import failed" }
+          Compress-Archive -Path "$out\*" -DestinationPath "dist\GeaspecSite-${{ steps.ver.outputs.version }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GeaspecAgent-${{ steps.ver.outputs.version }}
+          path: |
+            agent/dist/GeaspecAgent-Setup-*.exe
+            agent/dist/GeaspecAgent-*-portable.zip
+            agent/dist/GeaspecSite-*.zip
+
+      - name: Publish release
+        if: steps.rel.outputs.publish == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.rel.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Geaspec Agent ${{ steps.ver.outputs.version }}
+          body: |
+            **貸し手の PC に入れるアプリ**: `GeaspecAgent-Setup-${{ steps.ver.outputs.version }}.exe`
+
+            1. **貸し出し専用の Windows ユーザー** でサインインしてから、ダウンロードして実行します。
+               「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」を押してください。
+            2. アプリが開いたら、Geaspec のメールアドレスとパスワードでログインします。
+            3. カレンダーで、貸せる時間を選んで「保存」を押します。
+
+            **運営の PC で動かす予約サイト**: `GeaspecSite-${{ steps.ver.outputs.version }}.zip`
+            展開して `GeaspecSite.cmd` をダブルクリックすると、サイトが起動します。
+
+            インストールせずにアプリを使う場合は portable.zip を展開し、`GeaspecAgent.cmd` を実行してください。
+          files: |
+            agent/dist/GeaspecAgent-Setup-*.exe
+            agent/dist/GeaspecAgent-*-portable.zip
+            agent/dist/GeaspecSite-*.zip

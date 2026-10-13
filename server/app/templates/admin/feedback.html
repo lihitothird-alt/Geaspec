@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}評価フォーム | 管理 | {{ settings.service_name }}{% endblock %}
+{% block body_class %}admin-page{% endblock %}
+{% block content %}
+<section class="wrap section fb-admin">
+  <div class="admin-head">
+    <h1>評価フォームの答え</h1>
+    <nav class="admin-tabs" aria-label="管理メニュー">
+      <a href="/admin">管理に戻る</a><a href="/admin/feedback.csv">表（CSV）をダウンロード</a>
+    </nav>
+  </div>
+  <p class="muted">答え {{ summary.count }} 件。CSV の「テストの回」は、Discord の /geaspec-results の表の「回」と同じ番号です。テスターへのリンク: <code>{{ settings.base_url }}/feedback</code></p>
+
+  <h2>6段階の評価（「わからない」を除いた平均）</h2>
+  <dl class="kpis">
+    {% for key, r in summary.ratings.items() %}
+    <div class="kpi"><dt>{{ r.label }}</dt><dd>{{ "%.1f"|format(r.avg) if r.avg is not none else "—" }}<small>/ 6（{{ r.n }}件）</small></dd></div>
+    {% endfor %}
+  </dl>
+
+  <h2>数字（真ん中の値）</h2>
+  <dl class="kpis">
+    {% for key, n in summary.numbers.items() %}
+    <div class="kpi"><dt>{{ n.label }}</dt><dd>{{ n.median if n.median is not none else "—" }}<small>{{ n.unit }}（{{ n.n }}件）</small></dd></div>
+    {% endfor %}
+  </dl>
+
+  <h2>えらんだ答え</h2>
+  <div class="card fb-counts">
+    {% for key, c in summary.choices.items() %}
+    <p><strong>{{ c.label }}</strong><br>{% for label, count in c.counts %}{{ label }} {{ count }}{% if not loop.last %} ／ {% endif %}{% else %}<span class="muted">まだありません</span>{% endfor %}</p>
+    {% endfor %}
+  </div>
+
+  <h2>ひとこと</h2>
+  <div class="card fb-counts">
+    {% for r in rows|reverse %}{% for key, label in fb.TEXTS if r.answers.get(key) %}
+    <p><span class="muted">{{ r.created_at }}{% if r.session_ref %}・{{ r.session_ref }}回目{% endif %}・{{ label }}</span><br>{{ r.answers[key] }}</p>
+    {% endfor %}{% else %}<p class="muted">まだありません</p>{% endfor %}
+  </div>
+</section>
+{% endblock %}

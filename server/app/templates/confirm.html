@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}予約内容の確認 | {{ settings.service_name }}{% endblock %}
+{% block content %}
+{% set wd = slot.start_at|wday %}
+<section class="wrap narrow section tight">
+  <a class="back" href="/slots"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg>空き枠に戻る</a>
+
+  <ol class="flow" aria-label="予約の流れ">
+    <li class="done">枠をえらぶ</li>
+    <li aria-current="step">{% if free_mode %}確認{% else %}お支払い{% endif %}</li>
+    <li>接続手順を確認</li>
+  </ol>
+
+  <h1>予約内容の確認</h1>
+
+  <div class="ticket">
+    <div class="ticket-main">
+      <p class="ticket-date">{{ slot.start_at|jst("%Y/%m/%d") }}<span class="{% if wd == '土' %}wd-sat{% elif wd == '日' %}wd-sun{% endif %}">（{{ wd }}）</span></p>
+      <p class="ticket-time">{{ slot.start_at|jst("%H:%M") }}<span class="sep">〜</span>{{ slot.play_end_at|jst("%H:%M") }}</p>
+      <dl class="kv">
+        <dt>PC</dt><dd>{{ slot.host.name }}</dd>
+        <dt>利用時間</dt><dd>{{ slot.play_minutes }} 分<small class="muted">（最後の {{ slot.duration_minutes - slot.play_minutes }} 分は PC の片づけと次の人の準備）</small></dd>
+        <dt>Meta ユーザー名</dt><dd>{{ user.meta_username }}</dd>
+      </dl>
+    </div>
+    <div class="ticket-stub">
+      <span class="label">お支払い</span>
+      <span class="price">{% if amount == 0 %}無料{% else %}{{ amount|yen }}{% endif %}</span>
+    </div>
+  </div>
+
+  {% if not free_mode %}
+  <div class="card">
+    <dl class="quote">
+      <div class="row"><dt>料金</dt><dd>{{ slot.price_yen|yen }}</dd></div>
+      {% if discount %}<div class="row discount"><dt>初回 {{ trial_minutes }} 分無料</dt><dd>−{{ discount|yen }}</dd></div>{% endif %}
+      <div class="row total"><dt>お支払い</dt><dd>{{ amount|yen }}</dd></div>
+    </dl>
+  </div>
+  {% endif %}
+
+  {% if amount == 0 %}
+    <form method="post" action="/slots/{{ slot.id }}/book">
+      <button class="btn lg block">無料で予約する</button>
+    </form>
+    <p class="muted">お支払いは不要です{% if free_mode %}（実験中のため、すべて無料です）{% endif %}。予約が確定すると、接続手順のページに移動します。</p>
+  {% else %}
+    <h2>お支払い方法</h2>
+    <div class="pay-options">
+      {% for p in providers %}
+      <form method="post" action="/slots/{{ slot.id }}/book">
+        <input type="hidden" name="provider" value="{{ p }}">
+        <button class="btn lg block{% if not loop.first %} ghost{% endif %}">{{ provider_labels.get(p, p) }}で支払う</button>
+      </form>
+      {% endfor %}
+    </div>
+    <p class="muted">お支払い画面に移動します。お支払いが終わるまでの間、この枠は一時的に確保されます。</p>
+  {% endif %}
+</section>
+{% endblock %}

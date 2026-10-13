@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "_social.html" import stars, follow_button %}
+{% block title %}フォロー中 | {{ settings.service_name }}{% endblock %}
+{% block content %}
+<section class="wrap narrow section tight">
+  <header class="page-head">
+    <h1>フォロー中の貸し手</h1>
+    <p class="muted">フォローしている貸し手が新しい時間を公開すると、メールでお知らせします。フォロワーだけに公開している PC も予約できるようになります。</p>
+  </header>
+  {% if lenders %}
+  <p><a class="btn small ghost" href="/slots?view=following">フォロー中の人の空き枠だけを見る</a></p>
+  <ul class="people-list">
+    {% for item in lenders %}
+    <li class="person">
+      <div class="avatar" aria-hidden="true">{{ item.user.display_name[:1] }}</div>
+      <div class="person-main">
+        <a class="td-strong" href="/lenders/{{ item.user.id }}">{{ item.user.display_name }} さん</a>
+        <div>{{ stars(item.rating) }}</div>
+      </div>
+      {{ follow_button(item.user, True, "/following") }}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="empty">
+    <svg class="i" aria-hidden="true"><use href="#i-heart"/></svg>
+    <p><strong>まだだれもフォローしていません。</strong></p>
+    <p class="muted">空き枠や予約ページで貸し手の名前を押すと、フォローできます。</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}予約 #{{ booking.id }}（管理） | {{ settings.service_name }}{% endblock %}
+{% block body_class %}admin-page{% endblock %}
+{% block content %}
+<section class="wrap narrow section">
+  <a class="back" href="/admin"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg>管理</a>
+  <div class="booking-head">
+    <h1>予約 #{{ booking.id }}</h1>
+    <span class="badge {{ booking.status }}">{{ booking.status_label }}</span>
+  </div>
+  <div class="card"><dl class="kv">
+    <dt>日時</dt><dd>{{ booking.slot.start_at|jst }}〜{{ booking.slot.end_at|jst("%H:%M") }}</dd>
+    <dt>PC</dt><dd>{{ booking.slot.host.name }}</dd>
+    <dt>借り手</dt><dd>{{ booking.user.email }}（Meta: {{ booking.user.meta_username }}）{% if booking.user.signup_ref %}<br><span class="muted">流入元: {{ booking.user.signup_ref }}</span>{% endif %}</dd>
+    <dt>支払い</dt><dd>{{ booking.amount_yen|yen }}{% if booking.discount_yen %}（初回無料 −{{ booking.discount_yen|yen }}）{% endif %} / {{ provider_labels.get(booking.payment_provider, booking.payment_provider or "-") }} / {{ booking.paid_at|jst }}{% if booking.payment_ref %}<br><code>{{ booking.payment_ref }}</code>{% endif %}</dd>
+    <dt>開始 / 終了</dt><dd>{{ booking.started_at|jst }} / {{ booking.finished_at|jst }}</dd>
+    <dt>スクリーンショット</dt><dd>{% if booking.screenshots_count %}{{ booking.screenshots_count }} 枚（借り手のみダウンロード可・{{ booking.screenshots_expires_at|jst }} まで）{% else %}-{% endif %}</dd>
+    <dt>終了理由</dt><dd>{{ booking.end_reason or "-" }}</dd>
+    <dt>クリーン</dt><dd>{% if booking.clean is none %}-{% elif booking.clean %}<span class="ok">✓ 問題なし</span>{% else %}<strong class="danger">エラーあり</strong>{% endif %}</dd>
+    <dt>メモ</dt><dd class="note">{{ booking.note or "-" }}</dd>
+  </dl></div>
+  {% if report %}<h2>Agent レポート</h2><pre>{{ report|tojson(indent=2) }}</pre>{% endif %}
+  {% if booking.status not in ("completed", "cancelled") %}
+  <form method="post" action="/admin/bookings/{{ booking.id }}/cancel" onsubmit="return confirm('この予約をキャンセルしますか？')">
+    <button class="btn danger">キャンセルする</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

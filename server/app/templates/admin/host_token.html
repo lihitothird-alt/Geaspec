@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}接続コード（管理） | {{ settings.service_name }}{% endblock %}
+{% block body_class %}admin-page{% endblock %}
+{% block content %}
+<section class="wrap narrow section">
+  <a class="back" href="/admin"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg>管理に戻る</a>
+  <h1>接続コード: {{ host.name }}</h1>
+  <div class="flash warn">このコードは<strong>今しか表示されません</strong>。貸し手に送ってください（他の人には見せないでください）。</div>
+  {% if local_only %}
+  <div class="flash error">予約サイトの URL が <code>{{ settings.base_url }}</code> になっています。貸し手の PC から届かないので、環境変数 <code>BASE_URL</code> に公開 URL を設定してから、コードを再発行してください。</div>
+  {% endif %}
+  <div class="secret-box token-box">
+    <span class="label" id="code-label">接続コード</span>
+    <div class="secret-row">
+      <code class="secret" id="connection-code" aria-labelledby="code-label">{{ code }}</code>
+      <button type="button" class="btn small copy" data-copy="connection-code" hidden><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">コピー</span></button>
+    </div>
+  </div>
+  <p class="muted">ふつうは、貸し手がアプリに Geaspec のメールアドレスとパスワードを入れるだけで PC が登録されます（運営の承認待ちになります）。このコードは、アプリの「設定」→「詳しい設定」の「合言葉」の欄に貼り付けて使います。</p>
+  <details class="disclosure"><summary>URL とトークンを別々に入力する場合</summary>
+    <dl class="kv">
+      <dt>予約サイトの URL</dt><dd><code>{{ settings.base_url }}</code></dd>
+      <dt>Agent トークン</dt><dd><code>{{ token }}</code></dd>
+    </dl>
+  </details>
+</section>
+{% endblock %}

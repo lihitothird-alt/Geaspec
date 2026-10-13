@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}新規登録 | {{ settings.service_name }}{% endblock %}
+{% block content %}
+<section class="wrap auth">
+  <div class="auth-card">
+    <h1>新規登録</h1>
+    <p class="intro">登録後に Meta (Quest) のユーザー名を設定すると、空き枠を予約できるようになります。</p>
+    {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" class="form">
+      <label>メールアドレス<input type="email" name="email" value="{{ email or '' }}" required autocomplete="email" inputmode="email"></label>
+      <label><span>パスワード <span class="opt">（8文字以上）</span></span><input type="password" name="password" minlength="8" required autocomplete="new-password"></label>
+      <label class="check"><input type="checkbox" name="agree" value="1" required> <span><a href="/legal/terms" target="_blank">利用規約</a>と<a href="/legal/privacy" target="_blank">プライバシーポリシー</a>に同意します</span></label>
+      <button class="btn block lg">登録する</button>
+    </form>
+    <p class="auth-foot muted">登録済みの方は <a href="/login">ログイン</a></p>
+  </div>
+</section>
+{% endblock %}

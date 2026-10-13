@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "_social.html" import stars %}
+{% block title %}空き枠 | {{ settings.service_name }}{% endblock %}
+{% block content %}
+<div class="wrap">
+  <header class="page-head">
+    <ol class="flow" aria-label="予約の流れ">
+      <li aria-current="step">枠をえらぶ</li>
+      <li>お支払い</li>
+      <li>接続手順を確認</li>
+    </ol>
+    <h1>空き枠</h1>
+    <p class="muted">時間はすべて日本時間（JST）です。1 時間の枠は 00〜55 分に使えます（最後の 5 分で PC を片づけ、次の人の準備をします）。</p>
+    {% if user %}
+    <nav class="tabs" aria-label="表示する枠">
+      <a href="/slots"{% if view != "following" %} aria-current="page"{% endif %}>すべて</a>
+      <a href="/slots?view=following"{% if view == "following" %} aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-heart"/></svg>フォロー中</a>
+    </nav>
+    {% endif %}
+  </header>
+</div>
+
+<section class="wrap section tight" aria-label="空き枠の一覧">
+  {% if not user %}
+    <div class="notice"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg><p>予約にはログインが必要です。はじめての方は <a href="/signup">新規登録</a>へ。{% if trial_minutes %}初回は {{ trial_minutes }} 分無料です。{% endif %}</p></div>
+  {% elif trial_eligible and trial_minutes and user.meta_username %}
+    <div class="notice"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg><p>はじめての予約は <strong>{{ trial_minutes }} 分ぶん無料</strong>。下の料金は割引後の金額です。</p></div>
+  {% elif not user.meta_username %}
+    <div class="notice warn"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg><p>予約の前に <a href="/account">Meta (Quest) のユーザー名</a> を登録してください。接続をあなたの Quest だけに許可するために使います。</p></div>
+  {% endif %}
+
+  {% if not slots %}
+    <div class="empty">
+      <svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg>
+      {% if view == "following" %}
+      <p><strong>フォロー中の貸し手の空き枠はありません。</strong></p>
+      <p class="muted">新しい時間が公開されたら、メールでお知らせします。<a href="/slots">すべての空き枠</a>も見てみてください。</p>
+      {% else %}
+      <p><strong>現在予約できる枠はありません。</strong></p>
+      <p class="muted">新しい枠が追加されるまで、少し待ってからまた見に来てください。</p>
+      {% endif %}
+    </div>
+  {% else %}
+    {% set groups = [] %}
+    {% set ns = namespace(day=None) %}
+    {% for s in slots %}
+      {% set d = s.start_at|jst("%Y-%m-%d") %}
+      {% if d != ns.day %}{% set _ = groups.append({"first": s, "items": []}) %}{% set ns.day = d %}{% endif %}
+      {% set _ = groups[-1]["items"].append(s) %}
+    {% endfor %}
+
+    {% for g in groups %}
+    {% set wd = g.first.start_at|wday %}
+    <section class="day" aria-labelledby="day-{{ loop.index }}">
+      <h2 class="day-head" id="day-{{ loop.index }}">
+        <span class="num">{{ g.first.start_at|jst("%m/%d") }}</span>
+        <span class="wd{% if wd == '土' %} wd-sat{% elif wd == '日' %} wd-sun{% endif %}">（{{ wd }}）</span>
+        <span class="count">{{ g["items"]|length }} 枠</span>
+      </h2>
+      <ul class="slot-list">
+        {% for s in g["items"] %}
+        <li class="slot">
+          <div>
+            <div class="slot-time">
+              <span class="num">{{ s.start_at|jst("%H:%M") }}〜{{ s.play_end_at|jst("%H:%M") }}</span>
+              <span class="chip">{{ s.play_minutes }}分</span>
+            </div>
+            <div class="slot-meta"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>{{ s.host.name }}</div>
+            {% if s.host.owner_id in lenders %}{% set l = lenders[s.host.owner_id] %}
+            <div class="slot-meta lender-line">
+              <a href="/lenders/{{ l.user.id }}">{{ l.user.display_name }} さん</a>{{ stars(l.rating) }}
+              {% if s.host.owner_id in followed %}<span class="badge following"><svg class="i" aria-hidden="true"><use href="#i-heart"/></svg>フォロー中</span>{% endif %}
+            </div>
+            {% endif %}
+          </div>
+          <div class="slot-buy">
+            {% set tp = trial_prices.get(s.id, s.price_yen) %}
+            {% if free_mode %}
+            <span class="price">無料</span>
+            {% elif tp < s.price_yen %}
+            <span class="price-old"><s>{{ s.price_yen|yen }}</s></span>
+            <span class="price">{% if tp == 0 %}無料{% else %}{{ tp|yen }}{% endif %}</span>
+            {% else %}
+            <span class="price">{{ s.price_yen|yen }}</span>
+            {% endif %}
+            {% if user %}
+            <a class="btn small" href="/slots/{{ s.id }}/confirm" aria-label="予約する：{{ s.start_at|jst('%m/%d') }} {{ s.start_at|jst('%H:%M') }}〜{{ s.play_end_at|jst('%H:%M') }}">予約する</a>
+            {% else %}
+            <a class="btn small ghost" href="/login?next=/slots">ログインして予約</a>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endfor %}
+  {% endif %}
+</section>
+{% endblock %}

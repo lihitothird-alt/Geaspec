@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}アカウント | {{ settings.service_name }}{% endblock %}
+{% block content %}
+<section class="wrap auth">
+  <div class="auth-card">
+    <h1>アカウント</h1>
+    <p class="intro">{{ user.email }}</p>
+    {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" class="form">
+      <label>ニックネーム（ほかの人に見える名前）
+        <input name="nickname" value="{{ user.nickname }}" maxlength="32" autocomplete="nickname" placeholder="例：ひかり" aria-describedby="nick-hint">
+      </label>
+      <p class="hint" id="nick-hint">フォローや評価のときに表示されます。空のままだと「ユーザー{{ user.id }}」になります。メールアドレスはほかの人に見せません。</p>
+      <label>Meta (Quest) のユーザー名
+        <input name="meta_username" value="{{ user.meta_username }}" required pattern="[A-Za-z0-9._\-]{2,64}" autocomplete="username" autocapitalize="off" spellcheck="false" aria-describedby="meta-hint">
+      </label>
+      <div class="notice" id="meta-hint">
+        <svg class="i" aria-hidden="true"><use href="#i-info"/></svg>
+        <div>
+          <p class="hint">Virtual Desktop の接続を、予約した本人の Quest だけに許可するために使います。Quest の「設定 → アカウント」で確認できます。<strong>VRChat のユーザー名ではありません。</strong></p>
+          <p class="path" aria-hidden="true"><span class="chip">設定</span>→<span class="chip">アカウント</span></p>
+        </div>
+      </div>
+      <button class="btn block lg">保存</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

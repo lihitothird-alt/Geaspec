@@ -1,0 +1,37 @@
+{# フォロー・評価で使う部品 #}
+{% macro stars(rating) -%}
+  {%- set avg, count = rating -%}
+  {%- if count -%}
+  <span class="stars" aria-label="評価 {{ avg }}（{{ count }}件）"><svg class="i" aria-hidden="true"><use href="#i-star"/></svg><strong>{{ "%.1f"|format(avg) }}</strong><span class="muted">（{{ count }}）</span></span>
+  {%- else -%}
+  <span class="stars none muted">評価はまだありません</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro follow_button(lender, following, next="") -%}
+  <form method="post" action="/lenders/{{ lender.id }}/follow" class="inline">
+    <input type="hidden" name="on" value="{{ 0 if following else 1 }}">
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    <button class="btn small{% if following %} ghost{% endif %}" aria-pressed="{{ 'true' if following else 'false' }}">
+      <svg class="i" aria-hidden="true"><use href="#i-heart"/></svg>{% if following %}フォロー中{% else %}フォローする{% endif %}
+    </button>
+  </form>
+{%- endmacro %}
+
+{% macro review_form(booking, who) -%}
+  <form method="post" action="/bookings/{{ booking.id }}/review" class="review-form">
+    <fieldset class="star-input">
+      <legend>{{ who }}を評価する</legend>
+      <div class="star-row">
+        {% for n in range(5, 0, -1) %}
+        <input type="radio" name="stars" value="{{ n }}" id="star-{{ booking.id }}-{{ n }}" required>
+        <label for="star-{{ booking.id }}-{{ n }}" title="{{ n }}"><svg class="i" aria-hidden="true"><use href="#i-star"/></svg><span class="visually-hidden">星 {{ n }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <label class="review-comment">ひとこと（なくても大丈夫です）
+      <textarea name="comment" maxlength="300" rows="2" placeholder="例：動作が軽くて快適でした"></textarea>
+    </label>
+    <button class="btn small">評価を送る</button>
+  </form>
+{%- endmacro %}

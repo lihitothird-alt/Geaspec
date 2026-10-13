@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}ログイン | {{ settings.service_name }}{% endblock %}
+{% block content %}
+<section class="wrap auth">
+  <div class="auth-card">
+    <h1>ログイン</h1>
+    <p class="intro">おかえりなさい。予約の確認や新しい枠の予約はこちらから。</p>
+    {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/login" class="form">
+      <input type="hidden" name="next" value="{{ next }}">
+      <label>メールアドレス<input type="email" name="email" value="{{ email or '' }}" required autocomplete="email" inputmode="email"></label>
+      <label>パスワード<input type="password" name="password" required autocomplete="current-password"></label>
+      <button class="btn block lg">ログイン</button>
+    </form>
+    <p class="auth-foot muted">はじめての方は <a href="/signup">新規登録</a></p>
+  </div>
+</section>
+{% endblock %}

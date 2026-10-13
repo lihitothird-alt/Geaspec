@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% from "_social.html" import follow_button, review_form %}
+{% block title %}予約 #{{ booking.id }} | {{ settings.service_name }}{% endblock %}
+{% block content %}
+{% set live_states = ("confirmed", "active") %}
+<section class="wrap narrow section tight">
+  <a class="back" href="/bookings"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg>予約一覧</a>
+
+  {% if booking.status in live_states %}
+  <ol class="flow" aria-label="予約の流れ">
+    <li class="done">枠をえらぶ</li>
+    <li class="done">お支払い</li>
+    <li aria-current="step">接続手順を確認</li>
+  </ol>
+  {% endif %}
+
+  <div class="booking-head">
+    <h1>予約 #{{ booking.id }}</h1>
+    <span class="badge {{ booking.status }}">{{ booking.status_label }}</span>
+  </div>
+
+  {% set wd = booking.slot.start_at|wday %}
+  <div class="ticket">
+    <div class="ticket-main">
+      <p class="ticket-date">{{ booking.slot.start_at|jst("%Y/%m/%d") }}<span class="{% if wd == '土' %}wd-sat{% elif wd == '日' %}wd-sun{% endif %}">（{{ wd }}）</span></p>
+      <p class="ticket-time">{{ booking.slot.start_at|jst("%H:%M") }}<span class="sep">〜</span>{{ booking.slot.play_end_at|jst("%H:%M") }}</p>
+      <dl class="kv">
+        <dt>PC</dt><dd>{{ booking.slot.host.name }}</dd>
+        {% if lender %}<dt>貸し手</dt><dd><a href="/lenders/{{ lender.id }}">{{ lender.display_name }} さん</a></dd>{% endif %}
+        <dt>Meta ユーザー名</dt><dd>{{ booking.user.meta_username }}</dd>
+      </dl>
+    </div>
+    <div class="ticket-stub">
+      <span class="label">{% if booking.paid_at %}お支払い{% else %}料金{% endif %}</span>
+      <span class="price">{% if booking.amount_yen == 0 %}無料{% else %}{{ booking.amount_yen|yen }}{% endif %}</span>
+      {% if booking.discount_yen %}<span class="label">初回無料 −{{ booking.discount_yen|yen }}</span>{% endif %}
+    </div>
+  </div>
+
+  {% if booking.status == "confirmed" and booking.slot.start_at > now %}
+  <div class="countdown" data-countdown="{{ booking.slot.start_at|iso }}" data-template="あと {} で Geass を開始します" role="timer">
+    <strong data-countdown-text>あと {{ until_text((booking.slot.start_at - now).total_seconds()) }} で Geass を開始します</strong>
+    <span class="sub">{{ booking.slot.start_at|jst("%m/%d %H:%M") }} 開始。下の手順 1 は先に済ませておけます。</span>
+  </div>
+  {% elif booking.status in live_states and booking.slot.play_end_at > now %}
+  <div class="countdown live" data-countdown="{{ booking.slot.play_end_at|iso }}" data-template="利用中 · 残り {}" role="timer">
+    <strong data-countdown-text>利用中 · 残り {{ until_text((booking.slot.play_end_at - now).total_seconds()) }}</strong>
+    <span class="sub">{{ booking.slot.play_end_at|jst("%H:%M") }} に自動で終了します</span>
+  </div>
+  {% endif %}
+
+  {% if booking.status == "pending_payment" %}
+    {% if paid %}
+      <div class="flash info">お支払いを確認しています。数秒後にこのページを再読み込みしてください。</div>
+    {% else %}
+      <div class="card status-card">
+        <div class="ic" aria-hidden="true"><svg class="i"><use href="#i-clock"/></svg></div>
+        <div>
+          <h2>お支払い待ちです</h2>
+          <p>お支払いが完了していません。{{ hold_minutes }} 分以内にお支払いがない場合、枠は解放されます。</p>
+          <form method="post" action="/bookings/{{ booking.id }}/cancel"><button class="btn ghost small">キャンセルする</button></form>
+        </div>
+      </div>
+    {% endif %}
+  {% elif booking.status in live_states %}
+    <div class="guide-head">
+      <h2>接続手順</h2>
+      <p>1 は開始前に済ませておくとスムーズです。Quest のブラウザでこのページを開くと、キーをコピーして貼り付けられます。</p>
+    </div>
+    <ol class="stepper">
+      <li class="st">
+        <div class="st-body">
+          <h3><svg class="i" aria-hidden="true"><use href="#i-key"/></svg>VPN に接続</h3>
+          {% if booking.vpn_auth_key %}
+            <p>Quest の Tailscale アプリで「認証キーでログイン」を選び、次のキーを入力してください（1回限り・終了時刻まで有効）。</p>
+            <div class="secret-box">
+              <span class="label" id="vpn-key-label">VPN 認証キー</span>
+              <div class="secret-row">
+                <code class="secret" id="vpn-key" aria-labelledby="vpn-key-label">{{ booking.vpn_auth_key }}</code>
+                <button type="button" class="btn small copy" data-copy="vpn-key" hidden><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">コピー</span></button>
+              </div>
+            </div>
+            <p class="sub">キーはタップすると全体が選択されます。他の人には教えないでください。</p>
+          {% elif vpn_mode == "manual" %}
+            <p>接続用の招待は、開始前に運営からメールでお送りします。</p>
+            <p class="sub"><svg class="i" aria-hidden="true"><use href="#i-mail"/></svg> 登録したメールアドレス（{{ booking.user.email }}）をご確認ください。</p>
+          {% else %}
+            <p>接続キーを準備中です。届かない場合は運営までご連絡ください。</p>
+          {% endif %}
+        </div>
+      </li>
+      <li class="st">
+        <div class="st-body">
+          <h3><svg class="i" aria-hidden="true"><use href="#i-monitor"/></svg>Virtual Desktop で接続</h3>
+          {% if booking.slot.host.vpn_address %}
+            <p>開始時刻になったら Virtual Desktop を開き、次の接続先を選んでください。</p>
+            <div class="secret-box">
+              <span class="label" id="vpn-addr-label">接続先</span>
+              <div class="secret-row">
+                <code class="secret" id="vpn-addr" aria-labelledby="vpn-addr-label">{{ booking.slot.host.vpn_address }}</code>
+                <button type="button" class="btn small copy ghost" data-copy="vpn-addr" hidden><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">コピー</span></button>
+              </div>
+            </div>
+          {% else %}
+            <p>開始時刻になったら Virtual Desktop を開き、案内された PC を選んでください。</p>
+          {% endif %}
+        </div>
+      </li>
+      <li class="st">
+        <div class="st-body">
+          <h3><svg class="i" aria-hidden="true"><use href="#i-user"/></svg>VRChat にログイン</h3>
+          <p>ご自身の VRChat アカウントでログインしてください。「ログイン情報を保存」はオフのままで大丈夫です。</p>
+          <ul class="sub">
+            <li>毎回データを削除するため、VRChat から<strong>メールで確認コード</strong>が届くことがあります。スマホを手元に置いておいてください。</li>
+            <li><strong>「Steam でログイン」は押さないでください。</strong>PC の持ち主の Steam アカウントでログインしてしまいます。</li>
+          </ul>
+        </div>
+      </li>
+      <li class="st">
+        <div class="st-body">
+          <h3><svg class="i" aria-hidden="true"><use href="#i-power"/></svg>終了</h3>
+          <p><strong class="num">{{ booking.slot.play_end_at|jst("%H:%M") }}</strong> に自動で終了し、PC 上のログイン情報やキャッシュはすべて削除されます。VRChat で撮った写真は終了時にこのページへ届き、{{ settings.screenshot_days }} 日間ダウンロードできます。</p>
+        </div>
+      </li>
+    </ol>
+  {% elif booking.status == "completed" %}
+    <div class="card status-card ok">
+      <div class="ic" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></div>
+      <div>
+        <h2>利用が終了しました</h2>
+        <p>ご利用ありがとうございました。PC 上のデータは削除済みです。</p>
+        {% if screenshots_ready %}
+        <p><a class="btn small" href="/bookings/{{ booking.id }}/screenshots" download>スクリーンショット {{ booking.screenshots_count }} 枚をダウンロード（zip）</a></p>
+        <p class="sub">{{ booking.screenshots_expires_at|jst("%m/%d %H:%M") }} まで保存しています。それを過ぎると自動で削除されます。ダウンロードできるのはあなただけです。</p>
+        {% endif %}
+        <p><a class="btn small{% if screenshots_ready %} ghost{% endif %}" href="/slots">次の空き枠を見る</a></p>
+      </div>
+    </div>
+    {% if lender and booking.user_id == user.id %}
+    <div class="card after-card">
+      {% if can_review %}
+        {{ review_form(booking, lender.display_name ~ " さん（貸し手）") }}
+      {% elif my_review %}
+        <p class="muted">評価を送りました（星 {{ my_review.stars }}）。ありがとうございます。</p>
+      {% endif %}
+      <div class="after-follow">
+        <p>また {{ lender.display_name }} さんの PC を使いたいときは、フォローしておくと新しい時間をお知らせします。</p>
+        {{ follow_button(lender, following, "/bookings/" ~ booking.id) }}
+      </div>
+    </div>
+    {% endif %}
+  {% elif booking.status in ("cancelled", "expired") %}
+    <div class="card status-card off">
+      <div class="ic" aria-hidden="true"><svg class="i"><use href="#i-info"/></svg></div>
+      <div>
+        <h2>この予約は利用できません</h2>
+        <p>この予約は{{ booking.status_label }}になりました。{% if booking.paid_at %}返金については運営からご連絡します。{% endif %}</p>
+        <p><a class="btn small ghost" href="/slots">空き枠を見る</a></p>
+      </div>
+    </div>
+  {% endif %}
+</section>
+<script>
+  (function () {
+    var box = document.querySelector("[data-countdown]");
+    if (!box) return;
+    var target = Date.parse(box.getAttribute("data-countdown"));
+    var text = box.querySelector("[data-countdown-text]");
+    function until(sec) {
+      var m = Math.max(1, Math.ceil(sec / 60));
+      if (m >= 1440) return Math.floor(m / 1440) + "日" + Math.floor(m % 1440 / 60) + "時間";
+      if (m >= 60) return Math.floor(m / 60) + "時間" + (m % 60) + "分";
+      return m + "分";
+    }
+    var first = true;
+    function tick() {
+      var sec = (target - Date.now()) / 1000;
+      // 時刻になったら表示を切り替えるため 1 回だけ読み直す (開いた時点で過ぎていたら読み直さない)
+      if (sec <= 0) { if (!first) location.reload(); return; }
+      first = false;
+      text.textContent = box.getAttribute("data-template").replace("{}", until(sec));
+      setTimeout(tick, 15000);
+    }
+    tick();
+  })();
+</script>
+{% endblock %}

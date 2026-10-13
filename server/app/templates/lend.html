@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "_social.html" import stars, review_form %}
+{% block title %}貸し出し | {{ settings.service_name }}{% endblock %}
+{% block content %}
+<section class="wrap section tight">
+  <header class="page-head">
+    <h1>貸し出し</h1>
+    {% if hosts %}<p class="profile-meta">あなたの評価 {{ stars(rating) }} <a href="/lenders/{{ user.id }}">公開ページを見る</a></p>{% endif %}
+  </header>
+
+  {% if not hosts %}
+  <div class="empty">
+    <svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>
+    <p><strong>貸し出している PC はまだありません。</strong></p>
+    <p class="muted">貸し出し用の PC に Geaspec のアプリを入れて、このアカウントでログインすると、ここに表示されます。</p>
+  </div>
+  {% else %}
+
+  <div class="panel" id="people">
+    <div class="panel-head"><h2>フォロワー <span class="count">{{ followers|length }}</span></h2></div>
+    {% if followers %}
+    <ul class="people-list">
+      {% for f in followers %}
+      <li class="person">
+        <div class="avatar" aria-hidden="true">{{ f.display_name[:1] }}</div>
+        <div class="person-main">
+          <span class="td-strong">{{ f.display_name }} さん</span>
+          <div class="person-tags">{{ stars(ratings.get(f.id, (None, 0))) }}</div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">まだフォロワーはいません。フォローされると、新しい時間を公開したときにその人へメールでお知らせします。</p>
+    {% endif %}
+  </div>
+
+  <div class="panel" id="upcoming">
+    <div class="panel-head"><h2>これからの予約</h2></div>
+    {% if upcoming %}
+    <ul class="people-list">
+      {% for b in upcoming %}
+      <li class="person">
+        <div class="person-main">
+          <span class="td-strong num">{{ b.slot.start_at|jst("%m/%d") }}（{{ b.slot.start_at|wday }}） {{ b.slot.start_at|jst("%H:%M") }}〜{{ b.slot.play_end_at|jst("%H:%M") }}</span>
+          <div class="person-tags"><span>{{ b.user.display_name }} さん</span>{{ stars(ratings.get(b.user_id, (None, 0))) }}<span class="muted">{{ b.slot.host.name }}</span></div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">これからの予約はありません。</p>
+    {% endif %}
+  </div>
+
+  <div class="panel" id="finished">
+    <div class="panel-head"><h2>終わった予約</h2></div>
+    {% if finished %}
+    <ul class="people-list">
+      {% for b in finished %}
+      <li class="person wrap-row">
+        <div class="person-main">
+          <span class="td-strong num">{{ b.slot.start_at|jst("%m/%d %H:%M") }}〜{{ b.slot.play_end_at|jst("%H:%M") }}</span>
+          <div class="person-tags"><span>{{ b.user.display_name }} さん</span>{{ stars(ratings.get(b.user_id, (None, 0))) }}</div>
+        </div>
+        {% if b.id in reviewable %}
+          {{ review_form(b, b.user.display_name ~ " さん") }}
+        {% else %}
+          <span class="muted small">評価済み</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">まだ終わった予約はありません。</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
