@@ -5,7 +5,7 @@
 <section class="wrap section tight">
   <header class="page-head">
     <h1>貸し出し</h1>
-    {% if hosts %}<p class="profile-meta">あなたの評価 {{ stars(rating) }} <a href="/lenders/{{ user.id }}">公開ページを見る</a></p>{% endif %}
+    {% if hosts and not simple %}<p class="profile-meta">あなたの評価 {{ stars(rating) }} <a href="/lenders/{{ user.id }}">公開ページを見る</a></p>{% endif %}
   </header>
 
   {% if not hosts %}
@@ -16,6 +16,7 @@
   </div>
   {% else %}
 
+  {% if not simple %}
   <div class="panel" id="people">
     <div class="panel-head"><h2>フォロワー <span class="count">{{ followers|length }}</span></h2></div>
     {% if followers %}
@@ -34,6 +35,7 @@
     <p class="muted">まだフォロワーはいません。フォローされると、新しい時間を公開したときにその人へメールでお知らせします。</p>
     {% endif %}
   </div>
+  {% endif %}
 
   <div class="panel" id="upcoming">
     <div class="panel-head"><h2>これからの予約</h2></div>
@@ -63,7 +65,8 @@
           <span class="td-strong num">{{ b.slot.start_at|jst("%m/%d %H:%M") }}〜{{ b.slot.play_end_at|jst("%H:%M") }}</span>
           <div class="person-tags"><span>{{ b.user.display_name }} さん</span>{{ stars(ratings.get(b.user_id, (None, 0))) }}</div>
         </div>
-        {% if b.id in reviewable %}
+        {% if simple %}
+        {% elif b.id in reviewable %}
           {{ review_form(b, b.user.display_name ~ " さん") }}
         {% else %}
           <span class="muted small">評価済み</span>

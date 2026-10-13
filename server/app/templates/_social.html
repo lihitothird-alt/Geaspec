@@ -1,10 +1,12 @@
 {# フォロー・評価で使う部品 #}
 {% macro stars(rating) -%}
+  {%- if not simple -%}
   {%- set avg, count = rating -%}
   {%- if count -%}
   <span class="stars" aria-label="評価 {{ avg }}（{{ count }}件）"><svg class="i" aria-hidden="true"><use href="#i-star"/></svg><strong>{{ "%.1f"|format(avg) }}</strong><span class="muted">（{{ count }}）</span></span>
   {%- else -%}
   <span class="stars none muted">評価はまだありません</span>
+  {%- endif -%}
   {%- endif -%}
 {%- endmacro %}
 

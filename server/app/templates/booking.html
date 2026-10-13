@@ -9,7 +9,7 @@
   {% if booking.status in live_states %}
   <ol class="flow" aria-label="予約の流れ">
     <li class="done">枠をえらぶ</li>
-    <li class="done">お支払い</li>
+    <li class="done">{% if free_mode %}確認{% else %}お支払い{% endif %}</li>
     <li aria-current="step">接続手順を確認</li>
   </ol>
   {% endif %}
@@ -26,7 +26,7 @@
       <p class="ticket-time">{{ booking.slot.start_at|jst("%H:%M") }}<span class="sep">〜</span>{{ booking.slot.play_end_at|jst("%H:%M") }}</p>
       <dl class="kv">
         <dt>PC</dt><dd>{{ booking.slot.host.name }}</dd>
-        {% if lender %}<dt>貸し手</dt><dd><a href="/lenders/{{ lender.id }}">{{ lender.display_name }} さん</a></dd>{% endif %}
+        {% if lender %}<dt>貸し手</dt><dd>{% if simple %}{{ lender.display_name }} さん{% else %}<a href="/lenders/{{ lender.id }}">{{ lender.display_name }} さん</a>{% endif %}</dd>{% endif %}
         <dt>Meta ユーザー名</dt><dd>{{ booking.user.meta_username }}</dd>
       </dl>
     </div>
@@ -136,7 +136,7 @@
         <p><a class="btn small{% if screenshots_ready %} ghost{% endif %}" href="/slots">次の空き枠を見る</a></p>
       </div>
     </div>
-    {% if lender and booking.user_id == user.id %}
+    {% if lender and booking.user_id == user.id and not simple %}
     <div class="card after-card">
       {% if can_review %}
         {{ review_form(booking, lender.display_name ~ " さん（貸し手）") }}

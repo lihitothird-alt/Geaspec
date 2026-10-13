@@ -6,12 +6,12 @@
   <header class="page-head">
     <ol class="flow" aria-label="予約の流れ">
       <li aria-current="step">枠をえらぶ</li>
-      <li>お支払い</li>
+      <li>{% if free_mode %}確認{% else %}お支払い{% endif %}</li>
       <li>接続手順を確認</li>
     </ol>
     <h1>空き枠</h1>
     <p class="muted">時間はすべて日本時間（JST）です。1 時間の枠は 00〜55 分に使えます（最後の 5 分で PC を片づけ、次の人の準備をします）。</p>
-    {% if user %}
+    {% if user and not simple %}
     <nav class="tabs" aria-label="表示する枠">
       <a href="/slots"{% if view != "following" %} aria-current="page"{% endif %}>すべて</a>
       <a href="/slots?view=following"{% if view == "following" %} aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-heart"/></svg>フォロー中</a>
@@ -66,7 +66,7 @@
               <span class="chip">{{ s.play_minutes }}分</span>
             </div>
             <div class="slot-meta"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>{{ s.host.name }}</div>
-            {% if s.host.owner_id in lenders %}{% set l = lenders[s.host.owner_id] %}
+            {% if not simple and s.host.owner_id in lenders %}{% set l = lenders[s.host.owner_id] %}
             <div class="slot-meta lender-line">
               <a href="/lenders/{{ l.user.id }}">{{ l.user.display_name }} さん</a>{{ stars(l.rating) }}
               {% if s.host.owner_id in followed %}<span class="badge following"><svg class="i" aria-hidden="true"><use href="#i-heart"/></svg>フォロー中</span>{% endif %}
