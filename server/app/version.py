@@ -7,6 +7,7 @@ RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{
 CHANGES: dict[str, list[str]] = {
     "0.7.12": [
         "「更新情報」に新しい版のお知らせが届かないことがあったのを直しました。間の版を飛ばして入れ替えても、その間の変更をまとめて書きます",
+        "PC を貸す人向けに、Virtual Desktop Streamer のダウンロードリンクを申し込み後の「やっておくこと」と案内に入れました",
         "運営は `/geaspec-news` で、いま動いている版の確認と、更新情報の書き直しができます",
     ],
     "0.7.11": [

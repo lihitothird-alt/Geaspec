@@ -44,6 +44,8 @@ DEFAULT_HOURS = "平日は19時以降、土日は終日"
 DEFAULT_WORLDS = "日本語話者向け集会場, Japan Shrine, Nagisa"
 MAX_WORLDS = 3
 DEFAULT_AGENT_URL = "https://github.com/lihitothird-alt/Geaspec/releases/latest"
+# 貸す人の PC に入れる Virtual Desktop Streamer (無料)。借りる人は Quest の VD アプリだけでよい
+STREAMER_URL = "https://www.vrdesktop.net/"
 FOLLOWUP_CHECK_SECONDS = 30 * 60
 BOOKING_CHECK_SECONDS = 60
 # テスターは LG の家の外からつなぐので、VD Streamer でこれがオンになっていないとつながらない
@@ -113,8 +115,9 @@ def prep_text(site_url: str = "") -> str:
         "2段階認証をしている人は、確認コードを受け取るスマホも手元に\n"
         "3. **当日、VRChat に入ったら FPS と Ping の表示をオンにする**: Launch Pad の歯車（設定）→ いちばん下の"
         f"「デバッグ」→「FPS と Ping の表示」{guide}。貸し出しの PC は毎回設定が消えるので、テストのたびにオンにしてください\n"
-        "4. **（自分の PC を貸す人だけ）** 自分の PC の Virtual Desktop Streamer で「Allow remote connections」"
-        "（外からの接続を許可）にチェックを入れる。借りるだけの人は何もしなくて大丈夫です"
+        "4. **（自分の PC を貸す人だけ）** 自分の PC に Virtual Desktop Streamer（無料）を入れて、"
+        "「Allow remote connections」（外からの接続を許可）にチェックを入れる。"
+        f"Streamer のダウンロード: {STREAMER_URL}（「Download Streamer」ボタン）。借りるだけの人は何もしなくて大丈夫です"
     )
 
 
@@ -707,10 +710,11 @@ class TesterBot(discord.Client):
                 f"<@{user_id}> 準備ができました！ あなたには **PC を貸す側** の目線でもお話を聞かせてほしいです。\n\n"
                 "**① 15分ほどのお話**: 「貸すならいくらほしいか」「何が心配か」などを聞かせてください（運営から日程の連絡をします）\n"
                 "**② 貸し手ベータ（希望する人だけ）**: 自分の PC に Geaspec アプリを入れて、貸し出しを試せます\n"
-                f"　1. {agent_url} から `GeaspecAgent-…-setup.exe` をダウンロード\n"
-                "　2. 「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」（まだ署名をしていないためです）\n"
-                "　3. 予約サイトでアカウントを作り、アプリにそのメールアドレスとパスワードでログイン\n"
-                "　4. 運営が確認して承認すると、貸し出せるようになります\n"
+                f"　1. Virtual Desktop Streamer（無料）を {STREAMER_URL} から入れて、「Allow remote connections」にチェック\n"
+                f"　2. {agent_url} から `GeaspecAgent-Setup-….exe` をダウンロード\n"
+                "　3. 「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」（まだ署名をしていないためです）\n"
+                "　4. 予約サイトでアカウントを作り、アプリにそのメールアドレスとパスワードでログイン\n"
+                "　5. 運営が確認して承認すると、貸し出せるようになります\n"
                 "　※ 貸し出し中は PC の画面が幕で覆われ、終わると借りた人のデータが自動で消えます\n"
                 "**③ 借りる側も試せます**: " + self.site_lines(tester) +
                 f"テストができる時間: {self.hours()}",
