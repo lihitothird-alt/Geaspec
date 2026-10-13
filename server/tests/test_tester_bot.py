@@ -296,7 +296,7 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         # 本人がグループをえらぶ。1つだけでは、まだ始められない
         await press(tester, thread.id, "gs:group", ["A"])
         i = await press(tester, thread.id, "gs:start")
-        assert "準備" in i.log[0][1]
+        assert "2つをえらんで" in i.log[0][1]
         sent_before = len(thread.sent)
         # 2つめをえらぶと、運営を待たずにスレッドへ案内が届く
         await press(tester, thread.id, "gs:vd", ["1"])

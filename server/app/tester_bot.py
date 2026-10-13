@@ -824,7 +824,7 @@ class TesterBot(discord.Client):
 
     async def on_start(self, interaction: discord.Interaction, tester: dict) -> None:
         if tester["status"] != "ready":
-            await self.reply(interaction, "まだ運営の準備（Virtual Desktop への登録）が終わっていません。お知らせを待ってください。")
+            await self.reply(interaction, "先に、このスレッドのいちばん上で2つをえらんでください。えらぶと予約の案内が届きます。")
             return
         session, created = self.store.start_session(tester["user_id"], interaction.channel_id, self.clock())
         if not created:
