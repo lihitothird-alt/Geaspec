@@ -141,6 +141,16 @@ def site_environment(config: dict, address: str, data: Path) -> dict[str, str]:
     return env
 
 
+def port_in_use(port: int) -> bool:
+    import socket
+
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
 def wait_until_ready(port: int, timeout: float = 60.0) -> bool:
     """サイトが返事をするようになるまで待つ (ブラウザを開くのが早すぎると「接続できません」になるため)。"""
     import socket
@@ -202,9 +212,18 @@ def start_discord_bot(config: dict, address: str, data: Path) -> bool:
 def main() -> int:
     import threading
 
+    sys.path.insert(0, str(HERE))
+    from app.version import VERSION
+
     print("=" * 60)
-    print(" Geaspec 予約サイト")
+    print(f" Geaspec 予約サイト {VERSION}")
     print("=" * 60)
+    if port_in_use(PORT):
+        # 前の版の黒い画面が開いたままだと、新しい版はサイトもボットも動かせない (前の版が動き続ける)
+        print()
+        print("前に起動した Geaspec の黒い画面がまだ開いています。")
+        print("タスクバーで前の黒い画面を探して閉じてから、もう一度 GeaspecSite.cmd を起動してください。")
+        return 1
     data = data_dir()
     data.mkdir(parents=True, exist_ok=True)
     config_path = data / "site_config.json"
@@ -227,7 +246,6 @@ def main() -> int:
             print("この画面を閉じてから、もう一度起動してください。")
 
     os.environ.update(site_environment(config, address, data))
-    sys.path.insert(0, str(HERE))
     bot_on = start_discord_bot(config, address, data)
     print()
     print("サイトを起動しています…")

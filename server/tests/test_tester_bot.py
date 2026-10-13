@@ -689,6 +689,38 @@ def test_new_version_is_announced_once(tmp_path, store):
     asyncio.run(scenario())
 
 
+def test_skipped_versions_are_announced_in_order(tmp_path, store, monkeypatch):
+    from app import version
+
+    monkeypatch.setattr(version, "VERSION", "0.7.9")
+    monkeypatch.setattr(version, "CHANGES", {"0.7.9": ["九"], "0.7.8": ["八"], "0.7.7": ["七"], "0.7.6": ["六"]})
+    assert tb.unannounced_versions("0.7.6") == ["0.7.7", "0.7.8", "0.7.9"]
+    assert tb.unannounced_versions("") == ["0.7.9"]  # はじめては今の版だけ
+    assert tb.unannounced_versions("0.7.10") == ["0.7.9"]  # 古い版に戻したとき
+
+    async def scenario():
+        bot = tb.TesterBot(store, tmp_path, "https://x", say=lambda _: None)
+        store.set_setting("announced_version", "0.7.6")
+        guild = FakeGuild()
+        news = FakeGuildChannel(9, "📢更新情報")
+        guild.text_channels.append(news)
+        assert await bot.announce_version(guild) is True
+        texts = [t for t, _ in news.sent]
+        assert ["0.7.7" in texts[0], "0.7.8" in texts[1], "0.7.9" in texts[2]] == [True] * 3
+        # ダウンロードのリンクは今の版にだけ付ける
+        assert version.RELEASE_URL not in texts[0] and version.RELEASE_URL in texts[2]
+        assert store.get_setting("announced_version") == "0.7.9"
+
+        # /geaspec-news: 今の版をもう一度書き、動いている版を運営に返す
+        inter = FakeInteraction(FakeUser(7), 1)
+        inter.guild = guild
+        await bot.cmd_news(inter)
+        assert len(news.sent) == 4 and "0.7.9" in news.sent[-1][0]
+        assert "0.7.9" in inter.log[-1][1] and "書きました" in inter.log[-1][1]
+
+    asyncio.run(scenario())
+
+
 # ---- 予約のお知らせ ----
 
 def make_site_db(path, bookings, last_seen):

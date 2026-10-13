@@ -221,6 +221,20 @@ class CommentModal(discord.ui.Modal):
         await self.bot.on_comment(interaction, self)
 
 
+def _version_key(ver: str) -> tuple[int, ...]:
+    return tuple(int(n) for n in re.findall(r"\d+", ver))
+
+
+def unannounced_versions(last: str) -> list[str]:
+    """前に「更新情報」に書いた版 last より新しく、今の版までの版を古い順に。はじめてなら今の版だけ。"""
+    now = _version_key(version.VERSION)
+    if last:
+        newer = sorted((v for v in version.CHANGES if _version_key(last) < _version_key(v) <= now), key=_version_key)
+        if newer:
+            return newer
+    return [version.VERSION]
+
+
 class TesterBot(discord.Client):
     def __init__(self, store: TesterStore, shots_dir: Path, site_url: str, *, site_password: str = "", invite_secret: str = "",
                  site_db: Path | None = None, message_content: bool = True,
@@ -260,23 +274,34 @@ class TesterBot(discord.Client):
         if self.guilds:
             await self.announce_version(self.guilds[0])
 
-    def news_text(self) -> str:
-        lines = [f"🆕 **Geaspec {version.VERSION}** になりました", ""]
-        lines += [f"・{c}" for c in version.CHANGES.get(version.VERSION, [])]
-        lines += ["", f"ダウンロード（運営・貸し手ベータ向け）: {version.RELEASE_URL}"]
+    def news_text(self, ver: str = "") -> str:
+        ver = ver or version.VERSION
+        lines = [f"🆕 **Geaspec {ver}** になりました", ""]
+        lines += [f"・{c}" for c in version.CHANGES.get(ver, [])]
+        if ver == version.VERSION:
+            lines += ["", f"ダウンロード（運営・貸し手ベータ向け）: {version.RELEASE_URL}"]
         return "\n".join(lines)[:1990]
 
     async def announce_version(self, guild: discord.Guild) -> bool:
-        """新しい版ではじめて動いたときに、名前に「更新情報」を含む場所へ 1 回だけ書く。"""
-        if self.store.get_setting("announced_version") == version.VERSION:
+        """新しい版ではじめて動いたときに、名前に「更新情報」を含む場所へ 1 回だけ書く。
+
+        前に書いた版から間が空いていたら (途中の版を飛ばして入れ替えたとき)、その間の版の分も古い順に書く。
+        """
+        last = self.store.get_setting("announced_version")
+        if last == version.VERSION:
             return False
+        ok, message = await self.post_news(guild, unannounced_versions(last))
+        self.say(f"Discord ボット: {message}")
+        return ok
+
+    async def post_news(self, guild: discord.Guild, versions: list[str]) -> tuple[bool, str]:
+        """versions のお知らせを書く。(書けたか, 運営向けの説明) を返す。"""
         targets = [c for c in [*guild.text_channels, *getattr(guild, "forums", []), *guild.threads]
                    if NEWS_NAME in c.name]
         if not targets:
             if not guild.me.guild_permissions.manage_channels:
-                self.say(f"Discord ボット: 名前に「{NEWS_NAME}」を含むチャンネルがなく、作る権限もないので、"
-                         "新しい版のお知らせは書きませんでした。")
-                return False
+                return False, (f"名前に「{NEWS_NAME}」を含むチャンネルがなく、作る権限もないので、"
+                               "新しい版のお知らせは書きませんでした。")
             try:
                 # 誰でも読めて、書けるのは運営 (サーバーの管理者) とボットだけ
                 targets = [await guild.create_text_channel(NEWS_CHANNEL_NAME, reason="Geaspec の更新情報", overwrites={
@@ -284,22 +309,26 @@ class TesterBot(discord.Client):
                     guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, embed_links=True),
                 })]
             except discord.HTTPException as exc:
-                self.say(f"Discord ボット: 「{NEWS_CHANNEL_NAME}」チャンネルを作れませんでした（{exc}）")
-                return False
+                return False, f"「{NEWS_CHANNEL_NAME}」チャンネルを作れませんでした（{exc}）"
         target = targets[0]
         try:
-            if isinstance(target, discord.ForumChannel):
-                await target.create_thread(name=f"Geaspec {version.VERSION}", content=self.news_text())
-            else:
-                if isinstance(target, discord.Thread) and target.archived:
-                    await target.edit(archived=False)
-                await target.send(self.news_text())
+            for ver in versions:
+                if isinstance(target, discord.ForumChannel):
+                    await target.create_thread(name=f"Geaspec {ver}", content=self.news_text(ver))
+                else:
+                    if isinstance(target, discord.Thread) and target.archived:
+                        await target.edit(archived=False)
+                    await target.send(self.news_text(ver))
         except discord.HTTPException as exc:
-            self.say(f"Discord ボット: 「{target.name}」に新しい版のお知らせを書けませんでした（{exc}）")
-            return False
+            return False, f"「{target.name}」に新しい版のお知らせを書けませんでした（{exc}）"
         self.store.set_setting("announced_version", version.VERSION)
-        self.say(f"Discord ボット: 「{target.name}」に {version.VERSION} のお知らせを書きました")
-        return True
+        return True, f"「{target.name}」に {', '.join(versions)} のお知らせを書きました"
+
+    async def cmd_news(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        ok, message = await self.post_news(interaction.guild, [version.VERSION])
+        head = f"いま動いているのは Geaspec {version.VERSION} です。"
+        await interaction.followup.send(head + message, ephemeral=True)
 
     async def first_setup(self, guild: discord.Guild) -> None:
         """はじめて動いたときに、ロールとチャンネルを作って申し込みボタンを置く。"""
@@ -356,6 +385,12 @@ class TesterBot(discord.Client):
         @manage
         async def results(interaction: discord.Interaction) -> None:
             await self.cmd_results(interaction)
+
+        @self.tree.command(name="geaspec-news", description="いまの版の更新情報を「更新情報」チャンネルに書き直す（運営用）")
+        @app_commands.guild_only()
+        @manage
+        async def news(interaction: discord.Interaction) -> None:
+            await self.cmd_news(interaction)
 
         @self.tree.command(name="geaspec-erase", description="テスターの名前・Meta ユーザー名などを消す（運営用・テストが終わったら）")
         @app_commands.guild_only()
