@@ -251,9 +251,8 @@ class TesterStore:
         return cur.rowcount == 1
 
     def waiting_testers(self) -> list[dict]:
-        """2つをえらび終えたのに、まだ準備の案内を受け取っていない人 (前の版で運営のボタンを待っていた人)。"""
-        return self._all("SELECT * FROM testers WHERE status = 'applied' AND grp IS NOT NULL AND has_vd IS NOT NULL "
-                         "AND thread_id IS NOT NULL")
+        """申し込んだのに、まだ予約の案内を受け取っていない人 (前の版で運営のボタンや2つの答えを待っていた人)。"""
+        return self._all("SELECT * FROM testers WHERE status = 'applied' AND thread_id IS NOT NULL")
 
     def mark_booked(self, user_id: int, now: dt.datetime) -> bool:
         """予約できた。はじめてのときだけ True。"""

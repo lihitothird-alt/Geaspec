@@ -1126,3 +1126,6 @@ td a.badge:hover { text-decoration: underline; }
   border: 2px solid var(--edge); border-radius: var(--radius); background: var(--surface-2);
 }
 .guide-steps img[src*="meta-2"], .guide-steps img[src*="meta-3"] { max-width: 320px; }
+
+.guide-next { margin-top: 40px; padding: 24px 20px; border-radius: 14px; background: var(--surface-2, rgba(127,127,127,.08)); text-align: center; }
+.guide-next h2 { margin-top: 0; }

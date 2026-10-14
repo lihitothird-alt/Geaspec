@@ -291,25 +291,22 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         prep = thread.sent[1][0]  # 申し込んだらやっておくこと
         assert "VPN を切る" in prep and "FPS と Ping の表示" in prep and "Allow remote connections" in prep
         assert "https://lg.example.ts.net/guide#fps" in prep
-        assert "hikari_meta" in ops_log[-1][0] and ops_log[-1][1] is None  # 運営のボタンを待たない
-
-        # 本人がグループをえらぶ。1つだけでは、まだ始められない
-        await press(tester, thread.id, "gs:group", ["A"])
-        i = await press(tester, thread.id, "gs:start")
-        assert "2つをえらんで" in i.log[0][1]
+        # 申し込んだらすぐ、いちばん下に「次にやること: 予約する」が届く (運営も、2つの答えも待たない)
+        assert store.tester(1)["status"] == "ready" and len(thread.sent) == 3
+        assert "次にやること: 予約する" in thread.sent[-1][0]
+        assert any("hikari_meta" in c for c, _ in ops_log)
         sent_before = len(thread.sent)
-        # 2つめをえらぶと、運営を待たずにスレッドへ案内が届く
+
+        # 2つの答えは記録だけ。VD を持っている A の人には、追加の案内は出ない
+        await press(tester, thread.id, "gs:group", ["A"])
         await press(tester, thread.id, "gs:vd", ["1"])
         assert store.tester(1)["grp"] == "A" and store.tester(1)["has_vd"] == 1
-        assert store.tester(1)["status"] == "ready" and len(thread.sent) == sent_before + 1
-        assert "hikari_meta" in ops_log[-1][0]
-        await press(tester, thread.id, "gs:vd", ["1"])  # えらび直しても 2 回は送らない
-        assert len(thread.sent) == sent_before + 1
+        assert len(thread.sent) == sent_before
         # 前の版の「VD に登録した」ボタンは、運営以外は押せない (押しても 2 回は送らない)
         i = await press(tester, 5, "gs:ready:1")
         assert "運営だけ" in i.log[0][1]
         await press(ops, 5, "gs:ready:1")
-        assert len(thread.sent) == sent_before + 1
+        assert len(thread.sent) == sent_before
         ready_text = thread.sent[-1][0]
         assert "Virtual Desktop を入れる" not in ready_text  # VD を持っている人には出さない
         assert "https://lg.example.ts.net" in ready_text and "`aikotoba`" in ready_text
@@ -599,11 +596,13 @@ def test_group_c_gets_lender_guide(tmp_path, monkeypatch):
         store.set_group(3, "C")
         store.set_thread(3, 30)
         store.set_setting("hours", "土日だけ")
-        i = FakeInteraction(FakeUser(99), 5, "gs:ready:3")
-        await bot.on_interaction(i)
-        text, kw = thread.sent[-1]
-        assert "PC を貸す側" in text and tb.DEFAULT_AGENT_URL in text and "詳細情報" in text and "土日だけ" in text
-        assert custom_ids(kw["view"]) == ["gs:lenderapp", "gs:link", "gs:start"]
+        assert await bot.send_ready_now(store.tester(3)) is True
+        (ready, ready_kw), (text, kw) = thread.sent[-2], thread.sent[-1]
+        assert "次にやること: 予約する" in ready and "土日だけ" in ready
+        assert "PC を貸す側" in text and tb.DEFAULT_AGENT_URL in text and "詳細情報" in text
+        assert custom_ids(kw["view"]) == ["gs:lenderapp"]
+        await bot.send_extras(thread, store.tester(3))  # 2 回は送らない
+        assert thread.sent[-1][0] == text and len(thread.sent) == 2
         i = FakeInteraction(FakeUser(3), 30, "gs:lenderapp")
         await bot.on_interaction(i)
         assert "承認" in ops_log[-1] and store.summary()["lender_app"] == 1
@@ -892,14 +891,24 @@ def test_testers_waiting_from_an_older_version_get_their_guide(tmp_path, store, 
         store.set_has_vd(1, False)
         store.apply(2, "b", vrchat="", meta="half", gear="Quest 3", region="関東", schedule="", now=at(0))
         store.set_thread(2, 501)
-        store.set_group(2, "A")  # VD をまだえらんでいない人には送らない
-        assert [t["user_id"] for t in store.waiting_testers()] == [1]
+        store.apply(3, "c", vrchat="", meta="no_thread", gear="Quest 3", region="関東", schedule="", now=at(0))
+        # 2つの答えがなくても送る。スレッドがない人には送れない
+        assert [t["user_id"] for t in store.waiting_testers()] == [1, 2]
 
         for tester in store.waiting_testers():
-            assert await bot.send_ready_if_chosen(tester) is True
+            assert await bot.send_ready_now(tester) is True
         assert store.waiting_testers() == []
-        text = thread.sent[-1][0]
-        assert "Virtual Desktop を入れる" in text and "このスレッドだけ" in text
-        assert "no_vd_user" in sent_ops[-1]
+        texts = [t for t, _ in thread.sent]
+        assert len(texts) == 1  # VD の入れ方は予約の案内の中に入れたので、別には送らない
+        assert "Virtual Desktop を入れる" in texts[0] and "次にやること: 予約する" in texts[0]
+        assert any("no_vd_user" in c for c in sent_ops)
 
     asyncio.run(scenario())
+
+
+def test_urls_are_not_followed_by_text_discord_would_link():
+    import re
+    # Discord は URL のすぐ後ろの「）。貸し出しの」までリンクにしてしまう。URL の後ろは空白か行の終わりにする
+    for text in (tb.prep_text("https://x/join?t=abc&next=%2Fguide%23fps"), tb.panel_text("土日", "https://x")):
+        for m in re.finditer(r"https?://\S+", text):
+            assert m.group(0).isascii(), m.group(0)
