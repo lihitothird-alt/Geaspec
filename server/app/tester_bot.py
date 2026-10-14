@@ -640,9 +640,11 @@ class TesterBot(discord.Client):
             tester = self.store.tester(user.id)
             await thread.send(
                 f"{user.mention} さん、申し込みありがとうございます！ここがあなた専用のスレッドです（運営とあなただけが見られます）。\n"
-                "下の2つをえらんでください。えらぶと、すぐにここで次の案内（予約のしかた）が届きます。",
+                "下の2つをえらんでください。えらぶと、すぐにここへ予約サイトのリンクと次にやることが届きます。",
                 view=welcome_view(tester))
             await thread.send(prep_text(self.site_url))
+            # 前に申し込んだことがあって2つがもう分かっている人には、えらび直しを待たずに案内を送る
+            await self.send_ready_if_chosen(tester)
         await interaction.followup.send(f"受け付けました。続きは {thread.mention} でどうぞ。", ephemeral=True)
 
         updated = "（申し込み内容の更新）" if before else ""
