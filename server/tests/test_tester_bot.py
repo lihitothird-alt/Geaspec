@@ -278,7 +278,10 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         # 申し込み → 専用スレッドができる
         panel = FakeChannel()
         i = await press(tester, 1, "gs:apply", channel=panel)
-        assert isinstance(i.log[0][1], tb.ApplyModal)
+        # まず、借りる側か貸す側かをえらぶ
+        assert custom_ids(i.log[0][2]["view"]) == ["gs:as:borrow", "gs:as:lend"] and i.log[0][2]["ephemeral"]
+        i = await press(tester, 1, "gs:as:borrow", channel=panel)
+        assert isinstance(i.log[0][1], tb.ApplyModal) and not i.log[0][1].lend
         modal = i.log[0][1]
         for name, value in dict(vrchat="hikari", meta="hikari_meta", gear="Quest 3", region="関西", schedule="").items():
             setattr(modal, name, Field(value))
@@ -287,29 +290,26 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         thread = panel.threads[0]
         threads[thread.id] = thread
         assert thread.users == [1]
-        assert "gs:group" in custom_ids(thread.sent[0][1]["view"])
+        assert custom_ids(thread.sent[0][1]["view"]) == ["gs:vd"]
         prep = thread.sent[1][0]  # 申し込んだらやっておくこと
-        assert "VPN を切る" in prep and "FPS と Ping の表示" in prep and "Allow remote connections" in prep
+        assert "VPN を切る" in prep and "FPS と Ping の表示" in prep and "Allow remote connections" not in prep
         assert "https://lg.example.ts.net/guide#fps" in prep
-        assert "hikari_meta" in ops_log[-1][0] and ops_log[-1][1] is None  # 運営のボタンを待たない
-
-        # 本人がグループをえらぶ。1つだけでは、まだ始められない
-        await press(tester, thread.id, "gs:group", ["A"])
-        i = await press(tester, thread.id, "gs:start")
-        assert "2つをえらんで" in i.log[0][1]
+        # 申し込んだらすぐ、いちばん下に「次にやること: 予約する」が届く (運営も、2つの答えも待たない)
+        assert store.tester(1)["status"] == "ready" and len(thread.sent) == 3
+        assert "次にやること: 予約する" in thread.sent[-1][0]
+        assert any("hikari_meta" in c for c, _ in ops_log)
         sent_before = len(thread.sent)
-        # 2つめをえらぶと、運営を待たずにスレッドへ案内が届く
+
+        # 2つの答えは記録だけ。VD を持っている A の人には、追加の案内は出ない
+        await press(tester, thread.id, "gs:group", ["A"])
         await press(tester, thread.id, "gs:vd", ["1"])
         assert store.tester(1)["grp"] == "A" and store.tester(1)["has_vd"] == 1
-        assert store.tester(1)["status"] == "ready" and len(thread.sent) == sent_before + 1
-        assert "hikari_meta" in ops_log[-1][0]
-        await press(tester, thread.id, "gs:vd", ["1"])  # えらび直しても 2 回は送らない
-        assert len(thread.sent) == sent_before + 1
+        assert len(thread.sent) == sent_before
         # 前の版の「VD に登録した」ボタンは、運営以外は押せない (押しても 2 回は送らない)
         i = await press(tester, 5, "gs:ready:1")
         assert "運営だけ" in i.log[0][1]
         await press(ops, 5, "gs:ready:1")
-        assert len(thread.sent) == sent_before + 1
+        assert len(thread.sent) == sent_before
         ready_text = thread.sent[-1][0]
         assert "Virtual Desktop を入れる" not in ready_text  # VD を持っている人には出さない
         assert "https://lg.example.ts.net" in ready_text and "`aikotoba`" in ready_text
@@ -326,7 +326,7 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         assert sum("予約できました" in c for c, _ in ops_log) == 1
 
         # 準備のあとで Meta ユーザー名を直すと、VD も直すよう運営に知らせる
-        modal = (await press(tester, 1, "gs:apply", channel=panel)).log[0][1]
+        modal = (await press(tester, 1, "gs:as:borrow", channel=panel)).log[0][1]
         assert modal.meta.default == "hikari_meta"
         for name, value in dict(vrchat="hikari", meta="hikari_meta2", gear="Quest 3", region="関西", schedule="").items():
             setattr(modal, name, Field(value))
@@ -350,15 +350,10 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         assert "3分30秒" in i.log[0][1]
         assert "gs:done" in custom_ids(i.log[1][2]["view"])
 
-        # お願いのチェックと数字
+        # お願いのチェック。FPS と Ping は数字を入れずに、写真をスレッドに貼ってもらう
         i = await press(tester, thread.id, "gs:m:heavy")
         assert i.log[0][2]["view"].children[0].label.startswith("✅")
-        i = await press(tester, thread.id, "gs:perf")
-        perf = i.log[0][1]
-        assert [f.label for f in perf.fps_inputs] == ["FPS: ひまり旅館", "FPS: 日本語話者向け集会場"]
-        perf.fps_inputs = [Field("72 fps"), Field("")]
-        perf.ping = Field("約30")
-        await bot.on_perf(FakeInteraction(tester, thread.id), perf)
+        assert "gs:perf" not in custom_ids(i.log[0][2]["view"])
 
         # 遊び終わった → アンケートを全部ボタンで答える
         now[0] = at(56)
@@ -367,7 +362,7 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         for q in QUESTIONS:
             if q.get("multi"):
                 assert custom_ids(view) == [f"gs:a:{q['key']}"]
-                i = await press(tester, thread.id, f"gs:a:{q['key']}", ["heavy"])
+                i = await press(tester, thread.id, f"gs:a:{q['key']}", [q["options"][0][0]])
             else:
                 assert f"gs:a:{q['key']}:{q['options'][-1][0]}" in custom_ids(view)
                 i = await press(tester, thread.id, f"gs:a:{q['key']}:{q['options'][-1][0]}")
@@ -381,13 +376,11 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         done = FakeInteraction(tester, thread.id)
         await bot.on_comment(done, comment)
         assert "ありがとうございました" in done.log[0][1]
-        assert f"https://lg.example.ts.net/feedback?t={store.latest_session(thread.id)['id']}" in done.log[0][1]
+        assert "/feedback" not in done.log[0][1] and "写真" in done.log[0][1]  # アンケートは Discord だけで終わる
         assert custom_ids(done.log[0][2]["view"]) == ["gs:start"]
 
         s = store.latest_session(thread.id)
         assert s["status"] == "done" and s["help_count"] == 1
-        assert json.loads(s["fps_worlds"]) == {"ひまり旅館": 72}
-        assert s["ping_ms"] == 30 and s["latency_ms"] is None
         assert json.loads(s["missions"]) == {"heavy": True}
         assert json.loads(s["answers"])["price"] == "1001"
         assert s["stuck"] == "一覧で迷った"
@@ -606,11 +599,13 @@ def test_group_c_gets_lender_guide(tmp_path, monkeypatch):
         store.set_group(3, "C")
         store.set_thread(3, 30)
         store.set_setting("hours", "土日だけ")
-        i = FakeInteraction(FakeUser(99), 5, "gs:ready:3")
-        await bot.on_interaction(i)
-        text, kw = thread.sent[-1]
-        assert "PC を貸す側" in text and tb.DEFAULT_AGENT_URL in text and "詳細情報" in text and "土日だけ" in text
-        assert custom_ids(kw["view"]) == ["gs:lenderapp", "gs:link", "gs:start"]
+        assert await bot.send_ready_now(store.tester(3)) is True
+        (ready, ready_kw), (text, kw) = thread.sent[-2], thread.sent[-1]
+        assert "次にやること: 予約する" in ready and "土日だけ" in ready
+        assert "PC を貸すテストの手順" in text and "GeaspecAgent-Setup-" in text and "詳細情報" in text
+        assert custom_ids(kw["view"]) == ["gs:lenderapp", "gs:link"]
+        await bot.send_extras(thread, store.tester(3))  # 2 回は送らない
+        assert thread.sent[-1][0] == text and len(thread.sent) == 2
         i = FakeInteraction(FakeUser(3), 30, "gs:lenderapp")
         await bot.on_interaction(i)
         assert "承認" in ops_log[-1] and store.summary()["lender_app"] == 1
@@ -854,8 +849,7 @@ def test_ready_message_gives_a_personal_link_instead_of_a_password(tmp_path, mon
         await bot.on_interaction(i)
         assert "/join?t=" in i.log[0][1] and i.log[0][2].get("ephemeral")
 
-        link = bot.thanks_text(5, store.tester(1))
-        assert "&next=%2Ffeedback%3Ft%3D5" in link
+        assert "/feedback" not in bot.thanks_text(5, store.tester(1))
         store.close()
 
     asyncio.run(scenario())
@@ -900,14 +894,51 @@ def test_testers_waiting_from_an_older_version_get_their_guide(tmp_path, store, 
         store.set_has_vd(1, False)
         store.apply(2, "b", vrchat="", meta="half", gear="Quest 3", region="関東", schedule="", now=at(0))
         store.set_thread(2, 501)
-        store.set_group(2, "A")  # VD をまだえらんでいない人には送らない
-        assert [t["user_id"] for t in store.waiting_testers()] == [1]
+        store.apply(3, "c", vrchat="", meta="no_thread", gear="Quest 3", region="関東", schedule="", now=at(0))
+        # 2つの答えがなくても送る。スレッドがない人には送れない
+        assert [t["user_id"] for t in store.waiting_testers()] == [1, 2]
 
         for tester in store.waiting_testers():
-            assert await bot.send_ready_if_chosen(tester) is True
+            assert await bot.send_ready_now(tester) is True
         assert store.waiting_testers() == []
-        text = thread.sent[-1][0]
-        assert "Virtual Desktop を入れる" in text and "このスレッドだけ" in text
-        assert "no_vd_user" in sent_ops[-1]
+        texts = [t for t, _ in thread.sent]
+        assert len(texts) == 1  # VD の入れ方は予約の案内の中に入れたので、別には送らない
+        assert "Virtual Desktop を入れる" in texts[0] and "次にやること: 予約する" in texts[0]
+        assert any("no_vd_user" in c for c in sent_ops)
+
+    asyncio.run(scenario())
+
+
+def test_urls_are_not_followed_by_text_discord_would_link():
+    import re
+    # Discord は URL のすぐ後ろの「）。貸し出しの」までリンクにしてしまう。URL の後ろは空白か行の終わりにする
+    for text in (tb.prep_text("https://x/join?t=abc&next=%2Fguide%23fps"), tb.panel_text("土日", "https://x")):
+        for m in re.finditer(r"https?://\S+", text):
+            assert m.group(0).isascii(), m.group(0)
+
+
+def test_lenders_get_setup_steps_instead_of_booking(tmp_path, monkeypatch):
+    async def scenario():
+        now = [at(0)]
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, now, {}, ops_log)
+        panel = FakeChannel()
+        user = FakeUser(7, "貸す人")
+        i = FakeInteraction(user, 1, "gs:as:lend", channel=panel)
+        await bot.on_interaction(i)
+        modal = i.log[0][1]
+        assert modal.lend and modal.meta.required is False
+        for name, value in dict(vrchat="", meta="", gear="RTX 4070", region="関東", schedule="").items():
+            setattr(modal, name, Field(value))
+        await bot.on_apply(FakeInteraction(user, 1, channel=panel), modal)
+        thread = panel.threads[0]
+        texts = [t for t, _ in thread.sent]
+        assert store.tester(7)["grp"] == "C" and store.tester(7)["status"] == "ready"
+        assert not any("次にやること: 予約する" in t for t in texts)  # 借りる人向けの案内は出さない
+        steps = texts[-1]
+        assert "PC を貸すテストの手順" in steps and "Allow remote connections" in steps
+        assert f"/releases/download/agent-v{tb.version.VERSION}/GeaspecAgent-Setup-{tb.version.VERSION}.exe" in steps
+        assert "貸せる時間" in steps and "PC を貸す" in ops_log[-1]
+        store.close()
 
     asyncio.run(scenario())

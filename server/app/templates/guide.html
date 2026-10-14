@@ -9,6 +9,7 @@
     <a href="#login">2. 当日までの準備</a>
     <a href="#connect">3. 当日のつなぎ方</a>
     <a href="#fps">4. FPS と Ping の見方</a>
+    <a href="#lend">5. PC を貸す人: アプリの入れ方</a>
   </nav>
 
   <h2 id="meta">1. Meta ユーザー名の見つけ方</h2>
@@ -56,10 +57,42 @@
       <img src="/static/guide/fps-1-setting.webp" alt="VRChat の設定画面。デバッグの中の FPS と Ping の表示のスイッチに印" width="900" height="730" loading="lazy">
     </li>
     <li>
-      <p>画面に <strong>FPS と PING</strong> の数字が出ます。決められたワールドのスポーン地点で 30秒立ったまま、この数字を見てください。</p>
+      <p>画面に <strong>FPS と PING</strong> の数字が出ます。決められたワールドで <strong>30秒ほど歩き回りながら</strong>、この数字を見てください（だいたいの数字で大丈夫です）。</p>
       <img src="/static/guide/fps-2-shown.webp" alt="VRChat の画面に出た FPS: 74 PING: 52 の表示に印" width="900" height="470" loading="lazy">
     </li>
   </ol>
-  <p class="muted">数字は Discord の「数字を入れる」から入れるか、スクショをスレッドに貼ってください。</p>
+  <p class="muted">FPS と PING が写るように Quest のスクリーンショット（右手の Meta ボタンを押したまま、トリガーを引く）を撮って、Discord の自分のスレッドに貼ってください。テストが終わってから、スマホから貼っても大丈夫です。</p>
+
+  <h2 id="lend">5. PC を貸す人: アプリの入れ方</h2>
+  <p>借りるだけの人は読まなくて大丈夫です。</p>
+  <ol class="guide-steps">
+    <li>
+      <p><a href="https://www.vrdesktop.net/" target="_blank" rel="noopener">Virtual Desktop Streamer</a>（無料・「Download Streamer」ボタン）を入れて、「Allow remote connections」にチェックを入れます。</p>
+    </li>
+    <li>
+      <p>Discord のスレッドに届いたリンクから、Geaspec アプリ（<code>GeaspecAgent-Setup-….exe</code>）をダウンロードして開きます。</p>
+    </li>
+    <li>
+      <p>青い画面「<strong>Windows によって PC が保護されました</strong>」が出たら、<strong>「詳細情報」</strong>を押します。まだ署名（お金がかかる証明書）をしていないために出る画面で、中身は公開しているプログラムです。</p>
+      <img src="/static/guide/smartscreen-1.webp" alt="Windows によって PC が保護されましたの画面。詳細情報のリンクに印" width="600" height="558" loading="lazy">
+    </li>
+    <li>
+      <p>下に<strong>「実行」</strong>のボタンが出るので、押します。</p>
+      <img src="/static/guide/smartscreen-2.webp" alt="詳細情報を押したあとの画面。実行のボタンに印" width="600" height="559" loading="lazy">
+    </li>
+    <li>
+      <p>セットアップの画面で<strong>「インストール」</strong>を押します。</p>
+      <img src="/static/guide/setup-install.webp" alt="Geaspec Agent のセットアップ画面。インストールのボタンに印" width="700" height="536" loading="lazy">
+    </li>
+    <li>
+      <p>アプリが開いたら、予約サイトのメールアドレスとパスワードでログインします。運営が確認すると、貸し出せるようになります。</p>
+    </li>
+  </ol>
+
+  <div class="guide-next">
+    <h2>準備ができたら、予約しましょう</h2>
+    <p><a class="btn lg" href="/slots">予約する</a></p>
+    <p class="muted small">開けないときは、Discord の自分のスレッドにある「サイトを開く」ボタンを押してください（あなた専用のリンクが届きます）。</p>
+  </div>
 </section>
 {% endblock %}

@@ -1,5 +1,5 @@
 # 貸し手 PC 用 Agent と、自分の PC で動かす予約サイト一式を Windows でテスト・ビルドする。
-# - ブランチへの push / PR: テストとビルドを行い、成果物を Actions の Artifacts に置く
+# - PR: テストとビルドだけ行う (GitHub の保存容量を使わないよう、成果物は残さない)
 # - main への push (PR のマージ): AGENT_VERSION のリリースがまだなければ、
 #   タグ agent-vX.Y.Z を作って GitHub Releases にインストーラーを公開する
 # - タグ agent-vX.Y.Z の push: 同じく Releases に公開する
@@ -7,7 +7,7 @@ name: Agent (Windows)
 
 on:
   push:
-    branches: [main, "claude/**"]
+    branches: [main]
     tags: ["agent-v*"]
     paths: ["agent/**", "server/**", ".github/workflows/agent-windows.yml"]
   pull_request:
@@ -149,14 +149,6 @@ jobs:
           & "$out\python\python.exe" -c "import sys; sys.path.insert(0, r'$out'); import site_launcher, uvicorn; from app.main import create_app; print('site ok')"
           if ($LASTEXITCODE -ne 0) { throw "site bundle import failed" }
           Compress-Archive -Path "$out\*" -DestinationPath "dist\GeaspecSite-${{ steps.ver.outputs.version }}.zip"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: GeaspecAgent-${{ steps.ver.outputs.version }}
-          path: |
-            agent/dist/GeaspecAgent-Setup-*.exe
-            agent/dist/GeaspecAgent-*-portable.zip
-            agent/dist/GeaspecSite-*.zip
 
       - name: Publish release
         if: steps.rel.outputs.publish == 'true'

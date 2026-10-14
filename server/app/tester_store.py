@@ -35,6 +35,35 @@ QUESTIONS: list[dict] = [
      "options": [("1", "かなり悪い"), ("2", "少し悪い"), ("3", "同じくらい"), ("4", "少し良い"), ("5", "かなり良い")]},
     {"key": "timer", "text": "手首のタイマーと、終わりのお知らせはどうでしたか？",
      "options": [("good", "見やすかった"), ("missed", "気づかなかった"), ("annoying", "じゃまだった")]},
+    {"key": "design", "text": "予約サイトの見た目（デザイン）はどうでしたか？",
+     "options": [("1", "1 悪い"), ("2", "2"), ("3", "3"), ("4", "4"), ("5", "5 良い")]},
+    {"key": "name", "text": "「Geaspec（ギアスペック）」という名前はどうですか？",
+     "options": [("1", "1 いまいち"), ("2", "2"), ("3", "3"), ("4", "4"), ("5", "5 とても良い")]},
+    {"key": "trust", "text": "安心して使えそうだと思いましたか？",
+     "options": [("1", "1 不安"), ("2", "2"), ("3", "3"), ("4", "4"), ("5", "5 安心")]},
+    {"key": "line", "text": "家のインターネット回線は？",
+     "options": [("fiber", "光回線"), ("home_router", "ホームルーター"), ("catv", "ケーブルテレビ"),
+                 ("mobile", "スマホの回線・テザリング"), ("unknown", "わからない")]},
+    {"key": "speed", "text": "回線の速さ（下り）は？（「スピードテスト」で調べると出ます）",
+     "options": [("50", "〜50Mbps"), ("100", "50〜100Mbps"), ("300", "100〜300Mbps"), ("301", "300Mbps より上"),
+                 ("unknown", "わからない")]},
+    {"key": "wifi_band", "text": "Quest をつないだ Wi-Fi は？",
+     "options": [("6", "6GHz（Wi-Fi 6E）"), ("5", "5GHz"), ("2.4", "2.4GHz"), ("unknown", "わからない")]},
+    {"key": "router_distance", "text": "Quest と Wi-Fi ルーターの距離は？",
+     "options": [("same", "同じ部屋"), ("next", "となりの部屋"), ("far", "離れた部屋・別の階"), ("unknown", "わからない")]},
+    {"key": "quest", "text": "使った Quest は？",
+     "options": [("q2", "Quest 2"), ("q3", "Quest 3"), ("q3s", "Quest 3S"), ("pro", "Quest Pro"), ("other", "その他")]},
+    {"key": "own_pc", "text": "自分のパソコンは？",
+     "options": [("none", "持っていない"), ("no_vr", "VR はできないパソコンならある"), ("vr", "VR ができるパソコンがある")]},
+    {"key": "vrc_days", "text": "VRChat で遊ぶのは週に何日くらい？",
+     "options": [("daily", "ほぼ毎日"), ("3_5", "週に3〜5日"), ("1_2", "週に1〜2日"), ("less", "それより少ない")]},
+    {"key": "play_times", "text": "よく遊ぶ時間帯は？（いくつでも）", "multi": True,
+     "options": [("wd_eve", "平日の夕方（〜19時）"), ("wd_night", "平日の夜（19〜24時）"), ("wd_late", "平日の深夜（24時〜）"),
+                 ("we_day", "休日の昼"), ("we_night", "休日の夜"), ("we_late", "休日の深夜")]},
+    {"key": "session_length", "text": "PC を借りるなら、1回にどのくらい借りたい？",
+     "options": [("30", "30分"), ("60", "1時間"), ("120", "2時間"), ("180", "3時間以上")]},
+    {"key": "min_fps", "text": "この FPS を下回ったら嫌だ、という線は？",
+     "options": [("30", "30"), ("45", "45"), ("60", "60"), ("72", "72"), ("90", "90"), ("unknown", "わからない")]},
     {"key": "again", "text": "また使いたいですか？",
      "options": [("yes", "ぜひ"), ("maybe", "たぶん"), ("rather_not", "あまり"), ("no", "使わない")]},
     {"key": "nps", "text": "友達にどのくらいすすめたいですか？（0 すすめない 〜 10 ぜったいすすめる）",
@@ -222,9 +251,8 @@ class TesterStore:
         return cur.rowcount == 1
 
     def waiting_testers(self) -> list[dict]:
-        """2つをえらび終えたのに、まだ準備の案内を受け取っていない人 (前の版で運営のボタンを待っていた人)。"""
-        return self._all("SELECT * FROM testers WHERE status = 'applied' AND grp IS NOT NULL AND has_vd IS NOT NULL "
-                         "AND thread_id IS NOT NULL")
+        """申し込んだのに、まだ予約の案内を受け取っていない人 (前の版で運営のボタンや2つの答えを待っていた人)。"""
+        return self._all("SELECT * FROM testers WHERE status = 'applied' AND thread_id IS NOT NULL")
 
     def mark_booked(self, user_id: int, now: dt.datetime) -> bool:
         """予約できた。はじめてのときだけ True。"""
