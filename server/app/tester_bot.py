@@ -86,7 +86,7 @@ def panel_text(hours: str, site_url: str = "") -> str:
 お金もうけではない、このコミュニティ限定の実験です。参加は無料です。
 
 **流れ**
-1. 下の「テスターに申し込む」を押す
+1. 下の「テスターに申し込む」を押して、PC を借りる側か貸す側かをえらぶ
 2. あなた専用のスレッドができます。運営の準備ができたら、そこでお知らせします
 3. スレッドに届くあなた専用のリンクから、予約サイトで予約する
 4. 当日、スレッドの「テストを始める」を押して、Virtual Desktop でつなぐ
@@ -115,12 +115,7 @@ def prep_text(guide_url: str = "") -> str:
         "2. **VRChat のログイン情報を用意する**: メールアドレス（またはユーザー名）とパスワード。"
         "2段階認証をしている人は、確認コードを受け取るスマホも手元に\n"
         "3. **当日、VRChat に入ったら FPS と Ping の表示をオンにする**: Launch Pad の歯車（設定）→ いちばん下の"
-        f"「デバッグ」→「FPS と Ping の表示」。貸し出しの PC は毎回設定が消えるので、テストのたびにオンにしてください{guide}\n"
-        "4. **（自分の PC を貸す人だけ）** 自分の PC に Virtual Desktop Streamer（無料）を入れて、"
-        "「Allow remote connections」（外からの接続を許可）にチェックを入れる。"
-        "Geaspec アプリを入れるときに青い画面「Windows によって PC が保護されました」が出たら、"
-        "「詳細情報」→「実行」で進めます。借りるだけの人は何もしなくて大丈夫です\n"
-        f"　Streamer のダウンロード（「Download Streamer」ボタン）: {STREAMER_URL}"
+        f"「デバッグ」→「FPS と Ping の表示」。貸し出しの PC は毎回設定が消えるので、テストのたびにオンにしてください{guide}"
     )
 
 
@@ -174,26 +169,35 @@ def play_view(missions: dict) -> discord.ui.View:
 
 
 def welcome_view(tester: dict) -> discord.ui.View:
-    grp = discord.ui.Select(custom_id="gs:group", placeholder="あなたに近いのは？", options=[
-        discord.SelectOption(label=label, value=key, default=tester.get("grp") == key) for key, label in GROUPS.items()])
+    """借りる人に、Quest の Virtual Desktop を持っているかだけ聞く (持っていなければ入れ方を送る)。"""
     vd = discord.ui.Select(custom_id="gs:vd", placeholder="Virtual Desktop を持っていますか？", options=[
         discord.SelectOption(label="持っている", value="1", default=tester.get("has_vd") == 1),
         discord.SelectOption(label="持っていない", value="0", default=tester.get("has_vd") == 0)])
-    return make_view(grp, vd)
+    return make_view(vd)
+
+
+def apply_choice_view() -> discord.ui.View:
+    """申し込みボタンのあとに、借りる側か貸す側かをえらんでもらう。"""
+    return make_view(button("🥽 Quest だけ（PC を借りて遊ぶ）", "gs:as:borrow", discord.ButtonStyle.primary),
+                     button("🖥 PCVR を持っている（自分の PC を貸す）", "gs:as:lend"))
 
 
 class ApplyModal(discord.ui.Modal):
-    def __init__(self, bot: "TesterBot", tester: dict | None) -> None:
-        super().__init__(title="テスターに申し込む", timeout=1800)
+    def __init__(self, bot: "TesterBot", tester: dict | None, lend: bool = False) -> None:
+        super().__init__(title="テスターに申し込む（PC を貸す）" if lend else "テスターに申し込む", timeout=1800)
         self.bot = bot
+        self.lend = lend
         t = tester or {}
         self.vrchat = discord.ui.TextInput(label="VRChat の表示名（任意）", max_length=60, required=False,
                                            default=t.get("vrchat") or None)
         self.meta = discord.ui.TextInput(
             label="Meta ユーザー名（表示名ではありません）", max_length=60, default=t.get("meta") or None,
+            required=not lend,
             placeholder="Meta Horizon アプリのプロフィールで見られます。VD を持っている人は VD と同じ")
-        self.gear = discord.ui.TextInput(label="使っている機材", max_length=100, default=t.get("gear") or None,
-                                         placeholder="例: Quest 3 だけ ／ Quest 3 + RTX 3060")
+        self.gear = discord.ui.TextInput(
+            label="PC の中身（グラフィックボードなど）" if lend else "使っている機材", max_length=100,
+            default=t.get("gear") or None,
+            placeholder="例: RTX 4070 + Ryzen 7 ／ Quest 3" if lend else "例: Quest 3 だけ ／ Quest 3 + RTX 3060")
         self.region = discord.ui.TextInput(label="住んでいる地方（だいたいでOK）", max_length=30,
                                            default=t.get("region") or None, placeholder="例: 関東")
         self.schedule = discord.ui.TextInput(label="都合のいい日時", max_length=100, required=False,
@@ -604,7 +608,10 @@ class TesterBot(discord.Client):
     async def dispatch_component(self, interaction: discord.Interaction, parts: list[str]) -> None:
         action = parts[0]
         if action == "apply":
-            await interaction.response.send_modal(ApplyModal(self, self.store.tester(interaction.user.id)))
+            await interaction.response.send_message("どちらで参加しますか？", view=apply_choice_view(), ephemeral=True)
+        elif action == "as":
+            lend = parts[1:2] == ["lend"]
+            await interaction.response.send_modal(ApplyModal(self, self.store.tester(interaction.user.id), lend=lend))
         elif action in ("group", "vd"):
             await self.on_profile(interaction, action)
         elif action == "ready":
@@ -627,6 +634,9 @@ class TesterBot(discord.Client):
             user.id, user.display_name, vrchat=modal.vrchat.value.strip(), meta=modal.meta.value.strip(),
             gear=modal.gear.value.strip(), region=modal.region.value.strip(), schedule=modal.schedule.value.strip(),
             now=self.clock())
+        current = (before or {}).get("grp") or ""
+        self.store.set_group(user.id, "C" if modal.lend else (current if current in ("A", "B") else "A"))
+        tester = self.store.tester(user.id)
         thread = await self._existing_thread(tester)
         if thread is None:
             parent = interaction.channel
@@ -638,16 +648,25 @@ class TesterBot(discord.Client):
             await thread.add_user(user)
             self.store.set_thread(user.id, thread.id)
             tester = self.store.tester(user.id)
-            await thread.send(
-                f"{user.mention} さん、申し込みありがとうございます！ここがあなた専用のスレッドです（運営とあなただけが見られます）。\n"
-                "記録のため、あてはまるものを2つえらんでください（えらばなくても、このまま予約に進めます）。",
-                view=welcome_view(tester))
-            await thread.send(prep_text(self.site_link(tester, "/guide#fps")))
+            head = (f"{user.mention} さん、申し込みありがとうございます！ここがあなた専用のスレッドです"
+                    "（運営とあなただけが見られます）。")
+            if modal.lend:
+                await thread.send(head + "\nこのあと、PC を貸す準備の手順が届きます。")
+            else:
+                await thread.send(head + "\nQuest の Virtual Desktop を持っているか、えらんでください"
+                                  "（えらばなくても、このまま予約に進めます）。", view=welcome_view(tester))
+                await thread.send(prep_text(self.site_link(tester, "/guide#fps")))
+        if modal.lend:
+            if self.store.mark_ready(user.id, self.clock()):
+                await self.send_extras(thread, tester)
+            elif not self.store.get_setting(f"sent_lender:{user.id}"):
+                await self.send_extras(thread, tester)  # 借りる側で申し込んだあとに、貸す側でも申し込んだ
+        else:
             await self.send_ready_now(tester, thread)
         await interaction.followup.send(f"受け付けました。続きは {thread.mention} でどうぞ。", ephemeral=True)
 
         updated = "（申し込み内容の更新）" if before else ""
-        lines = [f"**新しい申し込み**{updated} {user.mention} {thread.mention}",
+        lines = [f"**新しい申し込み**（{'PC を貸す' if modal.lend else 'PC を借りる'}）{updated} {user.mention} {thread.mention}",
                  f"VRChat: {tester['vrchat']} ／ 機材: {tester['gear']} ／ 地方: {tester['region']} ／ 都合: {tester['schedule'] or '—'}",
                  f"Meta ユーザー名: `{tester['meta']}`"]
         if before and before["meta"] and before["meta"] != tester["meta"]:
@@ -693,8 +712,9 @@ class TesterBot(discord.Client):
             await thread.send(vd_install_text(tester).rstrip())
         if tester.get("grp") == "C" and not self.store.get_setting(f"sent_lender:{uid}"):
             self.store.set_setting(f"sent_lender:{uid}", "1")
-            await thread.send(self.lender_text(), view=make_view(
-                button("📥 アプリを入れた", "gs:lenderapp", discord.ButtonStyle.primary)))
+            await thread.send(f"<@{uid}> " + self.lender_text(tester), view=make_view(
+                button("📥 アプリを入れた", "gs:lenderapp", discord.ButtonStyle.primary),
+                button("🔗 サイトを開く", "gs:link")))
 
     async def send_ready_now(self, tester: dict, thread: discord.Thread | None = None) -> bool:
         """運営を待たずに、スレッドへ予約の案内を送る (1 回だけ)。"""
@@ -740,20 +760,30 @@ class TesterBot(discord.Client):
             text += f"　サイトを開くと合言葉を聞かれます。合言葉: `{self.site_password}`（ほかの人には教えないでください）\n"
         return text
 
-    def lender_text(self) -> str:
-        agent_url = self.store.get_setting("agent_url", DEFAULT_AGENT_URL)
-        return ("**PC を持っている人へ**\n"
-                "あなたには **PC を貸す側** の目線でもお話を聞かせてほしいです。\n"
-                "**① 15分ほどのお話**: 「貸すならいくらほしいか」「何が心配か」などを聞かせてください（運営から日程の連絡をします）\n"
-                "**② 貸し手ベータ（希望する人だけ）**: 自分の PC に Geaspec アプリを入れて、貸し出しを試せます\n"
-                f"　1. Virtual Desktop Streamer（無料）を {STREAMER_URL} から入れて、「Allow remote connections」にチェック\n"
-                f"　2. {agent_url} から `GeaspecAgent-Setup-….exe` をダウンロード\n"
-                "　3. 青い画面「Windows によって PC が保護されました」が出たら、左の「詳細情報」を押し、"
-                "出てきた「実行」を押す（まだ署名をしていないために出ます。中身は公開しているプログラムです）。"
-                f"画像つきの説明: {self.site_url}/guide#lend\n"
-                "　4. 予約サイトでアカウントを作り、アプリにそのメールアドレスとパスワードでログイン\n"
-                "　5. 運営が確認して承認すると、貸し出せるようになります\n"
-                "　※ 貸し出し中は PC の画面が幕で覆われ、終わると借りた人のデータが自動で消えます")
+    def installer_url(self) -> str:
+        """貸し手のアプリのインストーラー (いま動いているサイトと同じ版)。/geaspec-setup で変えた URL があればそちら。"""
+        return self.store.get_setting("agent_url") or (
+            f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{version.VERSION}/"
+            f"GeaspecAgent-Setup-{version.VERSION}.exe")
+
+    def lender_text(self, tester: dict | None = None) -> str:
+        # URL のあとに文字を続けると Discord がそこまでリンクにするので、URL は行の最後に置く
+        return ("**PC を貸すテストの手順**\n"
+                "1. 自分の PC に **Virtual Desktop Streamer**（無料）を入れて、「Allow remote connections」にチェックを入れる\n"
+                f"　ダウンロード（「Download Streamer」ボタン）: {STREAMER_URL}\n"
+                "2. **Geaspec アプリ**をダウンロードして開く。青い画面「Windows によって PC が保護されました」が出たら"
+                "「詳細情報」→「実行」→「インストール」（署名をしていないために出ます。画像つきの説明は下）\n"
+                f"　ダウンロード: {self.installer_url()}\n"
+                f"　画像つきの説明: {self.site_url}/guide#lend\n"
+                "　※ 貸し出しのたびに、その Windows ユーザーの VRChat のログイン情報と設定を消します。"
+                "ふだんの VRChat の設定を残したい人は、貸し出し専用の Windows ユーザーを作って、そこで入れてください\n"
+                "3. 予約サイトでアカウントを作る（メールアドレスとパスワードを決める）\n"
+                f"　{self.site_lines(tester).rstrip()}\n"
+                "4. アプリに、3 のメールアドレスとパスワードでログインして、下の「アプリを入れた」を押す。運営が確認して承認します\n"
+                "5. 承認されたら、アプリのカレンダーで **貸せる時間** をえらんで「保存」。予約が入ると、アプリに開始までの時間が出ます\n"
+                "6. 貸す時間は、PC の電源を入れてアプリを動かしたままにしておく。貸し出し中は画面が幕で覆われ、"
+                "終わると借りた人のデータが自動で消えます\n\n"
+                "よければ 15分ほど、「貸すなら何が心配か」などのお話も聞かせてください（運営から連絡します）。")
 
     async def send_ready(self, thread: discord.Thread, tester: dict) -> None:
         """予約の案内。スレッドのいちばん下に「次にやること」が来るように、最後に送る。"""

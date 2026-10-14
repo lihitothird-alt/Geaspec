@@ -278,7 +278,10 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         # 申し込み → 専用スレッドができる
         panel = FakeChannel()
         i = await press(tester, 1, "gs:apply", channel=panel)
-        assert isinstance(i.log[0][1], tb.ApplyModal)
+        # まず、借りる側か貸す側かをえらぶ
+        assert custom_ids(i.log[0][2]["view"]) == ["gs:as:borrow", "gs:as:lend"] and i.log[0][2]["ephemeral"]
+        i = await press(tester, 1, "gs:as:borrow", channel=panel)
+        assert isinstance(i.log[0][1], tb.ApplyModal) and not i.log[0][1].lend
         modal = i.log[0][1]
         for name, value in dict(vrchat="hikari", meta="hikari_meta", gear="Quest 3", region="関西", schedule="").items():
             setattr(modal, name, Field(value))
@@ -287,9 +290,9 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         thread = panel.threads[0]
         threads[thread.id] = thread
         assert thread.users == [1]
-        assert "gs:group" in custom_ids(thread.sent[0][1]["view"])
+        assert custom_ids(thread.sent[0][1]["view"]) == ["gs:vd"]
         prep = thread.sent[1][0]  # 申し込んだらやっておくこと
-        assert "VPN を切る" in prep and "FPS と Ping の表示" in prep and "Allow remote connections" in prep
+        assert "VPN を切る" in prep and "FPS と Ping の表示" in prep and "Allow remote connections" not in prep
         assert "https://lg.example.ts.net/guide#fps" in prep
         # 申し込んだらすぐ、いちばん下に「次にやること: 予約する」が届く (運営も、2つの答えも待たない)
         assert store.tester(1)["status"] == "ready" and len(thread.sent) == 3
@@ -323,7 +326,7 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         assert sum("予約できました" in c for c, _ in ops_log) == 1
 
         # 準備のあとで Meta ユーザー名を直すと、VD も直すよう運営に知らせる
-        modal = (await press(tester, 1, "gs:apply", channel=panel)).log[0][1]
+        modal = (await press(tester, 1, "gs:as:borrow", channel=panel)).log[0][1]
         assert modal.meta.default == "hikari_meta"
         for name, value in dict(vrchat="hikari", meta="hikari_meta2", gear="Quest 3", region="関西", schedule="").items():
             setattr(modal, name, Field(value))
@@ -599,8 +602,8 @@ def test_group_c_gets_lender_guide(tmp_path, monkeypatch):
         assert await bot.send_ready_now(store.tester(3)) is True
         (ready, ready_kw), (text, kw) = thread.sent[-2], thread.sent[-1]
         assert "次にやること: 予約する" in ready and "土日だけ" in ready
-        assert "PC を貸す側" in text and tb.DEFAULT_AGENT_URL in text and "詳細情報" in text
-        assert custom_ids(kw["view"]) == ["gs:lenderapp"]
+        assert "PC を貸すテストの手順" in text and "GeaspecAgent-Setup-" in text and "詳細情報" in text
+        assert custom_ids(kw["view"]) == ["gs:lenderapp", "gs:link"]
         await bot.send_extras(thread, store.tester(3))  # 2 回は送らない
         assert thread.sent[-1][0] == text and len(thread.sent) == 2
         i = FakeInteraction(FakeUser(3), 30, "gs:lenderapp")
@@ -912,3 +915,30 @@ def test_urls_are_not_followed_by_text_discord_would_link():
     for text in (tb.prep_text("https://x/join?t=abc&next=%2Fguide%23fps"), tb.panel_text("土日", "https://x")):
         for m in re.finditer(r"https?://\S+", text):
             assert m.group(0).isascii(), m.group(0)
+
+
+def test_lenders_get_setup_steps_instead_of_booking(tmp_path, monkeypatch):
+    async def scenario():
+        now = [at(0)]
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, now, {}, ops_log)
+        panel = FakeChannel()
+        user = FakeUser(7, "貸す人")
+        i = FakeInteraction(user, 1, "gs:as:lend", channel=panel)
+        await bot.on_interaction(i)
+        modal = i.log[0][1]
+        assert modal.lend and modal.meta.required is False
+        for name, value in dict(vrchat="", meta="", gear="RTX 4070", region="関東", schedule="").items():
+            setattr(modal, name, Field(value))
+        await bot.on_apply(FakeInteraction(user, 1, channel=panel), modal)
+        thread = panel.threads[0]
+        texts = [t for t, _ in thread.sent]
+        assert store.tester(7)["grp"] == "C" and store.tester(7)["status"] == "ready"
+        assert not any("次にやること: 予約する" in t for t in texts)  # 借りる人向けの案内は出さない
+        steps = texts[-1]
+        assert "PC を貸すテストの手順" in steps and "Allow remote connections" in steps
+        assert f"/releases/download/agent-v{tb.version.VERSION}/GeaspecAgent-Setup-{tb.version.VERSION}.exe" in steps
+        assert "貸せる時間" in steps and "PC を貸す" in ops_log[-1]
+        store.close()
+
+    asyncio.run(scenario())
