@@ -90,7 +90,7 @@ def panel_text(hours: str, site_url: str = "") -> str:
 2. あなた専用のスレッドができます。運営の準備ができたら、そこでお知らせします
 3. スレッドに届くあなた専用のリンクから、予約サイトで予約する
 4. 当日、スレッドの「テストを始める」を押して、Virtual Desktop でつなぐ
-5. 遊び終わったら、ボタンで答えるアンケート（3分）と、評価フォーム（5分）
+5. 遊び終わったら、FPS と Ping の写真をスレッドに貼り、ボタンで答えるアンケート（5分）
 
 **申し込む前に**
 ・Meta ユーザー名: スマホの Meta Horizon アプリでプロフィールを開くと見られます（表示名ではなく、ユーザー名のほう）。Virtual Desktop を持っている人は、VD で使っているものと同じです
@@ -166,7 +166,6 @@ def followup_message(user_id: int, answers: dict) -> tuple[str, discord.ui.View]
 def play_view(missions: dict) -> discord.ui.View:
     items = [button(("✅ " if missions.get(k) else "⬜ ") + label, f"gs:m:{k}", row=0) for k, label in MISSIONS.items()]
     items += [
-        button("📊 数字を入れる", "gs:perf", row=0),
         button("🆘 困った", "gs:help", discord.ButtonStyle.danger, row=1),
         button("🏁 遊び終わった", "gs:done", discord.ButtonStyle.success, row=1),
     ]
@@ -859,11 +858,12 @@ class TesterBot(discord.Client):
         worlds = "」「".join(self.worlds())
         await interaction.followup.send(
             "楽しんでください！ 遊びながら、できたらお願いします。\n\n"
-            "**数字の測り方**\n"
+            "**FPS と Ping の写真**\n"
             "1. VRChat のメニュー（Launch Pad）の歯車（設定）→ いちばん下の「デバッグ」→「FPS と Ping の表示」をオン"
             f"（画像: {self.site_url}/guide#fps）\n"
-            f"2. 「{worlds}」に行き、それぞれ**30秒ほど歩き回りながら** FPS と Ping を見る（だいたいの数字でOK）\n"
-            "3. 「数字を入れる」から入力する（画面のスクショを**このスレッドに貼る**だけでもOK）\n\n"
+            f"2. 「{worlds}」に行き、それぞれ**30秒ほど歩き回りながら**、FPS と Ping が写るように Quest のスクリーンショットを撮る"
+            "（右手の Meta ボタンを押したまま、トリガーを引く）\n"
+            "3. 撮った写真を、**このスレッドに貼る**（テストが終わってから、スマホからでも大丈夫です）\n\n"
             "左手首に残り時間が出ます。遊び終わったら「遊び終わった」を押してください。",
             view=play_view(json.loads(session["missions"])))
         await self.notify_ops(f"<@{tester['user_id']}> さんがワールドに入りました（{format_duration(seconds)}）")
@@ -917,7 +917,9 @@ class TesterBot(discord.Client):
             await self.reply(interaction, "もう記録してあります。")
             return
         self.store.finish_play(session["id"], self.clock(), connected=True)
-        await interaction.response.edit_message(content="遊び終わりました。おつかれさまでした！", view=None)
+        await interaction.response.edit_message(
+            content="遊び終わりました。おつかれさまでした！\n"
+                    "FPS と Ping の写真がまだなら、あとでこのスレッドに貼ってください。", view=None)
         text, view = survey_message(json.loads(session["answers"]))
         await interaction.followup.send(text, view=view)
 
@@ -962,9 +964,7 @@ class TesterBot(discord.Client):
     def thanks_text(self, session_id: int, tester: dict | None = None) -> str:
         return ("**ありがとうございました！ 記録しました。**\n"
                 "時間になると自動で終わり、ログイン情報はパソコンから消えます。\n\n"
-                "**最後に、評価フォーム（5分）に答えてください**\n"
-                f"{self.site_link(tester, f'/feedback?t={session_id}')}\n"
-                "サイトの見た目・名前・使いやすさの 6段階評価と、回線の速さ・住んでいる場所・払ってもいい金額などを聞きます。\n\n"
+                "FPS と Ping の写真がまだなら、このスレッドに貼ってください。\n\n"
                 f"3日後にもう一度だけ、ここで3つ質問させてください。よければ 15分ほどお話も聞かせてください（運営から連絡します）。")
 
     @staticmethod
@@ -1082,7 +1082,8 @@ class TesterBot(discord.Client):
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot or not isinstance(message.channel, discord.Thread) or not message.attachments:
             return
-        session = self.store.open_session(message.channel.id)
+        # テストが終わってから (スマホから) 貼ることが多いので、終わったテストにも付ける
+        session = self.store.open_session(message.channel.id) or self.store.latest_session(message.channel.id)
         if session is None or session["user_id"] != message.author.id:
             return
         saved = 0

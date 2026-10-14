@@ -350,15 +350,10 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         assert "3分30秒" in i.log[0][1]
         assert "gs:done" in custom_ids(i.log[1][2]["view"])
 
-        # お願いのチェックと数字
+        # お願いのチェック。FPS と Ping は数字を入れずに、写真をスレッドに貼ってもらう
         i = await press(tester, thread.id, "gs:m:heavy")
         assert i.log[0][2]["view"].children[0].label.startswith("✅")
-        i = await press(tester, thread.id, "gs:perf")
-        perf = i.log[0][1]
-        assert [f.label for f in perf.fps_inputs] == ["FPS: ひまり旅館", "FPS: 日本語話者向け集会場"]
-        perf.fps_inputs = [Field("72 fps"), Field("")]
-        perf.ping = Field("約30")
-        await bot.on_perf(FakeInteraction(tester, thread.id), perf)
+        assert "gs:perf" not in custom_ids(i.log[0][2]["view"])
 
         # 遊び終わった → アンケートを全部ボタンで答える
         now[0] = at(56)
@@ -367,7 +362,7 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         for q in QUESTIONS:
             if q.get("multi"):
                 assert custom_ids(view) == [f"gs:a:{q['key']}"]
-                i = await press(tester, thread.id, f"gs:a:{q['key']}", ["heavy"])
+                i = await press(tester, thread.id, f"gs:a:{q['key']}", [q["options"][0][0]])
             else:
                 assert f"gs:a:{q['key']}:{q['options'][-1][0]}" in custom_ids(view)
                 i = await press(tester, thread.id, f"gs:a:{q['key']}:{q['options'][-1][0]}")
@@ -381,13 +376,11 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         done = FakeInteraction(tester, thread.id)
         await bot.on_comment(done, comment)
         assert "ありがとうございました" in done.log[0][1]
-        assert f"https://lg.example.ts.net/feedback?t={store.latest_session(thread.id)['id']}" in done.log[0][1]
+        assert "/feedback" not in done.log[0][1] and "写真" in done.log[0][1]  # アンケートは Discord だけで終わる
         assert custom_ids(done.log[0][2]["view"]) == ["gs:start"]
 
         s = store.latest_session(thread.id)
         assert s["status"] == "done" and s["help_count"] == 1
-        assert json.loads(s["fps_worlds"]) == {"ひまり旅館": 72}
-        assert s["ping_ms"] == 30 and s["latency_ms"] is None
         assert json.loads(s["missions"]) == {"heavy": True}
         assert json.loads(s["answers"])["price"] == "1001"
         assert s["stuck"] == "一覧で迷った"
@@ -854,8 +847,7 @@ def test_ready_message_gives_a_personal_link_instead_of_a_password(tmp_path, mon
         await bot.on_interaction(i)
         assert "/join?t=" in i.log[0][1] and i.log[0][2].get("ephemeral")
 
-        link = bot.thanks_text(5, store.tester(1))
-        assert "&next=%2Ffeedback%3Ft%3D5" in link
+        assert "/feedback" not in bot.thanks_text(5, store.tester(1))
         store.close()
 
     asyncio.run(scenario())
