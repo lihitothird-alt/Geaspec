@@ -43,7 +43,7 @@
     <form method="post" action="/slots/{{ slot.id }}/book">
       <button class="btn lg block">無料で予約する</button>
     </form>
-    <p class="muted">お支払いは不要です{% if free_mode %}（実験中のため、すべて無料です）{% endif %}。予約が確定すると、接続手順のページに移動します。</p>
+    <p class="muted confirm-note">お支払いは不要です{% if free_mode %}（実験中のため、すべて無料です）{% endif %}。予約が確定すると、接続手順のページに移動します。</p>
   {% else %}
     <h2>お支払い方法</h2>
     <div class="pay-options">

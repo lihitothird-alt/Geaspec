@@ -1133,3 +1133,4 @@ td a.badge:hover { text-decoration: underline; }
 .guide-switch a { padding: 8px 16px; border-radius: 999px; text-decoration: none; color: inherit; font-weight: 600; }
 .guide-switch a[aria-current="page"] { background: var(--surface, #fff); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 .spec-line { font-size: .85em; color: var(--text-muted, #666); }
+.confirm-note { margin-top: 20px; }
