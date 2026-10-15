@@ -1227,6 +1227,8 @@ class TesterBot(discord.Client):
         bookings = booking_notice.load_bookings(self.site_db, now)
         sent = 0
         for kind, b in booking_notice.due_notices(bookings, now, self.store.notice_sent):
+            if kind == "soon" and self.store.notice_sent(b["id"], "soon"):
+                continue  # 予約と同時に「すぐ始められます」を送った
             tester = self.store.tester_by_meta(b["meta"])
             thread = await self._existing_thread(tester) if tester else None
             when = booking_notice.when_text(b["start"], b["end"])
@@ -1237,7 +1239,14 @@ class TesterBot(discord.Client):
                                       f"→ {b['host']} の Virtual Desktop Streamer に `{b['meta']}` が入っているか確かめてください")
                 if tester:
                     self.store.mark_booked(tester["user_id"], now)
-                if thread:
+                if thread and b["start"] <= now + dt.timedelta(minutes=booking_notice.SOON_MINUTES):
+                    # 「今すぐ入る」や、まもなく始まる予約: 待たずにそのまま始めてもらう
+                    self.store.mark_notice(b["id"], "soon", now)
+                    await thread.send(
+                        f"<@{tester['user_id']}> 予約を受け付けました: **{when}**\n"
+                        "すぐに始められます。「テストを始める」を押して、Quest で Virtual Desktop を開いてください。",
+                        view=make_view(button("▶ テストを始める", "gs:start", discord.ButtonStyle.primary)))
+                elif thread:
                     await thread.send(f"<@{tester['user_id']}> 予約を受け付けました: **{when}**\n"
                                       f"開始 {booking_notice.SOON_MINUTES} 分前に、ここでお知らせします。")
             elif kind == "soon":

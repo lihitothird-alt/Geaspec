@@ -46,6 +46,8 @@ class Settings:
     turnover_minutes: int = 5
     # 開始時刻の何秒前に Agent へ開始指示を出すか (前処理の時間)
     agent_start_lead_seconds: int = 300
+    # 1 回の予約で続けて借りられる最大の時間 (0 なら制限なし。続いている空き枠の分だけ借りられる)
+    max_booking_hours: int = 0
     secure_cookies: bool = False
     # 設定するとサイト全体に合言葉をかける (招待した人だけが見られるようにする)
     site_password: str = ""
@@ -93,6 +95,7 @@ class Settings:
             agent_start_lead_seconds=int(
                 os.environ.get("AGENT_START_LEAD_SECONDS", cls.agent_start_lead_seconds)
             ),
+            max_booking_hours=int(os.environ.get("MAX_BOOKING_HOURS", cls.max_booking_hours)),
             secure_cookies=base_url.startswith("https://"),
             site_password=os.environ.get("SITE_PASSWORD", ""),
             invite_only=os.environ.get("INVITE_ONLY", "0").strip().lower() in ("1", "true", "yes", "on"),

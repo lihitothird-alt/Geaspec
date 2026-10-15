@@ -45,7 +45,7 @@
   {% elif booking.status in live_states and booking.slot.play_end_at > now %}
   <div class="countdown live" data-countdown="{{ booking.slot.play_end_at|iso }}" data-template="利用中 · 残り {}" role="timer">
     <strong data-countdown-text>利用中 · 残り {{ until_text((booking.slot.play_end_at - now).total_seconds()) }}</strong>
-    <span class="sub">{{ booking.slot.play_end_at|jst("%H:%M") }} に自動で終了します</span>
+    <span class="sub">{{ booking.slot.play_end_at|jst("%m/%d %H:%M" if booking.slot.play_end_at|jst("%Y%m%d") != now|jst("%Y%m%d") else "%H:%M") }} に自動で終了します</span>
   </div>
   {% endif %}
 

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}予約内容の確認 | {{ settings.service_name }}{% endblock %}
 {% block content %}
-{% set wd = slot.start_at|wday %}
+{% set wd = start_at|wday %}
 <section class="wrap narrow section tight">
   <a class="back" href="/slots"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg>空き枠に戻る</a>
 
@@ -15,11 +15,11 @@
 
   <div class="ticket">
     <div class="ticket-main">
-      <p class="ticket-date">{{ slot.start_at|jst("%Y/%m/%d") }}<span class="{% if wd == '土' %}wd-sat{% elif wd == '日' %}wd-sun{% endif %}">（{{ wd }}）</span></p>
-      <p class="ticket-time">{{ slot.start_at|jst("%H:%M") }}<span class="sep">〜</span>{{ slot.play_end_at|jst("%H:%M") }}</p>
+      <p class="ticket-date">{% if now_slot %}<span class="badge confirmed now-badge">今すぐ</span> {% endif %}{{ start_at|jst("%Y/%m/%d") }}<span class="{% if wd == '土' %}wd-sat{% elif wd == '日' %}wd-sun{% endif %}">（{{ wd }}）</span></p>
+      <p class="ticket-time">{{ start_at|jst("%H:%M") }}<span class="sep">〜</span>{% if end_at|jst("%Y%m%d") != start_at|jst("%Y%m%d") %}<span class="small">{{ end_at|jst("%m/%d") }} </span>{% endif %}{{ end_at|jst("%H:%M") }}</p>
       <dl class="kv">
         <dt>PC</dt><dd>{{ slot.host.name }}{% if slot.host.spec_text %}<br><span class="muted small">{{ slot.host.spec_text }}</span>{% endif %}</dd>
-        <dt>利用時間</dt><dd>{{ slot.play_minutes }} 分<small class="muted">（最後の {{ slot.duration_minutes - slot.play_minutes }} 分は PC の片づけと次の人の準備）</small></dd>
+        <dt>利用時間</dt><dd>{{ play_minutes|minutes_text }}<small class="muted">（最後の {{ slot.duration_minutes - slot.play_minutes }} 分は PC の片づけと次の人の準備）</small></dd>
         <dt>Meta ユーザー名</dt><dd>{{ user.meta_username }}</dd>
       </dl>
     </div>
@@ -32,15 +32,30 @@
   {% if not free_mode %}
   <div class="card">
     <dl class="quote">
-      <div class="row"><dt>料金</dt><dd>{{ slot.price_yen|yen }}</dd></div>
+      <div class="row"><dt>料金</dt><dd>{{ price|yen }}</dd></div>
       {% if discount %}<div class="row discount"><dt>初回 {{ trial_minutes }} 分無料</dt><dd>−{{ discount|yen }}</dd></div>{% endif %}
       <div class="row total"><dt>お支払い</dt><dd>{{ amount|yen }}</dd></div>
     </dl>
   </div>
   {% endif %}
 
+  {% if following %}
+  <form class="card until-form" method="get" action="/slots/{{ slot.id }}/confirm">
+    <label for="until">何時まで使いますか？</label>
+    <p class="muted small">この PC は、このあとも空いています。続けて予約すると、途中で切れずにそのまま遊べます。</p>
+    <select id="until" name="until" onchange="this.form.submit()">
+      <option value="0"{% if not until %} selected{% endif %}>{{ slot.play_end_at|jst("%H:%M") }} まで（この枠だけ）</option>
+      {% for s in following %}
+      <option value="{{ s.id }}"{% if s.id == until %} selected{% endif %}>{% if s.play_end_at|jst("%Y%m%d") != slot.start_at|jst("%Y%m%d") %}{{ s.play_end_at|jst("%m/%d") }} {% endif %}{{ s.play_end_at|jst("%H:%M") }} まで（{{ ((s.play_end_at - start_at).total_seconds() // 60)|int|minutes_text }}）</option>
+      {% endfor %}
+    </select>
+    <noscript><button class="btn small ghost">決める</button></noscript>
+  </form>
+  {% endif %}
+
   {% if amount == 0 %}
     <form method="post" action="/slots/{{ slot.id }}/book">
+      <input type="hidden" name="until" value="{{ until }}">
       <button class="btn lg block">無料で予約する</button>
     </form>
     <p class="muted confirm-note">お支払いは不要です{% if free_mode %}（実験中のため、すべて無料です）{% endif %}。予約が確定すると、接続手順のページに移動します。</p>
@@ -50,6 +65,7 @@
       {% for p in providers %}
       <form method="post" action="/slots/{{ slot.id }}/book">
         <input type="hidden" name="provider" value="{{ p }}">
+        <input type="hidden" name="until" value="{{ until }}">
         <button class="btn lg block{% if not loop.first %} ghost{% endif %}">{{ provider_labels.get(p, p) }}で支払う</button>
       </form>
       {% endfor %}

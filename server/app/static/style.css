@@ -1134,3 +1134,11 @@ td a.badge:hover { text-decoration: underline; }
 .guide-switch a[aria-current="page"] { background: var(--surface, #fff); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 .spec-line { font-size: .85em; color: var(--text-muted, #666); }
 .confirm-note { margin-top: 20px; }
+
+/* --- 今すぐ・続けて予約 ---------------------------------------------------- */
+.now-badge { vertical-align: middle; }
+.slots-hint { margin: 0 0 16px; }
+.until-form { display: grid; gap: 8px; margin: 0 0 20px; }
+.until-form label { font-weight: 700; }
+.until-form p { margin: 0; }
+.until-form select { min-height: 44px; font-size: 1rem; }

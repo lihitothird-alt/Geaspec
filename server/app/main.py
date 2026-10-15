@@ -107,6 +107,7 @@ def create_app(
     weekdays = "月火水木金土日"
     templates.env.filters["wday"] = lambda v: weekdays[clock.to_jst(v).weekday()]
     templates.env.filters["iso"] = services.iso_utc
+    templates.env.filters["minutes_text"] = services.minutes_text
     templates.env.globals["until_text"] = services.until_text
     templates.env.globals["provider_labels"] = PROVIDER_LABELS
     templates.env.globals["trial_minutes"] = 0 if settings.free_mode else settings.trial_minutes
@@ -433,16 +434,17 @@ def create_app(
         # 未ログインなら「初回無料」を案内するため True 扱い
         trial = services.trial_eligible(db, user, now, settings.hold_minutes) if user else True
         prices = {
-            s.id: s.price_yen - (services.trial_discount_yen(s, settings.trial_minutes) if trial else 0)
+            s.id: max(0, services.price_now(s, now)
+                      - (services.trial_discount_yen(s, settings.trial_minutes) if trial else 0))
             for s in items
         }
         return render(
             request, db, "slots.html", slots=items, trial_eligible=trial, trial_prices=prices,
-            lenders=lenders, followed=followed, view=view,
+            lenders=lenders, followed=followed, view=view, now=now,
         )
 
     @app.get("/slots/{slot_id}/confirm", response_class=HTMLResponse)
-    def confirm_page(slot_id: int, request: Request, db: Session = Depends(get_db)):
+    def confirm_page(slot_id: int, request: Request, until: int = 0, db: Session = Depends(get_db)):
         user = require_user(request, db)
         if not user.meta_username:
             flash(request, "先に Meta (Quest) のユーザー名を登録してください", "error")
@@ -452,30 +454,48 @@ def create_app(
         if not services.is_available(db, slot, now, settings.hold_minutes):
             flash(request, "この枠はすでに埋まっています", "error")
             return redirect("/slots")
+        # 続いている空き枠があれば、「何時まで」をえらべる
+        following = services.following_slots(db, slot, now, settings.hold_minutes, settings.max_booking_hours)
+        try:
+            chain = services.chain_until(db, slot, until, now, settings.hold_minutes, settings.max_booking_hours)
+        except services.BookingError:
+            chain = []
         amount, discount = services.quote(db, user, slot, now, settings.hold_minutes, settings.trial_minutes,
-                                          settings.free_mode)
+                                          settings.free_mode, chain)
+        start_at = max(slot.start_at, now)
+        end_at = chain[-1].play_end_at if chain else slot.play_end_at
         return render(
             request, db, "confirm.html", slot=slot, amount=amount, discount=discount,
-            providers=list(request.app.state.payments),
+            providers=list(request.app.state.payments), following=following,
+            until=chain[-1].id if chain else 0, start_at=start_at, end_at=end_at,
+            play_minutes=int((end_at - start_at).total_seconds() // 60),
+            price=services.price_now(slot, now) + sum(s.price_yen for s in chain),
+            now_slot=services.is_now_slot(slot, now),
         )
 
     @app.post("/slots/{slot_id}/book")
-    def book(slot_id: int, request: Request, provider: str = Form(""), db: Session = Depends(get_db)):
+    def book(slot_id: int, request: Request, provider: str = Form(""), until: int = Form(0),
+             db: Session = Depends(get_db)):
         user = require_user(request, db)
         slot = db.get(Slot, slot_id) or _404()
         gateways: dict[str, PaymentGateway] = request.app.state.payments
         now = clock.utcnow()
+        try:
+            chain = services.chain_until(db, slot, until, now, settings.hold_minutes, settings.max_booking_hours)
+        except services.BookingError as exc:
+            flash(request, str(exc), "error")
+            return redirect(f"/slots/{slot_id}/confirm")
         if user.meta_username and services.is_available(db, slot, now, settings.hold_minutes):
             amount, _ = services.quote(db, user, slot, now, settings.hold_minutes, settings.trial_minutes,
-                                       settings.free_mode)
+                                       settings.free_mode, chain)
             if amount > 0 and provider not in gateways:
                 if len(gateways) != 1:
                     # 支払い方法を選んでもらう
-                    return redirect(f"/slots/{slot_id}/confirm")
+                    return redirect(f"/slots/{slot_id}/confirm" + (f"?until={until}" if until else ""))
                 provider = next(iter(gateways))
         try:
             booking = services.create_booking(
-                db, user, slot, now, settings.hold_minutes, settings.trial_minutes, settings.free_mode
+                db, user, slot, now, settings.hold_minutes, settings.trial_minutes, settings.free_mode, chain
             )
         except services.BookingError as exc:
             flash(request, str(exc), "error")

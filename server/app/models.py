@@ -88,6 +88,8 @@ class Slot(Base):
     price_yen: Mapped[int]
     # 貸し手が受付をやめた枠 (予約履歴があって削除できないものは、消す代わりに閉じる)
     closed: Mapped[bool] = mapped_column(default=False)
+    # 続けて予約されたときに、1 時間の枠をつないで 1 つにした枠 (キャンセルされたら 1 時間ずつに戻す)
+    merged: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
 
     host: Mapped[Host] = relationship(back_populates="slots")

@@ -73,8 +73,9 @@ class StubPayPal:
         return self.result
 
 
-def make_app(tmp_path, payments=None, vpn=None, trial_minutes=0, screenshot_max_mb=250, site_password="", free_mode=False, invite_only=False, simple_mode=False):
+def make_app(tmp_path, payments=None, vpn=None, trial_minutes=0, screenshot_max_mb=250, site_password="", free_mode=False, invite_only=False, simple_mode=False, max_booking_hours=0):
     settings = Settings(
+        max_booking_hours=max_booking_hours,
         database_url=f"sqlite:///{tmp_path / 'test.db'}",
         secret_key="test",
         admin_emails=frozenset({"admin@example.com"}),
@@ -1032,3 +1033,102 @@ def test_pages_are_compressed_and_static_files_cached(tmp_path):
     css = client.get("/static/style.css")
     assert "max-age=86400" in css.headers["cache-control"]
     assert "cache-control" not in client.get("/guide").headers  # ページそのものは毎回新しく
+
+
+def add_hours(agent, *starts):
+    # 13:00 (UTC 04:00) の枠は admin_setup で作ったもの。外すと消えるので必ず入れる
+    body = {"start": "2026-10-09T15:00:00Z", "days": 7, "price_yen": 500,
+            "starts": ["2026-10-10T04:00:00Z", *starts]}
+    r = agent.put("/api/agent/schedule", json=body).json()
+    return {s["start"]: s for s in r["slots"]}
+
+
+def test_consecutive_hours_are_booked_as_one_long_session(setup, now):
+    app, vpn, user, agent = setup
+    slots = add_hours(agent, "2026-10-10T05:00:00Z", "2026-10-10T06:00:00Z", "2026-10-10T08:00:00Z")
+    six = slots["2026-10-10T06:00:00Z"]["id"]
+
+    # 続いて空いている 05:00・06:00 は「何時まで」でえらべる。すき間のある 08:00 はえらべない
+    page = user.get("/slots/1/confirm").text
+    assert "何時まで使いますか" in page
+    assert "15:55 まで（2時間55分）" in page and "17:55" not in page
+    page = user.get(f"/slots/1/confirm?until={six}").text
+    assert "2時間55分" in page and "15:55" in page
+
+    r = user.post("/slots/1/book", data={"until": six}, follow_redirects=False)
+    assert r.headers["location"] == "/bookings/1"
+    slot = db(app).get(Slot, 1)
+    assert (slot.start_at, slot.end_at, slot.price_yen, slot.merged) == (
+        dt.datetime(2026, 10, 10, 4), dt.datetime(2026, 10, 10, 7), 1500, True)
+    assert vpn.issued == [("tag:borrower-pc1", 4 * 3600)]
+    # 一覧には 08:00 だけが残る。貸し手のカレンダーでは 3 時間ぶんが予約ありになる
+    assert len(re.findall(r'href="/slots/\d+/confirm"', user.get("/slots").text)) == 1
+    states = add_hours(agent, "2026-10-10T05:00:00Z", "2026-10-10T06:00:00Z", "2026-10-10T08:00:00Z")
+    assert states["2026-10-10T04:00:00Z"]["end"] == "2026-10-10T07:00:00Z"
+    assert states["2026-10-10T04:00:00Z"]["state"] == "booked"
+
+    # Agent には 1 回の長い利用として渡る (途中でデータ消去やログアウトが入らない)
+    now["t"] = dt.datetime(2026, 10, 10, 3, 58)
+    job = agent.get("/api/agent/poll").json()
+    assert job["action"] == "start" and job["remaining_seconds"] == (2 * 60 + 55) * 60 + 120
+
+    # 始まる前にキャンセルされたら、1 時間ずつの枠に戻る
+    now["t"] = NOW
+    with db(app) as s:
+        from app import services
+        services.cancel_booking(s, s.get(Booking, 1), vpn, "テスト")
+    with db(app) as s:
+        hours = [(x.start_at.hour, x.end_at.hour, x.price_yen, x.merged) for x in s.query(Slot).order_by(Slot.start_at)]
+    assert hours == [(4, 5, 500, False), (5, 6, 500, False), (6, 7, 500, False), (8, 9, 500, False)]
+    assert len(re.findall(r'href="/slots/\d+/confirm"', user.get("/slots").text)) == 4
+
+
+def test_long_bookings_can_be_limited(tmp_path, now):
+    app, vpn = make_app(tmp_path, max_booking_hours=2)
+    admin = TestClient(app)
+    token = admin_setup(admin)
+    agent = TestClient(app, headers={"Authorization": f"Bearer {token}"})
+    slots = add_hours(agent, "2026-10-10T05:00:00Z", "2026-10-10T06:00:00Z")
+    user = TestClient(app)
+    signup(user, "user@example.com")
+    page = user.get("/slots/1/confirm").text
+    assert "14:55 まで" in page and "15:55 まで" not in page
+    r = user.post("/slots/1/book", data={"until": slots["2026-10-10T06:00:00Z"]["id"]}, follow_redirects=False)
+    assert r.headers["location"] == "/slots/1/confirm"
+    assert db(app).get(Slot, 1).end_at == dt.datetime(2026, 10, 10, 5)
+
+
+def test_a_started_slot_can_be_booked_right_now_while_the_pc_is_on(setup, now):
+    app, vpn, user, agent = setup
+    now["t"] = dt.datetime(2026, 10, 10, 4, 20)  # 13:00 の枠が始まって 20 分
+    assert "今すぐ入る" not in user.get("/slots").text  # PC のアプリから連絡がない間は出さない
+    agent.get("/api/agent/poll")
+    page = user.get("/slots").text
+    assert "今すぐ入る" in page and "あと35分" in page
+
+    r = user.post("/slots/1/book", follow_redirects=False)
+    assert r.headers["location"] == "/bookings/1"
+    job = agent.get("/api/agent/poll").json()
+    assert job["action"] == "start" and job["remaining_seconds"] == 35 * 60
+
+
+def test_a_started_slot_needs_twenty_minutes_left(setup, now):
+    app, vpn, user, agent = setup
+    now["t"] = dt.datetime(2026, 10, 10, 4, 40)
+    agent.get("/api/agent/poll")
+    assert "今すぐ入る" not in user.get("/slots").text
+    assert user.post("/slots/1/book", follow_redirects=False).headers["location"] == "/slots"
+
+
+def test_started_slot_price_is_only_the_time_left(tmp_path, now):
+    stripe = StubStripe()
+    app, _ = make_app(tmp_path, payments=stripe)
+    admin = TestClient(app)
+    token = admin_setup(admin)
+    agent = TestClient(app, headers={"Authorization": f"Bearer {token}"})
+    now["t"] = dt.datetime(2026, 10, 10, 4, 22)  # 残り 33 / 55 分
+    agent.get("/api/agent/poll")
+    user = TestClient(app)
+    signup(user, "user@example.com")
+    user.post("/slots/1/book", follow_redirects=False)
+    assert stripe.amounts == [300]

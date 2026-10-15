@@ -1089,3 +1089,29 @@ def test_summary_counts_pc_price_answers(store):
     s = store.summary()
     assert s["pc_checked_recent_rate"] == 0.5 and s["pc_effect"]["no_need"] == 0.5 and s["pc_effect"]["later"] == 0.0
     assert any("1か月以内に調べた: 50%" in line and "買わなくてよくなる 50%" in line for line in summary_lines(s))
+
+
+def test_booking_that_starts_now_says_start_right_away(tmp_path, monkeypatch):
+    async def scenario():
+        now = [at(0)]
+        thread = FakeThread(10)
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, now, {10: thread}, ops_log)
+        apply(store, 1, thread_id=10)
+        site = tmp_path / "geaspec.db"
+        make_site_db(site, [("meta1", at(-20), "confirmed")], last_seen=at(0))  # 20 分前に始まった枠に「今すぐ入る」
+        bot.site_db = site
+        assert await bot.send_booking_notices() == 1
+        assert len(thread.sent) == 1 and "すぐに始められます" in thread.sent[0][0]
+        assert custom_ids(thread.sent[0][1]["view"]) == ["gs:start"]
+        assert await bot.send_booking_notices() == 0
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_long_booking_shows_the_end_date():
+    from app import booking_notice
+    start = dt.datetime(2026, 10, 10, 4, tzinfo=dt.timezone.utc)
+    assert booking_notice.when_text(start, start + dt.timedelta(hours=1)) == "10/10（土）13:00〜14:00"
+    assert booking_notice.when_text(start, start + dt.timedelta(days=2)) == "10/10（土）13:00〜10/12（月）13:00"
