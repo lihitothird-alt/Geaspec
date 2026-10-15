@@ -1021,3 +1021,14 @@ def test_lender_pc_specs_are_shown_to_borrowers(tmp_path, now):
     assert line in user.get("/slots").text
     assert agent.post("/api/agent/specs", json={"gpu": "x" * 500, "ram_gb": -1}).json() == {"ok": True}
     assert "x" * 100 in user.get("/slots").text and "x" * 101 not in user.get("/slots").text
+
+
+def test_pages_are_compressed_and_static_files_cached(tmp_path):
+    app, _ = make_app(tmp_path)
+    client = TestClient(app)
+    page = client.get("/guide", headers={"Accept-Encoding": "gzip"})
+    assert page.headers.get("content-encoding") == "gzip"
+    assert "/static/style.css?v=" in page.text
+    css = client.get("/static/style.css")
+    assert "max-age=86400" in css.headers["cache-control"]
+    assert "cache-control" not in client.get("/guide").headers  # ページそのものは毎回新しく

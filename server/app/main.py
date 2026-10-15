@@ -20,6 +20,7 @@ from typing import Iterator
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -33,6 +34,7 @@ from .models import Booking, BookingStatus, Feedback, Host, Slot, User
 from .payments import PROVIDER_LABELS, PaymentGateway, build_payments
 from .security import connection_code, hash_password, hash_token, new_agent_token, verify_password
 from .mail import Mailer, build_mailer
+from .version import VERSION
 from .vpn import VpnProvider, build_vpn
 
 log = logging.getLogger(__name__)
@@ -81,8 +83,14 @@ def create_app(
                 return RedirectResponse(f"/site-login?next={target}", status_code=303)
         response = await call_next(request)
         response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        if path.startswith("/static/") and response.status_code == 200:
+            # サイトは家の PC から Tailscale Funnel 経由で届くので、CSS や画像は毎回取りに行かせない。
+            # style.css は ?v=版 を付けて読むので、新しい版にすると読み直される
+            response.headers["Cache-Control"] = "public, max-age=86400"
         return response
 
+    # HTML と CSS を圧縮して送る (Funnel 経由でも速く表示されるように)
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
     # SessionMiddleware を後から追加して外側にし、上の合言葉チェックでセッションを読めるようにする
     app.add_middleware(
         SessionMiddleware,
@@ -103,6 +111,7 @@ def create_app(
     templates.env.globals["provider_labels"] = PROVIDER_LABELS
     templates.env.globals["trial_minutes"] = 0 if settings.free_mode else settings.trial_minutes
     templates.env.globals["free_mode"] = settings.free_mode
+    templates.env.globals["asset_version"] = VERSION
     templates.env.globals["simple"] = settings.simple_mode
     templates.env.globals["mail_enabled"] = app.state.mailer.enabled
 
