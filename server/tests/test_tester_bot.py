@@ -296,7 +296,7 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         assert "https://lg.example.ts.net/guide" in prep and "#" not in prep  # ページのいちばん上から開く
         # 申し込んだらすぐ、いちばん下に「次にやること: 予約する」が届く (運営も、2つの答えも待たない)
         assert store.tester(1)["status"] == "ready" and len(thread.sent) == 4
-        assert "テストでやること（一覧）" in thread.sent[-2][0] and "VRChat のカメラで写真" in thread.sent[-2][0]
+        assert "テストでやること（一覧）" in thread.sent[-2][0] and "自撮り" in thread.sent[-2][0]
         assert "次にやること: 予約する" in thread.sent[-1][0]
         assert any("hikari_meta" in c for c, _ in ops_log)
         sent_before = len(thread.sent)

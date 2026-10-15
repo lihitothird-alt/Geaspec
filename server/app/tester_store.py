@@ -84,7 +84,7 @@ FOLLOWUPS: list[dict] = [
      "options": [("yes", "ぜひ"), ("maybe", "たぶん"), ("rather_not", "あまり"), ("no", "使わない")]},
     {"key": "told", "text": "このサービスのことを、友達に話しましたか？",
      "options": [("yes", "話した"), ("will", "話そうと思っている"), ("no", "話していない")]},
-    {"key": "photos_3d", "text": "テスト中に VRChat のカメラで撮った写真は、予約サイトの予約ページから受け取れましたか？",
+    {"key": "photos_3d", "text": "テスト中に VRChat のカメラで撮った自撮りは、予約サイトの予約ページから受け取れましたか？",
      "options": [("got", "受け取れた"), ("failed", "受け取れなかった"), ("none", "撮っていない")]},
     {"key": "price_3d", "text": "あらためて、1時間いくらなら払いますか？",
      "options": [("200", "〜200円"), ("400", "〜400円"), ("600", "〜600円"), ("800", "〜800円"),
@@ -93,7 +93,7 @@ FOLLOWUPS: list[dict] = [
 FOLLOWUP_KEYS = [q["key"] for q in FOLLOWUPS]
 
 # 遊んでいる途中のお願い
-MISSIONS = {"heavy": "重いワールドに行った", "crowd": "人の多いインスタンスに入った", "photo": "VRChat のカメラで撮った"}
+MISSIONS = {"heavy": "重いワールドに行った", "crowd": "人の多いインスタンスに入った", "photo": "VRChat のカメラで自撮りした"}
 
 OPEN_STATUSES = ("connecting", "playing", "survey")
 
