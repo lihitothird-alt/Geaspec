@@ -65,13 +65,13 @@
   {% elif booking.status in live_states %}
     <div class="guide-head">
       <h2>接続手順</h2>
-      <p>1 は開始前に済ませておくとスムーズです。Quest のブラウザでこのページを開くと、キーをコピーして貼り付けられます。</p>
+      <p>1 は開始前に済ませておくとスムーズです。</p>
     </div>
     <ol class="stepper">
       <li class="st">
         <div class="st-body">
-          <h3><svg class="i" aria-hidden="true"><use href="#i-key"/></svg>VPN に接続</h3>
           {% if booking.vpn_auth_key %}
+          <h3><svg class="i" aria-hidden="true"><use href="#i-key"/></svg>VPN に接続</h3>
             <p>Quest の Tailscale アプリで「認証キーでログイン」を選び、次のキーを入力してください（1回限り・終了時刻まで有効）。</p>
             <div class="secret-box">
               <span class="label" id="vpn-key-label">VPN 認証キー</span>
@@ -81,11 +81,9 @@
               </div>
             </div>
             <p class="sub">キーはタップすると全体が選択されます。他の人には教えないでください。</p>
-          {% elif vpn_mode == "manual" %}
-            <p>接続用の招待は、開始前に運営からメールでお送りします。</p>
-            <p class="sub"><svg class="i" aria-hidden="true"><use href="#i-mail"/></svg> 登録したメールアドレス（{{ booking.user.email }}）をご確認ください。</p>
           {% else %}
-            <p>接続キーを準備中です。届かない場合は運営までご連絡ください。</p>
+          <h3><svg class="i" aria-hidden="true"><use href="#i-key"/></svg>VPN をオフにする</h3>
+            <p>Quest・スマホ・家のルーターで VPN を使っている人は、オフにしてください。Virtual Desktop でインターネット越しに直接つなぎます。</p>
           {% endif %}
         </div>
       </li>
