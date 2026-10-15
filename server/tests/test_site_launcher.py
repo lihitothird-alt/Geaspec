@@ -92,3 +92,18 @@ def test_port_in_use_detects_an_old_window():
         port = sock.getsockname()[1]
         assert s.port_in_use(port) is True
     assert s.port_in_use(port) is False
+
+
+def test_a_slow_first_start_is_waited_for(monkeypatch, capsys):
+    calls = []
+
+    def wait(port, timeout):
+        calls.append(timeout)
+        return len(calls) > 1  # 1 回目は間に合わず、2 回目で起動した
+
+    monkeypatch.setattr(s, "wait_until_ready", wait)
+    monkeypatch.setattr(s.webbrowser, "open", lambda url: None)
+    s.after_start(None, "", s.Path("."))
+    out = capsys.readouterr().out
+    assert calls == [s.FIRST_WAIT_SEC, s.LONG_WAIT_SEC]
+    assert "時間がかかっています" in out and "起動できませんでした" not in out
