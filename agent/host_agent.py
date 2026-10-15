@@ -1320,15 +1320,19 @@ def serve(cfg: AgentConfig, client: ServerClient, home: Path, poll_interval: flo
     # 前回が途中で止まっていても、タスクマネージャーを止めたままにしない
     set_task_manager_locked(False)
     install_console_handler()
-    try:
-        client.send_specs(detect_specs())
-    except Exception:  # noqa: BLE001 - 性能が送れなくても貸し出しは続ける
-        log.warning("PC の性能を送れませんでした", exc_info=True)
+    specs_sent = False
     try:
         while not stop.is_set():
             job = client.poll()
             STATUS.last_poll_at = dt.datetime.now()
             STATUS.state = "unreachable" if job is None else "idle"
+            if job is not None and not specs_sent:
+                # サイトに届いてから 1 回だけ送る (届かないうちに送ると、再送を待つぶん最初の確認が遅れる)
+                specs_sent = True
+                try:
+                    client.send_specs(detect_specs())
+                except Exception:  # noqa: BLE001 - 性能が送れなくても貸し出しは続ける
+                    log.warning("PC の性能を送れませんでした", exc_info=True)
             if job is not None and job.get("action") == "none":
                 update_next_booking(job.get("next"))
                 STATUS.host_state = str(job.get("host_state") or "ok")

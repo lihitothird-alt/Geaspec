@@ -80,7 +80,9 @@ class ControllerTest(unittest.TestCase):
         c.save_settings("http://127.0.0.1:9", "pcvr_0123456789", "-")  # 届かないサーバー
         c.register_lending_user()
         c.poll_interval = 0.05
-        with mock.patch.object(h.ServerClient, "poll", return_value=None):
+        # 性能の送信は、サイトに届かないうちは待たされる (Windows では再送で数秒)。それで最初の確認が遅れないこと
+        with mock.patch.object(h.ServerClient, "poll", return_value=None), \
+                mock.patch.object(h.ServerClient, "send_specs", side_effect=lambda *_: time.sleep(5)):
             self.assertTrue(c.start())
             self.assertFalse(c.start())  # 二重には起動しない
             deadline = time.time() + 2
