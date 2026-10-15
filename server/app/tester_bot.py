@@ -135,6 +135,20 @@ def test_items_text(worlds: list[str]) -> str:
             "7. 3日後に届く 4つの質問に答える（写真を受け取れたかも聞きます）")
 
 
+WIPE_CHECK_TEXT = (
+    "**貸し出しが終わったら、データが消えているか確かめてください**（テスト項目です）\n"
+    "1. Geaspec アプリの「動きの記録」に「終了処理が完了しました。クリーンな状態です」と出ている\n"
+    "2. 貸し出し用の Windows ユーザーの「ピクチャ」→「VRChat」フォルダが空になっている\n"
+    "3. Steam から VRChat を起動すると、借りた人のアカウントではなくログイン画面が出る（確かめたら閉じてください）\n"
+    "確かめたら、下のボタンを押してください。貸すたびに押してもらえると助かります。"
+)
+
+
+def wipe_check_view() -> discord.ui.View:
+    return make_view(button("✅ 全部消えていた", "gs:wipe:ok", discord.ButtonStyle.success),
+                     button("⚠ 残っていた", "gs:wipe:left", discord.ButtonStyle.danger))
+
+
 def vd_install_text(tester: dict) -> str:
     """Quest の Virtual Desktop を持っていない人への案内。持っている人には何も出さない。"""
     if tester.get("has_vd") != 0:
@@ -731,6 +745,7 @@ class TesterBot(discord.Client):
             await thread.send(f"<@{uid}> " + self.lender_text(tester), view=make_view(
                 button("📥 アプリを入れた", "gs:lenderapp", discord.ButtonStyle.primary),
                 button("🔗 サイトを開く", "gs:link")))
+            await thread.send(WIPE_CHECK_TEXT, view=wipe_check_view())
 
     async def send_ready_now(self, tester: dict, thread: discord.Thread | None = None) -> bool:
         """運営を待たずに、スレッドへ予約の案内を送る (1 回だけ)。"""
@@ -826,6 +841,22 @@ class TesterBot(discord.Client):
         await self.send_extras(thread, tester)
 
     # テスト本体
+    async def on_wipe_check(self, interaction: discord.Interaction, tester: dict, ok: bool) -> None:
+        """貸した人が、貸し出しのあとにデータが消えたかを確かめた結果。押すたびに記録して運営に知らせる。"""
+        key = f"wipe_{'ok' if ok else 'left'}:{tester['user_id']}"
+        count = int(self.store.get_setting(key, "0") or 0) + 1
+        self.store.set_setting(key, str(count))
+        if ok:
+            await self.reply(interaction, f"ありがとうございます！記録しました（{count}回目）。次に貸したあとも、同じように確かめてください。")
+            await self.notify_ops(f"<@{tester['user_id']}> さんの PC: 貸し出しのあと、データが消えていることを確かめました（{count}回目）")
+        else:
+            await interaction.response.send_message(
+                f"{self.ops_role_mention()} 教えてくれてありがとうございます。運営がすぐ確認します。"
+                "何が残っていたか（写真・VRChat のログイン・ほかのファイルなど）を、このスレッドに書いてください。"
+                "画面の写真もあると助かります（借りた人の名前などが写っていたら隠してください）。")
+            await self.notify_ops(f"【要確認】<@{tester['user_id']}> さんの PC で、貸し出しのあとにデータが残っていました "
+                                  f"<#{interaction.channel_id}>")
+
     async def on_session_action(self, interaction: discord.Interaction, action: str, args: list[str]) -> None:
         tester = self.store.tester_by_thread(interaction.channel_id)
         if tester is None:
@@ -846,6 +877,9 @@ class TesterBot(discord.Client):
             return
         if action in ("booked", "bookhelp", "lenderapp"):
             await self.on_tester_step(interaction, tester, action)
+            return
+        if action == "wipe":
+            await self.on_wipe_check(interaction, tester, args[:1] == ["ok"])
             return
         if action == "f":
             await self.on_followup(interaction, tester, args)

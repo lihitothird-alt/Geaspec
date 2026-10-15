@@ -601,13 +601,22 @@ def test_group_c_gets_lender_guide(tmp_path, monkeypatch):
         store.set_thread(3, 30)
         store.set_setting("hours", "土日だけ")
         assert await bot.send_ready_now(store.tester(3)) is True
-        (ready, ready_kw), (text, kw) = thread.sent[-2], thread.sent[-1]
+        (ready, ready_kw), (text, kw), (wipe, wipe_kw) = thread.sent[-3], thread.sent[-2], thread.sent[-1]
+        assert "データが消えているか" in wipe and custom_ids(wipe_kw["view"]) == ["gs:wipe:ok", "gs:wipe:left"]
         assert "テストでやること（一覧）" in thread.sent[0][0]
         assert "次にやること: 予約する" in ready and "土日だけ" in ready
         assert "PC を貸すテストの手順" in text and "GeaspecAgent-Setup-" in text and "詳細情報" in text
         assert custom_ids(kw["view"]) == ["gs:lenderapp", "gs:link"]
         await bot.send_extras(thread, store.tester(3))  # 2 回は送らない
-        assert thread.sent[-1][0] == text and len(thread.sent) == 3
+        assert thread.sent[-1][0] == wipe and len(thread.sent) == 4
+
+        # 貸したあとにデータが消えたかを確かめて押す。残っていたら運営を呼ぶ
+        i = FakeInteraction(FakeUser(3), 30, "gs:wipe:ok")
+        await bot.on_interaction(i)
+        assert "1回目" in i.log[0][1] and "消えていることを確かめました" in ops_log[-1]
+        i = FakeInteraction(FakeUser(3), 30, "gs:wipe:left")
+        await bot.on_interaction(i)
+        assert "何が残っていたか" in i.log[0][1] and "要確認" in ops_log[-1]
         i = FakeInteraction(FakeUser(3), 30, "gs:lenderapp")
         await bot.on_interaction(i)
         assert "承認" in ops_log[-1] and store.summary()["lender_app"] == 1
@@ -937,7 +946,8 @@ def test_lenders_get_setup_steps_instead_of_booking(tmp_path, monkeypatch):
         texts = [t for t, _ in thread.sent]
         assert store.tester(7)["grp"] == "C" and store.tester(7)["status"] == "ready"
         assert not any("次にやること: 予約する" in t for t in texts)  # 借りる人向けの案内は出さない
-        steps = texts[-1]
+        steps = texts[-2]
+        assert "データが消えているか" in texts[-1]
         assert "PC を貸すテストの手順" in steps and "Allow remote connections" in steps
         assert f"/releases/download/agent-v{tb.version.VERSION}/GeaspecAgent-Setup-{tb.version.VERSION}.exe" in steps
         assert "貸せる時間" in steps and "PC を貸す" in ops_log[-1]
