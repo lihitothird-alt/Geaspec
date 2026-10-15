@@ -55,6 +55,15 @@ QUESTIONS: list[dict] = [
      "options": [("q2", "Quest 2"), ("q3", "Quest 3"), ("q3s", "Quest 3S"), ("pro", "Quest Pro"), ("other", "その他")]},
     {"key": "own_pc", "text": "自分のパソコンは？",
      "options": [("none", "持っていない"), ("no_vr", "VR はできないパソコンならある"), ("vr", "VR ができるパソコンがある")]},
+    # PC を買うことと比べてどうか (VR ができる PC を持っている人には聞かない)
+    {"key": "pc_checked", "text": "VR ができるパソコン（ゲーミング PC）の値段を、最後に調べたのはいつですか？",
+     "skip_if": {"own_pc": "vr"},
+     "options": [("week", "1週間以内"), ("month", "1か月以内"), ("half", "半年以内"), ("older", "それより前"),
+                 ("never", "調べたことがない")]},
+    {"key": "pc_effect", "text": "Geaspec があったら、ゲーミング PC を買うことについてどう思いますか？",
+     "skip_if": {"own_pc": "vr"},
+     "options": [("no_need", "買わなくてよくなる"), ("later", "買うのを先に延ばす"), ("same", "変わらない"),
+                 ("want_more", "試してみて、むしろ欲しくなった")]},
     {"key": "vrc_days", "text": "VRChat で遊ぶのは週に何日くらい？",
      "options": [("daily", "ほぼ毎日"), ("3_5", "週に3〜5日"), ("1_2", "週に1〜2日"), ("less", "それより少ない")]},
     {"key": "play_times", "text": "よく遊ぶ時間帯は？（いくつでも）", "multi": True,
@@ -420,8 +429,14 @@ class TesterStore:
         return self.next_question(answers)
 
     @staticmethod
+    def asked_questions(answers: dict) -> list[dict]:
+        """この人に聞く質問 (前の答えによって聞かないものを除く)。"""
+        return [q for q in QUESTIONS
+                if not any(answers.get(k) == v for k, v in q.get("skip_if", {}).items())]
+
+    @staticmethod
     def next_question(answers: dict) -> str | None:
-        return next((k for k in QUESTION_KEYS if k not in answers), None)
+        return next((q["key"] for q in TesterStore.asked_questions(answers) if q["key"] not in answers), None)
 
     def complete(self, session_id: int, now: dt.datetime, *, stuck: str = "", comment: str = "") -> None:
         self._run("UPDATE sessions SET stuck = ?, comment = ?, status = 'done', completed_at = ? WHERE id = ?",
@@ -566,6 +581,8 @@ class TesterStore:
             "screenshots": sum(len(json.loads(r["screenshots"])) for r in rows),
             "groups": groups,
             **self.lender_summary(),
+            "pc_checked_recent_rate": share("pc_checked", {"week", "month"}),
+            "pc_effect": {v: share("pc_effect", {v}) for v, _ in next(q for q in QUESTIONS if q["key"] == "pc_effect")["options"]},
         }
 
     def lender_summary(self) -> dict:
@@ -689,6 +706,8 @@ def summary_lines(s: dict) -> list[str]:
         f"・ カクつきの気にならなさ: {'—' if s['stutter_avg'] is None else s['stutter_avg']}（5 がまったく気にならない）",
         f"・ 3日後もまた使いたい: {_pct(s['again_3d_rate'])} ／ 友達に話した: {_pct(s['told_rate'])}",
         f"・ 貸し手ベータのアプリを入れた人: {s['lender_app']}人",
+        f"・ ゲーミング PC の値段を1か月以内に調べた: {_pct(s['pc_checked_recent_rate'])} ／ Geaspec があれば PC を: "
+        + "・".join(f"{option_label('pc_effect', k)} {_pct(v)}" for k, v in s["pc_effect"].items()),
         f"・ 貸した人のアンケート: {s['lenders_answered']}人 ／ もらえたら貸す金額（真ん中の値）: "
         f"{'—' if s['lend_price_median'] is None else option_label('lend_price', str(s['lend_price_median']))}"
         f" ／ また貸したい: {_pct(s['lend_again_rate'])} ／ 貸す前に不安だった: {_pct(s['lend_worry_rate'])}",

@@ -361,6 +361,8 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         i = await press(tester, thread.id, "gs:done")
         view = i.log[1][2]["view"]
         for q in QUESTIONS:
+            if q.get("skip_if", {}).get("own_pc") == "vr":
+                continue  # 最後の選択肢「VR ができるパソコンがある」を選んだので、PC の値段の質問は出ない
             if q.get("multi"):
                 assert custom_ids(view) == [f"gs:a:{q['key']}"]
                 i = await press(tester, thread.id, f"gs:a:{q['key']}", [q["options"][0][0]])
@@ -1060,3 +1062,30 @@ def test_testers_are_told_they_can_write_anytime(tmp_path, monkeypatch):
     assert tb.NOTES_HINT in tb.prep_text("https://x/guide")
     assert tb.NOTES_HINT in bot.lender_text() and tb.NOTES_HINT in bot.thanks_text(1)
     store.close()
+
+
+def test_pc_price_questions_only_for_people_without_a_vr_pc():
+    without = TesterStore.asked_questions({"own_pc": "none"})
+    with_pc = TesterStore.asked_questions({"own_pc": "vr"})
+    assert len(without) == len(QUESTIONS) and len(with_pc) == len(QUESTIONS) - 2
+    keys = [q["key"] for q in without]
+    assert keys.index("pc_checked") == keys.index("own_pc") + 1 and keys.index("pc_effect") == keys.index("own_pc") + 2
+    before = {k: "x" for k in keys[:keys.index("pc_checked")]}
+
+    async def scenario():
+        text, _ = tb.survey_message(before | {"own_pc": "none"})
+        assert "値段を、最後に調べたのはいつ" in text and f"/ {len(QUESTIONS)}" in text
+        text, _ = tb.survey_message(before | {"own_pc": "vr"})
+        assert "週に何日" in text and f"/ {len(QUESTIONS) - 2}" in text
+
+    asyncio.run(scenario())
+
+
+def test_summary_counts_pc_price_answers(store):
+    apply(store, 1, thread_id=10)
+    apply(store, 2, thread_id=11)
+    run_session(store, 1, answers=ALL_GOOD | {"own_pc": "none", "pc_checked": "week", "pc_effect": "no_need"})
+    run_session(store, 2, answers=ALL_GOOD | {"own_pc": "no_vr", "pc_checked": "older", "pc_effect": "want_more"})
+    s = store.summary()
+    assert s["pc_checked_recent_rate"] == 0.5 and s["pc_effect"]["no_need"] == 0.5 and s["pc_effect"]["later"] == 0.0
+    assert any("1か月以内に調べた: 50%" in line and "買わなくてよくなる 50%" in line for line in summary_lines(s))

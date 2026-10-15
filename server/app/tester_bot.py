@@ -178,9 +178,10 @@ def survey_message(answers: dict) -> tuple[str, discord.ui.View]:
                 "なければ「スキップして終わる」で完了です。")
         return text, make_view(button("✍ 書く", "gs:comment", discord.ButtonStyle.primary),
                                button("スキップして終わる", "gs:skip"))
-    index = [q["key"] for q in QUESTIONS].index(key)
-    q = QUESTIONS[index]
-    text = f"**アンケート {index + 1} / {len(QUESTIONS)}**\n{q['text']}"
+    asked = TesterStore.asked_questions(answers)
+    index = [q["key"] for q in asked].index(key)
+    q = asked[index]
+    text = f"**アンケート {index + 1} / {len(asked)}**\n{q['text']}"
     if q.get("multi"):
         select = discord.ui.Select(
             custom_id=f"gs:a:{key}", placeholder="えらんでください（いくつでも）", min_values=1,
