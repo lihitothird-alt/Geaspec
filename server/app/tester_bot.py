@@ -83,7 +83,7 @@ def button(label: str, custom_id: str, style=discord.ButtonStyle.secondary, *, r
 
 def panel_text(hours: str, site_url: str = "") -> str:
     return f"""Quest から遠くのゲーミング PC を借りて、PC 版 VRChat を遊ぶテストです。
-お金もうけではない、このコミュニティ限定の実験です。参加は無料です。
+いまはこのコミュニティ限定の実験段階で、参加は無料です（正式リリースでは有料にする予定です）。
 
 **流れ**
 1. 下の「テスターに申し込む」を押して、PC を借りる側か貸す側かをえらぶ

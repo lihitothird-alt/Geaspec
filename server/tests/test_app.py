@@ -916,7 +916,7 @@ def test_free_mode_never_takes_money(tmp_path, now):
 
     # 実験中の規約と、売り買いの表記を出さないこと
     terms = user.get("/legal/terms").text
-    assert "お金もうけを目的としない" in terms and "AGPL-3.0" in terms and "ひな形" not in terms
+    assert "実験のあいだは、お金もうけをしません" in terms and "有料のサービスにする予定" in terms and "AGPL-3.0" in terms and "ひな形" not in terms
     assert "集める情報" in user.get("/legal/privacy").text
     assert user.get("/legal/tokushoho").status_code == 404
     assert "特定商取引法" not in home
