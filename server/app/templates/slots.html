@@ -66,6 +66,7 @@
               <span class="chip">{{ s.play_minutes }}分</span>
             </div>
             <div class="slot-meta"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>{{ s.host.name }}</div>
+            {% if s.host.spec_text %}<div class="slot-meta spec-line">{{ s.host.spec_text }}</div>{% endif %}
             {% if not simple and s.host.owner_id in lenders %}{% set l = lenders[s.host.owner_id] %}
             <div class="slot-meta lender-line">
               <a href="/lenders/{{ l.user.id }}">{{ l.user.display_name }} さん</a>{{ stars(l.rating) }}

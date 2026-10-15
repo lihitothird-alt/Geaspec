@@ -1025,6 +1025,27 @@ def create_app(
         db.commit()
         return {"token": token, "host": host.name, "pending": host.pending}
 
+    @app.post("/api/agent/specs")
+    async def agent_specs(request: Request, ctx: tuple[Host, Session] = Depends(agent_host)):
+        """貸し手のアプリが調べた PC の性能を受け取る。借りる人が空き枠の一覧で見られる。"""
+        host, db = ctx
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "invalid request")
+        if not isinstance(body, dict):
+            raise HTTPException(400, "invalid request")
+        specs: dict = {}
+        for key in ("gpu", "cpu"):
+            if isinstance(body.get(key), str) and body[key].strip():
+                specs[key] = " ".join(body[key].split())[:100]
+        for key in ("vram_gb", "ram_gb"):
+            if isinstance(body.get(key), int) and 0 < body[key] <= 4096:
+                specs[key] = body[key]
+        host.specs = json.dumps(specs, ensure_ascii=False)
+        db.commit()
+        return {"ok": True}
+
     @app.get("/api/agent/hello")
     def agent_hello(ctx: tuple[Host, Session] = Depends(agent_host)):
         """接続テスト。Agent の初期設定で、どの PC として登録されたかを表示する。"""

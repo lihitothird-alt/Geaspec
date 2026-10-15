@@ -18,7 +18,7 @@
       <p class="ticket-date">{{ slot.start_at|jst("%Y/%m/%d") }}<span class="{% if wd == '土' %}wd-sat{% elif wd == '日' %}wd-sun{% endif %}">（{{ wd }}）</span></p>
       <p class="ticket-time">{{ slot.start_at|jst("%H:%M") }}<span class="sep">〜</span>{{ slot.play_end_at|jst("%H:%M") }}</p>
       <dl class="kv">
-        <dt>PC</dt><dd>{{ slot.host.name }}</dd>
+        <dt>PC</dt><dd>{{ slot.host.name }}{% if slot.host.spec_text %}<br><span class="muted small">{{ slot.host.spec_text }}</span>{% endif %}</dd>
         <dt>利用時間</dt><dd>{{ slot.play_minutes }} 分<small class="muted">（最後の {{ slot.duration_minutes - slot.play_minutes }} 分は PC の片づけと次の人の準備）</small></dd>
         <dt>Meta ユーザー名</dt><dd>{{ user.meta_username }}</dd>
       </dl>

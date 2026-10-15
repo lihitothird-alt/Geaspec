@@ -252,6 +252,9 @@ class FakeClient:
 
     upload_ok = True
 
+    def send_specs(self, specs):
+        self.specs = specs
+
     def upload_screenshots(self, booking_id, data, count):
         self.uploads = getattr(self, "uploads", [])
         self.uploads.append((booking_id, data, count))
@@ -327,6 +330,8 @@ class ServerModeTest(unittest.TestCase):
         code = host_agent.serve(self.cfg, client, self.root / "agent", poll_interval=0.01, stop=stop)
         self.assertEqual(code, 0)
         self.assertIn(1, client.reports)
+        # 起動したら、借りる人に見せる PC の性能を送る
+        self.assertGreater(client.specs["ram_gb"], 0)
 
     def test_serve_exits_on_invalid_token(self):
         client = FakeClient([])

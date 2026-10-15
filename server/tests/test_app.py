@@ -1003,3 +1003,21 @@ def test_simple_mode_hides_follow_reviews_and_the_app_page(tmp_path, now):
     assert user.post("/bookings/1/review", data={"stars": 5}).status_code == 404
     # 予約そのものはこれまでどおりできる
     assert user.post("/slots/1/book", follow_redirects=False).status_code == 303
+
+
+def test_lender_pc_specs_are_shown_to_borrowers(tmp_path, now):
+    app, _ = make_app(tmp_path)
+    admin = TestClient(app)
+    token = admin_setup(admin)
+    agent = TestClient(app, headers={"Authorization": f"Bearer {token}"})
+    # アプリが調べた性能を送る。長すぎる文字や変な値は捨てる
+    body = {"gpu": "NVIDIA GeForce RTX 4070", "vram_gb": 12, "cpu": "AMD Ryzen 7 7700  8-Core", "ram_gb": 32,
+            "extra": "x", "os": 1}
+    assert agent.post("/api/agent/specs", json=body).json() == {"ok": True}
+    assert TestClient(app).post("/api/agent/specs", json=body).status_code == 401
+    user = TestClient(app)
+    signup(user, "user@example.com")
+    line = "NVIDIA GeForce RTX 4070（12GB）・AMD Ryzen 7 7700 8-Core・メモリ 32GB"
+    assert line in user.get("/slots").text
+    assert agent.post("/api/agent/specs", json={"gpu": "x" * 500, "ram_gb": -1}).json() == {"ok": True}
+    assert "x" * 100 in user.get("/slots").text and "x" * 101 not in user.get("/slots").text

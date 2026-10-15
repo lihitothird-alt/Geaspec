@@ -25,7 +25,7 @@
       <p class="ticket-date">{{ booking.slot.start_at|jst("%Y/%m/%d") }}<span class="{% if wd == '土' %}wd-sat{% elif wd == '日' %}wd-sun{% endif %}">（{{ wd }}）</span></p>
       <p class="ticket-time">{{ booking.slot.start_at|jst("%H:%M") }}<span class="sep">〜</span>{{ booking.slot.play_end_at|jst("%H:%M") }}</p>
       <dl class="kv">
-        <dt>PC</dt><dd>{{ booking.slot.host.name }}</dd>
+        <dt>PC</dt><dd>{{ booking.slot.host.name }}{% if booking.slot.host.spec_text %}<br><span class="muted small">{{ booking.slot.host.spec_text }}</span>{% endif %}</dd>
         {% if lender %}<dt>貸し手</dt><dd>{% if simple %}{{ lender.display_name }} さん{% else %}<a href="/lenders/{{ lender.id }}">{{ lender.display_name }} さん</a>{% endif %}</dd>{% endif %}
         <dt>Meta ユーザー名</dt><dd>{{ booking.user.meta_username }}</dd>
       </dl>

@@ -28,6 +28,7 @@ ADDED_COLUMNS = {
         "owner_id": "INTEGER REFERENCES users(id)",
         "machine_id": "VARCHAR(64) NOT NULL DEFAULT ''",
         "followers_notified_at": "DATETIME",
+        "specs": "VARCHAR(500) NOT NULL DEFAULT ''",
     },
     "users": {"nickname": "VARCHAR(32) NOT NULL DEFAULT ''"},
 }
