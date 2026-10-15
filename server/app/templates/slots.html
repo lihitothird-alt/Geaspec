@@ -10,7 +10,7 @@
       <li>接続手順を確認</li>
     </ol>
     <h1>空き枠</h1>
-    <p class="muted">時間はすべて日本時間（JST）です。1 時間の枠は 00〜55 分に使えます（最後の 5 分で PC を片づけ、次の人の準備をします）。</p>
+    <p class="muted">時間はすべて日本時間（JST）です。どの枠も、終わりの {{ turnover_minutes }}分前に終了します（その {{ turnover_minutes }}分で PC を片づけ、次の人の準備をします）。</p>
     {% if user and not simple %}
     <nav class="tabs" aria-label="表示する枠">
       <a href="/slots"{% if view != "following" %} aria-current="page"{% endif %}>すべて</a>
@@ -41,6 +41,7 @@
       {% endif %}
     </div>
   {% else %}
+    <p class="muted small slots-hint">同じ PC で続けて空いている時間は、予約の確認画面で「何時まで」をえらぶと、まとめて予約できます。始まっている枠も、残りが 20分以上あれば「今すぐ入る」で使えます。</p>
     {% set groups = [] %}
     {% set ns = namespace(day=None) %}
     {% for s in slots %}
@@ -61,11 +62,19 @@
         {% for s in g["items"] %}
         <li class="slot">
           <div>
+            {% set now_slot = s.start_at <= now %}
             <div class="slot-time">
-              <span class="num">{{ s.start_at|jst("%H:%M") }}〜{{ s.play_end_at|jst("%H:%M") }}</span>
-              <span class="chip">{{ s.play_minutes }}分</span>
+              {% if now_slot %}
+              <span class="badge confirmed now-badge">今すぐ</span>
+              <span class="num">〜{{ s.end_at|jst("%H:%M") }}</span>
+              <span class="chip">あと{{ ((s.play_end_at - now).total_seconds() // 60)|int|minutes_text }}</span>
+              {% else %}
+              <span class="num">{{ s.start_at|jst("%H:%M") }}〜{{ s.end_at|jst("%H:%M") }}</span>
+              <span class="chip">{{ s.duration_minutes|minutes_text }}</span>
+              {% endif %}
             </div>
             <div class="slot-meta"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>{{ s.host.name }}</div>
+            {% if s.host.spec_text %}<div class="slot-meta spec-line">{{ s.host.spec_text }}</div>{% endif %}
             {% if not simple and s.host.owner_id in lenders %}{% set l = lenders[s.host.owner_id] %}
             <div class="slot-meta lender-line">
               <a href="/lenders/{{ l.user.id }}">{{ l.user.display_name }} さん</a>{{ stars(l.rating) }}
@@ -84,7 +93,7 @@
             <span class="price">{{ s.price_yen|yen }}</span>
             {% endif %}
             {% if user %}
-            <a class="btn small" href="/slots/{{ s.id }}/confirm" aria-label="予約する：{{ s.start_at|jst('%m/%d') }} {{ s.start_at|jst('%H:%M') }}〜{{ s.play_end_at|jst('%H:%M') }}">予約する</a>
+            <a class="btn small" href="/slots/{{ s.id }}/confirm" aria-label="{% if now_slot %}今すぐ入る{% else %}予約する{% endif %}：{{ s.start_at|jst('%m/%d') }} {{ s.start_at|jst('%H:%M') }}〜{{ s.end_at|jst('%H:%M') }}">{% if now_slot %}今すぐ入る{% else %}予約する{% endif %}</a>
             {% else %}
             <a class="btn small ghost" href="/login?next=/slots">ログインして予約</a>
             {% endif %}

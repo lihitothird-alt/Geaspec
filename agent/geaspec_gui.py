@@ -242,7 +242,7 @@ class AgentController:
             detail = f"予約 #{st.booking_id} の後片付けをしています"
         elif st.state == "idle" and st.next_starts_at:
             left = (st.next_starts_at - now).total_seconds()
-            title = f"あと {until_text(left)}で Geass を開始します" if left > 60 else "まもなく Geass を開始します"
+            title = f"あと {until_text(left)}で貸し出しを開始します" if left > 60 else "まもなく貸し出しを開始します"
             detail = (
                 f"予約 #{st.next_booking_id} · {day_label(st.next_starts_at)} "
                 f"{st.next_starts_at:%H:%M}〜{st.next_ends_at:%H:%M}\n"
@@ -425,13 +425,13 @@ def cover_content(state: str, ends_at: dt.datetime | None, total_seconds: float,
     """幕に出す文言と色 (デザイン案: 利用中 / 残り 5 分 / 片づけ中)。"""
     if state == "cleaning":
         return {
-            "mode": "cleaning", "pill": "Geass は終了しました", "pill_bg": COVER["mint"], "pill_fg": COVER["bg"],
+            "mode": "cleaning", "pill": "貸し出しは終了しました", "pill_bg": COVER["mint"], "pill_fg": COVER["bg"],
             "big": "データを片づけています" + "." * dots, "lines": ("ご利用ありがとうございました", ""),
             "footer": "片づけが終わるまで、電源を切らないでください",
         }
     if ends_at is None:
         return {
-            "mode": "preparing", "pill": "Geass 利用中", "pill_bg": COVER["primary"], "pill_fg": COVER["text"],
+            "mode": "preparing", "pill": "Geaspec で貸し出し中", "pill_bg": COVER["primary"], "pill_fg": COVER["text"],
             "big": "準備しています" + "." * dots, "lines": ("まもなく始まります", ""),
             "footer": "このパソコンは利用中のため操作できません",
         }
@@ -441,7 +441,7 @@ def cover_content(state: str, ends_at: dt.datetime | None, total_seconds: float,
     color = COVER["yellow"] if ending else COVER["primary"]
     return {
         "mode": "ending" if ending else "running",
-        "pill": "まもなく終了します" if ending else "Geass 利用中",
+        "pill": "まもなく終了します" if ending else "Geaspec で貸し出し中",
         "pill_bg": color, "pill_fg": COVER["bg"] if ending else COVER["text"],
         "countdown": countdown_text(left), "countdown_fg": COVER["yellow"] if ending else COVER["text"],
         "end_label": f"{ends_at:%H:%M} に終了", "progress": progress, "bar": color,
@@ -597,7 +597,7 @@ class AgentWindow:
         self.home: HomeView | None = None
 
         root = self.root = tk.Tk()
-        root.title(f"Geaspec Agent {h.AGENT_VERSION}")
+        root.title(WINDOW_TITLE)
         root.geometry("700x760")
         root.minsize(640, 600)
         root.configure(bg=COLORS["bg"])
@@ -1402,6 +1402,9 @@ class SettingsDialog:
 # ---------------------------------------------------------------------------
 
 
+WINDOW_TITLE = f"Geaspec Agent {h.AGENT_VERSION}"
+
+
 def acquire_single_instance() -> bool:
     """二重起動すると予約を二重に処理してしまうので、1 つだけにする。"""
     if sys.platform != "win32":
@@ -1413,8 +1416,25 @@ def acquire_single_instance() -> bool:
     return ctypes.windll.kernel32.GetLastError() != 183  # ERROR_ALREADY_EXISTS
 
 
+def bring_existing_window_to_front() -> bool:
+    """もう開いているウィンドウを前に出す。説明ページの「アプリに戻る」(geaspec://open) から開かれたときに使う。"""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    hwnd = user32.FindWindowW(None, WINDOW_TITLE)
+    if not hwnd:
+        return False
+    user32.ShowWindow(hwnd, 9)  # SW_RESTORE: 最小化されていても元に戻す
+    user32.SetForegroundWindow(hwnd)
+    return True
+
+
 def main() -> int:
     if not acquire_single_instance():
+        if bring_existing_window_to_front():
+            return 0
         import tkinter as tk
         from tkinter import messagebox
 

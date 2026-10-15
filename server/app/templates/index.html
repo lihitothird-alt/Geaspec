@@ -5,7 +5,7 @@
     <div class="hero-copy">
       <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Quest 単体勢のための PCVR シェア</p>
       <h1 id="hero-title"><span class="ln">ゲーミングPCが</span><span class="ln">なくても、</span><br><span class="ln"><mark class="hl">PC版VRChat</mark>を。</span></h1>
-      <p class="lead">Quest ひとつで、ハイスペックなゲーミングPCに VPN 越しに接続。PC 版のアバターやワールドを、<span class="nowrap">遊びたい時間だけ。</span></p>
+      <p class="lead">Quest ひとつで、ハイスペックなゲーミングPCに Virtual Desktop でインターネット越しに接続。PC 版のアバターやワールドを、<span class="nowrap">遊びたい時間だけ。</span></p>
       <div class="cta-row">
         <a class="btn lg" href="/slots">空き枠を見る{% if slot_count %}（{{ slot_count }} 件）{% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         {% if free_mode %}<p class="price-tag trial">実験中につき <span class="num">無料</span></p>
@@ -16,7 +16,7 @@
       <ul class="trust" aria-label="安心の理由">
         <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-user"/></svg></span>自分の VRChat アカウントで</li>
         <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-trash"/></svg></span>終了時にデータを自動で全削除</li>
-        <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-key"/></svg></span>VPN は予約時間だけ有効</li>
+        <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-clock"/></svg></span>つなげるのは予約した時間だけ</li>
       </ul>
     </div>
 
@@ -25,14 +25,14 @@
       <span class="spark s2" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span>
       <figure class="hud">
         <div class="hud-bar" aria-hidden="true"><span class="hud-dots"><span></span><span></span><span></span></span><span>SESSION SPEC</span></div>
-        <div class="hud-link" role="img" aria-label="あなたの Quest から、VPN を通してハイスペックPCに接続するイメージ">
+        <div class="hud-link" role="img" aria-label="あなたの Quest から、インターネット越しにハイスペックPCに接続するイメージ">
           <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>あなたの<br>Quest</div>
-          <div class="wire"><span class="tag"><svg class="i"><use href="#i-lock"/></svg>VPN</span></div>
+          <div class="wire"><span class="tag"><svg class="i"><use href="#i-globe"/></svg>ネット</span></div>
           <div class="node pc"><span class="node-ic"><svg class="i"><use href="#i-pc"/></svg></span>ハイスペック<br>PC</div>
         </div>
         <dl class="hud-specs">
           <div><dt>接続アプリ</dt><dd>Virtual Desktop</dd></div>
-          <div><dt>VPN</dt><dd>Tailscale <small>予約時間だけ</small></dd></div>
+          <div><dt>つなぎ方</dt><dd>インターネット越しに直接 <small>VPN 不要</small></dd></div>
           <div><dt>遅延</dt><dd><span class="num">50〜60</span>ms <small>検証時</small></dd></div>
           <div><dt>ログイン</dt><dd>あなたの VRChat アカウント</dd></div>
         </dl>
@@ -64,8 +64,8 @@
       <h2 id="how">使い方は 4 ステップ</h2>
     </div>
     <ol class="steps">
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-card"/></svg></div><h3>予約</h3><p>空き枠を選んで、クレジットカードか PayPal で支払い。{% if trial_minutes %}初回 {{ trial_minutes }} 分は無料。{% endif %}</p></li>
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-key"/></svg></div><h3>接続準備</h3><p>予約ページに表示される VPN の認証キーで、Quest を接続。</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-card"/></svg></div><h3>予約</h3><p>{% if free_mode %}空き枠を選んで予約。実験中は無料です。{% else %}空き枠を選んで、クレジットカードか PayPal で支払い。{% if trial_minutes %}初回 {{ trial_minutes }} 分は無料。{% endif %}{% endif %}</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-key"/></svg></div><h3>接続準備</h3><p>Quest に Virtual Desktop を用意。VPN を使っている人はオフに。</p></li>
       <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-play"/></svg></div><h3>プレイ</h3><p>Virtual Desktop で PC に接続し、<strong>自分の</strong> VRChat アカウントでログイン。</p></li>
       <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg></div><h3>自動終了</h3><p>時間になると自動で終了し、ログイン情報やキャッシュはすべて削除されます。</p></li>
     </ol>
@@ -92,8 +92,8 @@
       </article>
       <article class="safe-card">
         <div class="ic" aria-hidden="true"><svg class="i"><use href="#i-clock"/></svg></div>
-        <h3>VPN は予約時間だけ</h3>
-        <p>VPN の接続権限は<strong>予約した時間だけ</strong>有効。終了後は自動で取り消し。</p>
+        <h3>つなげるのは予約時間だけ</h3>
+        <p>PC につなげるのは<strong>予約した時間だけ</strong>。終わると PC 側の接続は自動で閉じます。</p>
       </article>
     </div>
     <p class="safe-note"><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg><span>VRChat のログイン情報は、当サービスでは取得しません。</span></p>
@@ -109,9 +109,8 @@
     </div>
     <ul class="need">
       <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>Meta Quest</strong><span>2 / 3 / 3S / Pro</span></li>
-      <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>Virtual Desktop</strong><span>Meta Store で購入</span></li>
-      <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>Tailscale アプリ</strong><span>無料。導入方法は予約後に案内します</span></li>
-      <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>VRChat アカウント</strong><span>ご自身のもの</span></li>
+      <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>Virtual Desktop</strong><span>Quest 用。Meta のストアで購入（必須）</span></li>
+      <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>VRChat アカウント</strong><span>ご自身のもの。メールアドレス（またはユーザー名）とパスワードでログインします</span></li>
       <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>ネット回線と <span class="nowrap">Wi-Fi</span></strong><span>安定したネット回線と 5GHz 帯以上の <span class="nowrap">Wi-Fi</span></span></li>
     </ul>
   </div>
@@ -129,8 +128,13 @@
       <details><summary>Steam アカウントは必要ですか？</summary><div class="answer"><p>不要です。PC 側の Steam で起動し、VRChat にはご自身のアカウントでログインします。</p></div></details>
       <details><summary>データ通信量はどのくらいですか？</summary><div class="answer"><p>画質設定によって 1 時間あたり数十 GB になることがあります。通信量に上限のある回線ではご注意ください。</p></div></details>
       {% if trial_minutes %}<details><summary>無料で試せますか？</summary><div class="answer"><p>はい。はじめての方は、最初の予約の {{ trial_minutes }} 分ぶんが無料になります（{{ trial_minutes }} 分の枠なら 0 円）。お一人（Meta アカウント）につき 1 回です。接続できるかの確認にお使いください。</p></div></details>{% endif %}
+      {% if free_mode %}
+      <details><summary>お金はかかりますか？</summary><div class="answer"><p>いいえ。いまはコミュニティ限定の実験なので、すべて無料です。</p></div></details>
+      <details><summary>キャンセルはできますか？</summary><div class="answer"><p>できます。Discord の自分のスレッドで運営に知らせてください。</p></div></details>
+      {% else %}
       <details><summary>支払い方法は？</summary><div class="answer"><p>クレジットカードと PayPal に対応しています。</p></div></details>
       <details><summary>キャンセルはできますか？</summary><div class="answer"><p>支払い前ならいつでも可能です。支払い後のキャンセルは運営までご連絡ください。</p></div></details>
+      {% endif %}
     </div>
   </div>
 </section>

@@ -55,6 +55,15 @@ QUESTIONS: list[dict] = [
      "options": [("q2", "Quest 2"), ("q3", "Quest 3"), ("q3s", "Quest 3S"), ("pro", "Quest Pro"), ("other", "その他")]},
     {"key": "own_pc", "text": "自分のパソコンは？",
      "options": [("none", "持っていない"), ("no_vr", "VR はできないパソコンならある"), ("vr", "VR ができるパソコンがある")]},
+    # PC を買うことと比べてどうか (VR ができる PC を持っている人には聞かない)
+    {"key": "pc_checked", "text": "VR ができるパソコン（ゲーミング PC）の値段を、最後に調べたのはいつですか？",
+     "skip_if": {"own_pc": "vr"},
+     "options": [("week", "1週間以内"), ("month", "1か月以内"), ("half", "半年以内"), ("older", "それより前"),
+                 ("never", "調べたことがない")]},
+    {"key": "pc_effect", "text": "Geaspec があったら、ゲーミング PC を買うことについてどう思いますか？",
+     "skip_if": {"own_pc": "vr"},
+     "options": [("no_need", "買わなくてよくなる"), ("later", "買うのを先に延ばす"), ("same", "変わらない"),
+                 ("want_more", "試してみて、むしろ欲しくなった")]},
     {"key": "vrc_days", "text": "VRChat で遊ぶのは週に何日くらい？",
      "options": [("daily", "ほぼ毎日"), ("3_5", "週に3〜5日"), ("1_2", "週に1〜2日"), ("less", "それより少ない")]},
     {"key": "play_times", "text": "よく遊ぶ時間帯は？（いくつでも）", "multi": True,
@@ -69,7 +78,7 @@ QUESTIONS: list[dict] = [
     {"key": "nps", "text": "友達にどのくらいすすめたいですか？（0 すすめない 〜 10 ぜったいすすめる）",
      "options": [(str(n), str(n)) for n in range(11)]},
     {"key": "price", "text": "1時間いくらなら払いますか？",
-     "options": [("200", "〜200円"), ("400", "〜400円"), ("600", "〜600円"), ("800", "〜800円"),
+     "options": [("0", "無料なら使う"), ("100", "〜100円"), ("200", "〜200円"), ("400", "〜400円"), ("600", "〜600円"), ("800", "〜800円"),
                  ("1000", "〜1,000円"), ("1001", "それ以上")]},
     {"key": "when", "text": "どんなときに使いたいですか？（いくつでも）", "multi": True,
      "options": [("event", "イベント"), ("heavy", "重いワールド"), ("photo", "写真撮影"),
@@ -84,14 +93,36 @@ FOLLOWUPS: list[dict] = [
      "options": [("yes", "ぜひ"), ("maybe", "たぶん"), ("rather_not", "あまり"), ("no", "使わない")]},
     {"key": "told", "text": "このサービスのことを、友達に話しましたか？",
      "options": [("yes", "話した"), ("will", "話そうと思っている"), ("no", "話していない")]},
+    {"key": "photos_3d", "text": "テスト中に VRChat のカメラで撮った自撮りは、予約サイトの予約ページから受け取れましたか？",
+     "options": [("got", "受け取れた"), ("failed", "受け取れなかった"), ("none", "撮っていない")]},
     {"key": "price_3d", "text": "あらためて、1時間いくらなら払いますか？",
-     "options": [("200", "〜200円"), ("400", "〜400円"), ("600", "〜600円"), ("800", "〜800円"),
+     "options": [("0", "無料なら使う"), ("100", "〜100円"), ("200", "〜200円"), ("400", "〜400円"), ("600", "〜600円"), ("800", "〜800円"),
                  ("1000", "〜1,000円"), ("1001", "それ以上")]},
 ]
 FOLLOWUP_KEYS = [q["key"] for q in FOLLOWUPS]
 
+# PC を貸した人へのアンケート (はじめてデータ消去を確かめたあとに 1 回だけ)。正式リリースの値段決めに使う
+LENDER_QUESTIONS: list[dict] = [
+    {"key": "worry", "text": "貸す前、どのくらい不安でしたか？",
+     "options": [("high", "とても不安"), ("some", "少し不安"), ("little", "あまり不安ではない"), ("none", "まったく不安ではない")]},
+    {"key": "worry_what", "text": "何が心配でしたか？（いくつでも）", "multi": True,
+     "options": [("account", "アカウントやパスワード"), ("files", "写真やファイルを見られる"), ("break", "PC が壊れる・おかしくなる"),
+                 ("power", "電気代"), ("stranger", "知らない人が使うこと"), ("time", "使いたいときに使えない"),
+                 ("nothing", "特になし")]},
+    {"key": "setup", "text": "準備（アプリを入れる〜貸せる時間を決める）は分かりやすかったですか？",
+     "options": [("easy", "簡単"), ("ok", "ふつう"), ("hard", "難しい"), ("very_hard", "とても難しい")]},
+    {"key": "lend_again", "text": "また貸したいと思いますか？",
+     "options": [("yes", "ぜひ"), ("maybe", "たぶん"), ("rather_not", "あまり"), ("no", "貸さない")]},
+    {"key": "lend_price", "text": "1時間いくらもらえたら貸しますか？",
+     "options": [("0", "無料でも貸す"), ("50", "〜50円"), ("100", "〜100円"), ("200", "〜200円"), ("300", "〜300円"),
+                 ("500", "〜500円"), ("501", "それ以上")]},
+    {"key": "lend_hours", "text": "1週間に何時間くらい貸せそうですか？",
+     "options": [("2", "〜2時間"), ("5", "〜5時間"), ("10", "〜10時間"), ("20", "〜20時間"), ("21", "それ以上")]},
+]
+LENDER_KEYS = [q["key"] for q in LENDER_QUESTIONS]
+
 # 遊んでいる途中のお願い
-MISSIONS = {"heavy": "重いワールドに行った", "crowd": "人の多いインスタンスに入った"}
+MISSIONS = {"heavy": "重いワールドに行った", "crowd": "人の多いインスタンスに入った", "photo": "VRChat のカメラで自撮りした"}
 
 OPEN_STATUSES = ("connecting", "playing", "survey")
 
@@ -135,6 +166,20 @@ CREATE TABLE IF NOT EXISTS sessions (
     completed_at TEXT,
     followup_sent_at TEXT
 );
+CREATE TABLE IF NOT EXISTS lenders (
+    user_id INTEGER PRIMARY KEY,
+    answers TEXT NOT NULL DEFAULT '{}',
+    comment TEXT NOT NULL DEFAULT '',
+    sent_at TEXT NOT NULL,
+    done_at TEXT
+);
+CREATE TABLE IF NOT EXISTS notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    thread_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS booking_notices (
     booking_id INTEGER NOT NULL,
     kind TEXT NOT NULL,
@@ -159,7 +204,7 @@ def _parse(s: str | None) -> dt.datetime | None:
 
 
 def option_label(key: str, value: str) -> str:
-    for q in QUESTIONS + FOLLOWUPS:
+    for q in QUESTIONS + FOLLOWUPS + LENDER_QUESTIONS:
         if q["key"] == key:
             return dict(q["options"]).get(value, value)
     return value
@@ -384,8 +429,14 @@ class TesterStore:
         return self.next_question(answers)
 
     @staticmethod
+    def asked_questions(answers: dict) -> list[dict]:
+        """この人に聞く質問 (前の答えによって聞かないものを除く)。"""
+        return [q for q in QUESTIONS
+                if not any(answers.get(k) == v for k, v in q.get("skip_if", {}).items())]
+
+    @staticmethod
     def next_question(answers: dict) -> str | None:
-        return next((k for k in QUESTION_KEYS if k not in answers), None)
+        return next((q["key"] for q in TesterStore.asked_questions(answers) if q["key"] not in answers), None)
 
     def complete(self, session_id: int, now: dt.datetime, *, stuck: str = "", comment: str = "") -> None:
         self._run("UPDATE sessions SET stuck = ?, comment = ?, status = 'done', completed_at = ? WHERE id = ?",
@@ -416,6 +467,44 @@ class TesterStore:
         answers[key] = value
         self._run("UPDATE sessions SET answers = ? WHERE id = ?", (json.dumps(answers, ensure_ascii=False), session_id))
         return next((k for k in FOLLOWUP_KEYS if k not in answers), None)
+
+    # PC を貸した人へのアンケート
+    def start_lender_survey(self, user_id: int, now: dt.datetime) -> bool:
+        """はじめてなら始めて True。もう送ってあれば False。"""
+        cur = self._run("INSERT OR IGNORE INTO lenders (user_id, sent_at) VALUES (?, ?)", (user_id, _iso(now)))
+        return cur.rowcount == 1
+
+    def lender_survey(self, user_id: int) -> dict | None:
+        return self._one("SELECT * FROM lenders WHERE user_id = ?", (user_id,))
+
+    def answer_lender(self, user_id: int, key: str, value: str | list[str]) -> str | None:
+        """貸した人のアンケートに答える。次の質問のキー (最後なら None) を返す。"""
+        row = self.lender_survey(user_id)
+        q = next((q for q in LENDER_QUESTIONS if q["key"] == key), None)
+        if row is None or q is None:
+            raise ValueError(key)
+        values = value if isinstance(value, list) else [value]
+        if not values or any(v not in {v for v, _ in q["options"]} for v in values) or (len(values) > 1 and not q.get("multi")):
+            raise ValueError(value)
+        answers = json.loads(row["answers"])
+        answers[key] = values if q.get("multi") else values[0]
+        self._run("UPDATE lenders SET answers = ? WHERE user_id = ?", (json.dumps(answers, ensure_ascii=False), user_id))
+        return self.next_lender_question(answers)
+
+    @staticmethod
+    def next_lender_question(answers: dict) -> str | None:
+        return next((k for k in LENDER_KEYS if k not in answers), None)
+
+    def finish_lender(self, user_id: int, now: dt.datetime, comment: str = "") -> None:
+        self._run("UPDATE lenders SET comment = ?, done_at = ? WHERE user_id = ?", (comment.strip(), _iso(now), user_id))
+
+    # スレッドに書かれた意見・気づいたこと
+    def add_note(self, user_id: int, thread_id: int, text: str, now: dt.datetime) -> None:
+        self._run("INSERT INTO notes (user_id, thread_id, text, at) VALUES (?, ?, ?, ?)",
+                  (user_id, thread_id, text.strip()[:2000], _iso(now)))
+
+    def notes(self) -> list[dict]:
+        return self._all("SELECT n.*, t.grp FROM notes n LEFT JOIN testers t ON t.user_id = n.user_id ORDER BY n.id")
 
     def erase_personal(self) -> int:
         """テストが終わったら、名前・Meta ユーザー名・連絡先を消す (アンケートの答えと時間は残す)。"""
@@ -491,7 +580,47 @@ class TesterStore:
             "latency_median": statistics.median(lat) if lat else None,
             "screenshots": sum(len(json.loads(r["screenshots"])) for r in rows),
             "groups": groups,
+            **self.lender_summary(),
+            "pc_checked_recent_rate": share("pc_checked", {"week", "month"}),
+            "pc_effect": {v: share("pc_effect", {v}) for v, _ in next(q for q in QUESTIONS if q["key"] == "pc_effect")["options"]},
         }
+
+    def lender_summary(self) -> dict:
+        rows = [json.loads(r["answers"]) for r in self._all("SELECT answers FROM lenders")]
+        price = sorted(int(a["lend_price"]) for a in rows if "lend_price" in a)
+        again = [a["lend_again"] for a in rows if "lend_again" in a]
+        worry = [a["worry"] for a in rows if "worry" in a]
+        return {
+            "lenders_answered": sum(1 for a in rows if a),
+            "lend_price_median": price[(len(price) - 1) // 2] if price else None,
+            "lend_again_rate": round(sum(1 for x in again if x in ("yes", "maybe")) / len(again), 3) if again else None,
+            "lend_worry_rate": round(sum(1 for x in worry if x in ("high", "some")) / len(worry), 3) if worry else None,
+            "notes": len(self._all("SELECT id FROM notes")),
+        }
+
+    def lenders_csv(self) -> str:
+        """1 行 = PC を貸した人 1 人。"""
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["番号", "答えた日", *[q["text"] for q in LENDER_QUESTIONS], "ひとこと"])
+        for n, r in enumerate(self._all("SELECT * FROM lenders ORDER BY sent_at"), 1):
+            a = json.loads(r["answers"])
+            cells = []
+            for q in LENDER_QUESTIONS:
+                v = a.get(q["key"])
+                cells.append("・".join(option_label(q["key"], x) for x in v) if isinstance(v, list)
+                             else option_label(q["key"], v) if v is not None else "")
+            w.writerow([n, r["done_at"] or "", *cells, r["comment"]])
+        return out.getvalue()
+
+    def notes_csv(self) -> str:
+        """スレッドに書かれた意見。名前は入れず、借りる人か貸す人かだけ。"""
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["日時", "借りる人／貸す人", "書いたこと"])
+        for r in self.notes():
+            w.writerow([r["at"], "貸す人" if r["grp"] == "C" else "借りる人", r["text"]])
+        return out.getvalue()
 
     def to_csv(self, feedback_by_session: dict[int, dict] | None = None) -> str:
         """1 行 = テスト 1 回。評価フォームの答え (サイトの /feedback) があれば、同じ行の右側につなげる。
@@ -577,6 +706,12 @@ def summary_lines(s: dict) -> list[str]:
         f"・ カクつきの気にならなさ: {'—' if s['stutter_avg'] is None else s['stutter_avg']}（5 がまったく気にならない）",
         f"・ 3日後もまた使いたい: {_pct(s['again_3d_rate'])} ／ 友達に話した: {_pct(s['told_rate'])}",
         f"・ 貸し手ベータのアプリを入れた人: {s['lender_app']}人",
+        f"・ ゲーミング PC の値段を1か月以内に調べた: {_pct(s['pc_checked_recent_rate'])} ／ Geaspec があれば PC を: "
+        + "・".join(f"{option_label('pc_effect', k)} {_pct(v)}" for k, v in s["pc_effect"].items()),
+        f"・ 貸した人のアンケート: {s['lenders_answered']}人 ／ もらえたら貸す金額（真ん中の値）: "
+        f"{'—' if s['lend_price_median'] is None else option_label('lend_price', str(s['lend_price_median']))}"
+        f" ／ また貸したい: {_pct(s['lend_again_rate'])} ／ 貸す前に不安だった: {_pct(s['lend_worry_rate'])}",
+        f"・ スレッドに書かれた意見: {s['notes']}件",
     ]
     for g in ("A", "B"):
         d = s["groups"][g]

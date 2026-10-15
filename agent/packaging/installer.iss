@@ -65,6 +65,12 @@ Name: "{userprograms}\Geaspec\アンインストール"; Filename: "{uninstallex
 ; サインインしたら自動で開く。貸し出し専用に登録していないユーザーでは何も消さないので、常に入れる
 Name: "{userstartup}\Geaspec Agent"; Filename: "{app}\{#AppExe}"; Parameters: """{app}\{#AppScript}"""; WorkingDir: "{app}"
 
+[Registry]
+; 説明ページの「Geaspec アプリに戻る」ボタン (geaspec://open) で、このアプリを開く (開いていれば前に出す)
+Root: HKCU; Subkey: "Software\Classes\geaspec"; ValueType: string; ValueName: ""; ValueData: "URL:Geaspec"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\geaspec"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\geaspec\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"" ""{app}\{#AppScript}"" ""%1"""
+
 [Dirs]
 Name: "{localappdata}\GeaspecAgent"
 

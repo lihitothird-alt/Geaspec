@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 
 from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -49,11 +50,29 @@ class Host(Base):
     # 貸し手 PC のアプリが作る ID。同じ PC でログインし直したときに、別の PC として増やさない
     machine_id: Mapped[str] = mapped_column(String(64), default="")
     last_seen_at: Mapped[dt.datetime | None] = mapped_column(default=None)
+    # 貸し手のアプリが調べた性能 (JSON: gpu・vram_gb・cpu・ram_gb)。空き枠の一覧で借りる人に見せる
+    specs: Mapped[str] = mapped_column(String(500), default="")
     # フォロワーに「新しい時間を公開しました」と知らせた時刻 (送りすぎないため)
     followers_notified_at: Mapped[dt.datetime | None] = mapped_column(default=None)
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
 
     slots: Mapped[list["Slot"]] = relationship(back_populates="host")
+
+    @property
+    def spec_text(self) -> str:
+        """「RTX 4070（12GB）・Ryzen 7 7700・メモリ 32GB」のような 1 行。"""
+        try:
+            s = json.loads(self.specs or "{}")
+        except ValueError:
+            return ""
+        parts = []
+        if s.get("gpu"):
+            parts.append(s["gpu"] + (f"（{s['vram_gb']}GB）" if s.get("vram_gb") else ""))
+        if s.get("cpu"):
+            parts.append(s["cpu"])
+        if s.get("ram_gb"):
+            parts.append(f"メモリ {s['ram_gb']}GB")
+        return "・".join(parts)
     owner: Mapped["User | None"] = relationship()
 
 
@@ -69,6 +88,8 @@ class Slot(Base):
     price_yen: Mapped[int]
     # 貸し手が受付をやめた枠 (予約履歴があって削除できないものは、消す代わりに閉じる)
     closed: Mapped[bool] = mapped_column(default=False)
+    # 続けて予約されたときに、1 時間の枠をつないで 1 つにした枠 (キャンセルされたら 1 時間ずつに戻す)
+    merged: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
 
     host: Mapped[Host] = relationship(back_populates="slots")

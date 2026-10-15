@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&family=Unbounded:wght@600;800&display=swap">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -71,7 +71,7 @@
 
   <a class="skip" href="#main">本文へスキップ</a>
   {% if free_mode %}
-  <p class="experiment-bar">{{ settings.service_name }} は、お金もうけではない<strong>コミュニティ限定の実験</strong>です。利用はすべて無料です。<a href="/legal/terms">くわしく</a></p>
+  <p class="experiment-bar">{{ settings.service_name }} は、いま<strong>コミュニティ限定の実験段階</strong>です。実験のあいだ、利用はすべて無料です。<a href="/legal/terms">くわしく</a></p>
   {% endif %}
   <header class="site-header">
     <div class="wrap header-inner">
@@ -134,6 +134,7 @@
         <a href="/guide">はじめての方へ</a>
         <a href="/legal/terms">利用規約</a>
         <a href="/legal/privacy">プライバシーポリシー</a>
+        <a href="/legal/platforms">VRChat・Steam の規約について</a>
         {% if not free_mode %}<a href="/legal/tokushoho">特定商取引法に基づく表記</a>{% endif %}
       </nav>
       <p class="muted">VRChat は VRChat Inc. の商標です。本サービスは VRChat Inc. および Meta とは関係ありません。</p>

@@ -23,7 +23,7 @@
         <div>
           <div class="slot-time">
             <span class="date">{{ b.slot.start_at|jst("%m/%d") }}<span class="{% if wd == '土' %}wd-sat{% elif wd == '日' %}wd-sun{% endif %}">（{{ wd }}）</span></span>
-            <span class="num">{{ b.slot.start_at|jst("%H:%M") }}〜{{ b.slot.play_end_at|jst("%H:%M") }}</span>
+            <span class="num">{{ b.slot.start_at|jst("%H:%M") }}〜{{ b.slot.end_at|jst("%H:%M") }}</span>
             <span class="badge {{ b.status }}">{{ b.status_label }}</span>
           </div>
           <div class="slot-meta"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>{{ b.slot.host.name }}<span aria-hidden="true">・</span>予約 #{{ b.id }}</div>

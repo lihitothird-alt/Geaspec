@@ -22,12 +22,13 @@ def make_sessionmaker(engine: Engine) -> sessionmaker:
 
 # 後から増やした列。create_all は既存のテーブルに列を足さないので、起動時に足す
 ADDED_COLUMNS = {
-    "slots": {"closed": "BOOLEAN NOT NULL DEFAULT FALSE"},
+    "slots": {"closed": "BOOLEAN NOT NULL DEFAULT FALSE", "merged": "BOOLEAN NOT NULL DEFAULT FALSE"},
     "hosts": {
         "pending": "BOOLEAN NOT NULL DEFAULT FALSE",
         "owner_id": "INTEGER REFERENCES users(id)",
         "machine_id": "VARCHAR(64) NOT NULL DEFAULT ''",
         "followers_notified_at": "DATETIME",
+        "specs": "VARCHAR(500) NOT NULL DEFAULT ''",
     },
     "users": {"nickname": "VARCHAR(32) NOT NULL DEFAULT ''"},
 }

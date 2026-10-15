@@ -20,6 +20,7 @@ from typing import Iterator
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -33,6 +34,7 @@ from .models import Booking, BookingStatus, Feedback, Host, Slot, User
 from .payments import PROVIDER_LABELS, PaymentGateway, build_payments
 from .security import connection_code, hash_password, hash_token, new_agent_token, verify_password
 from .mail import Mailer, build_mailer
+from .version import VERSION
 from .vpn import VpnProvider, build_vpn
 
 log = logging.getLogger(__name__)
@@ -47,7 +49,8 @@ SITE_GATE_OPEN_PREFIXES = (
     # ホーム画面アプリの設定と裏方のスクリプト。ブラウザは合言葉の Cookie を付けずに読みに来る
     "/manifest.webmanifest", "/sw.js",
 )
-LEGAL_PAGES = {"tokushoho": "特定商取引法に基づく表記", "terms": "利用規約", "privacy": "プライバシーポリシー"}
+LEGAL_PAGES = {"tokushoho": "特定商取引法に基づく表記", "terms": "利用規約", "privacy": "プライバシーポリシー",
+               "platforms": "VRChat・Steam などの規約について"}
 
 
 def create_app(
@@ -80,8 +83,14 @@ def create_app(
                 return RedirectResponse(f"/site-login?next={target}", status_code=303)
         response = await call_next(request)
         response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        if path.startswith("/static/") and response.status_code == 200:
+            # サイトは家の PC から Tailscale Funnel 経由で届くので、CSS や画像は毎回取りに行かせない。
+            # style.css は ?v=版 を付けて読むので、新しい版にすると読み直される
+            response.headers["Cache-Control"] = "public, max-age=86400"
         return response
 
+    # HTML と CSS を圧縮して送る (Funnel 経由でも速く表示されるように)
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
     # SessionMiddleware を後から追加して外側にし、上の合言葉チェックでセッションを読めるようにする
     app.add_middleware(
         SessionMiddleware,
@@ -98,10 +107,14 @@ def create_app(
     weekdays = "月火水木金土日"
     templates.env.filters["wday"] = lambda v: weekdays[clock.to_jst(v).weekday()]
     templates.env.filters["iso"] = services.iso_utc
+    templates.env.filters["minutes_text"] = services.minutes_text
     templates.env.globals["until_text"] = services.until_text
     templates.env.globals["provider_labels"] = PROVIDER_LABELS
     templates.env.globals["trial_minutes"] = 0 if settings.free_mode else settings.trial_minutes
+    # 表示は枠の終わり (例: 16:00) にして、片づけのぶん早く終わることを「(5分前に終了)」と添える
+    templates.env.globals["turnover_minutes"] = settings.turnover_minutes
     templates.env.globals["free_mode"] = settings.free_mode
+    templates.env.globals["asset_version"] = VERSION
     templates.env.globals["simple"] = settings.simple_mode
     templates.env.globals["mail_enabled"] = app.state.mailer.enabled
 
@@ -120,7 +133,7 @@ def create_app(
 
     def booking_when(booking: Booking) -> str:
         s = booking.slot
-        return f"{clock.to_jst(s.start_at):%m/%d}（{'月火水木金土日'[clock.to_jst(s.start_at).weekday()]}）{clock.to_jst(s.start_at):%H:%M}〜{clock.to_jst(s.play_end_at):%H:%M}"
+        return f"{clock.to_jst(s.start_at):%m/%d}（{'月火水木金土日'[clock.to_jst(s.start_at).weekday()]}）{clock.to_jst(s.start_at):%H:%M}〜{clock.to_jst(s.end_at):%H:%M}"
 
     def confirm_and_notify(db: Session, booking: Booking, now: dt.datetime) -> None:
         """支払い完了 → 予約確定。はじめて確定したときだけ、借り手と貸し手にメールを送る。"""
@@ -203,14 +216,19 @@ def create_app(
 
     @app.get("/guide", response_class=HTMLResponse)
     def guide(request: Request, db: Session = Depends(get_db)):
-        """画像つきの「はじめての方へ」。申し込む前にも読めるよう、招待リンクなしで見られる。"""
-        return render(request, db, "guide.html")
+        """画像つきの「はじめての方へ」。申し込む前にも読めるよう、招待リンクなしで見られる。
+
+        ?for=lend で PC を貸す人向けの説明に切り替える (上のスイッチでいつでも切り替えられる)。
+        """
+        lend = request.query_params.get("for") == "lend"
+        return render(request, db, "guide.html", lend=lend)
 
     @app.get("/legal/{page}", response_class=HTMLResponse)
     def legal(page: str, request: Request, db: Session = Depends(get_db)):
         if page not in LEGAL_PAGES or (page == "tokushoho" and settings.free_mode):
             raise HTTPException(404)
-        return render(request, db, "legal.html", page=page, title=LEGAL_PAGES[page])
+        template = "platforms.html" if page == "platforms" else "legal.html"
+        return render(request, db, template, page=page, title=LEGAL_PAGES[page])
 
     @app.get("/healthz")
     def healthz():
@@ -418,16 +436,17 @@ def create_app(
         # 未ログインなら「初回無料」を案内するため True 扱い
         trial = services.trial_eligible(db, user, now, settings.hold_minutes) if user else True
         prices = {
-            s.id: s.price_yen - (services.trial_discount_yen(s, settings.trial_minutes) if trial else 0)
+            s.id: max(0, services.price_now(s, now)
+                      - (services.trial_discount_yen(s, settings.trial_minutes) if trial else 0))
             for s in items
         }
         return render(
             request, db, "slots.html", slots=items, trial_eligible=trial, trial_prices=prices,
-            lenders=lenders, followed=followed, view=view,
+            lenders=lenders, followed=followed, view=view, now=now,
         )
 
     @app.get("/slots/{slot_id}/confirm", response_class=HTMLResponse)
-    def confirm_page(slot_id: int, request: Request, db: Session = Depends(get_db)):
+    def confirm_page(slot_id: int, request: Request, until: int = 0, db: Session = Depends(get_db)):
         user = require_user(request, db)
         if not user.meta_username:
             flash(request, "先に Meta (Quest) のユーザー名を登録してください", "error")
@@ -437,30 +456,48 @@ def create_app(
         if not services.is_available(db, slot, now, settings.hold_minutes):
             flash(request, "この枠はすでに埋まっています", "error")
             return redirect("/slots")
+        # 続いている空き枠があれば、「何時まで」をえらべる
+        following = services.following_slots(db, slot, now, settings.hold_minutes, settings.max_booking_hours)
+        try:
+            chain = services.chain_until(db, slot, until, now, settings.hold_minutes, settings.max_booking_hours)
+        except services.BookingError:
+            chain = []
         amount, discount = services.quote(db, user, slot, now, settings.hold_minutes, settings.trial_minutes,
-                                          settings.free_mode)
+                                          settings.free_mode, chain)
+        start_at = max(slot.start_at, now)
+        end_at = chain[-1].end_at if chain else slot.end_at
         return render(
             request, db, "confirm.html", slot=slot, amount=amount, discount=discount,
-            providers=list(request.app.state.payments),
+            providers=list(request.app.state.payments), following=following,
+            until=chain[-1].id if chain else 0, start_at=start_at, end_at=end_at,
+            play_minutes=int((end_at - start_at).total_seconds() // 60),
+            price=services.price_now(slot, now) + sum(s.price_yen for s in chain),
+            now_slot=services.is_now_slot(slot, now),
         )
 
     @app.post("/slots/{slot_id}/book")
-    def book(slot_id: int, request: Request, provider: str = Form(""), db: Session = Depends(get_db)):
+    def book(slot_id: int, request: Request, provider: str = Form(""), until: int = Form(0),
+             db: Session = Depends(get_db)):
         user = require_user(request, db)
         slot = db.get(Slot, slot_id) or _404()
         gateways: dict[str, PaymentGateway] = request.app.state.payments
         now = clock.utcnow()
+        try:
+            chain = services.chain_until(db, slot, until, now, settings.hold_minutes, settings.max_booking_hours)
+        except services.BookingError as exc:
+            flash(request, str(exc), "error")
+            return redirect(f"/slots/{slot_id}/confirm")
         if user.meta_username and services.is_available(db, slot, now, settings.hold_minutes):
             amount, _ = services.quote(db, user, slot, now, settings.hold_minutes, settings.trial_minutes,
-                                       settings.free_mode)
+                                       settings.free_mode, chain)
             if amount > 0 and provider not in gateways:
                 if len(gateways) != 1:
                     # 支払い方法を選んでもらう
-                    return redirect(f"/slots/{slot_id}/confirm")
+                    return redirect(f"/slots/{slot_id}/confirm" + (f"?until={until}" if until else ""))
                 provider = next(iter(gateways))
         try:
             booking = services.create_booking(
-                db, user, slot, now, settings.hold_minutes, settings.trial_minutes, settings.free_mode
+                db, user, slot, now, settings.hold_minutes, settings.trial_minutes, settings.free_mode, chain
             )
         except services.BookingError as exc:
             flash(request, str(exc), "error")
@@ -475,7 +512,7 @@ def create_app(
 
         description = (
             f"{settings.service_name} {clock.to_jst(slot.start_at):%m/%d %H:%M}〜"
-            f"{clock.to_jst(slot.play_end_at):%H:%M} ({slot.host.name})"
+            f"{clock.to_jst(slot.end_at):%H:%M} ({slot.host.name})"
         )
         booking.payment_provider = provider
         try:
@@ -1018,6 +1055,27 @@ def create_app(
                     )
         db.commit()
         return {"token": token, "host": host.name, "pending": host.pending}
+
+    @app.post("/api/agent/specs")
+    async def agent_specs(request: Request, ctx: tuple[Host, Session] = Depends(agent_host)):
+        """貸し手のアプリが調べた PC の性能を受け取る。借りる人が空き枠の一覧で見られる。"""
+        host, db = ctx
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "invalid request")
+        if not isinstance(body, dict):
+            raise HTTPException(400, "invalid request")
+        specs: dict = {}
+        for key in ("gpu", "cpu"):
+            if isinstance(body.get(key), str) and body[key].strip():
+                specs[key] = " ".join(body[key].split())[:100]
+        for key in ("vram_gb", "ram_gb"):
+            if isinstance(body.get(key), int) and 0 < body[key] <= 4096:
+                specs[key] = body[key]
+        host.specs = json.dumps(specs, ensure_ascii=False)
+        db.commit()
+        return {"ok": True}
 
     @app.get("/api/agent/hello")
     def agent_hello(ctx: tuple[Host, Session] = Depends(agent_host)):

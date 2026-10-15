@@ -293,9 +293,10 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         assert custom_ids(thread.sent[0][1]["view"]) == ["gs:vd"]
         prep = thread.sent[1][0]  # 申し込んだらやっておくこと
         assert "VPN を切る" in prep and "FPS と Ping の表示" in prep and "Allow remote connections" not in prep
-        assert "https://lg.example.ts.net/guide#fps" in prep
+        assert "https://lg.example.ts.net/guide" in prep and "#" not in prep  # ページのいちばん上から開く
         # 申し込んだらすぐ、いちばん下に「次にやること: 予約する」が届く (運営も、2つの答えも待たない)
-        assert store.tester(1)["status"] == "ready" and len(thread.sent) == 3
+        assert store.tester(1)["status"] == "ready" and len(thread.sent) == 4
+        assert "テストでやること（一覧）" in thread.sent[-2][0] and "自撮り" in thread.sent[-2][0]
         assert "次にやること: 予約する" in thread.sent[-1][0]
         assert any("hikari_meta" in c for c, _ in ops_log)
         sent_before = len(thread.sent)
@@ -360,6 +361,8 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         i = await press(tester, thread.id, "gs:done")
         view = i.log[1][2]["view"]
         for q in QUESTIONS:
+            if q.get("skip_if", {}).get("own_pc") == "vr":
+                continue  # 最後の選択肢「VR ができるパソコンがある」を選んだので、PC の値段の質問は出ない
             if q.get("multi"):
                 assert custom_ids(view) == [f"gs:a:{q['key']}"]
                 i = await press(tester, thread.id, f"gs:a:{q['key']}", [q["options"][0][0]])
@@ -575,7 +578,7 @@ def test_followup_three_days_later(tmp_path, monkeypatch):
         assert "3日たちました" in text and custom_ids(kw["view"])[0] == "gs:f:again_3d:yes"
 
         tester = FakeUser(1)
-        for cid in ("gs:f:again_3d:maybe", "gs:f:told:yes", "gs:f:price_3d:800"):
+        for cid in ("gs:f:again_3d:maybe", "gs:f:told:yes", "gs:f:photos_3d:got", "gs:f:price_3d:800"):
             i = FakeInteraction(tester, 10, cid)
             await bot.on_interaction(i)
         assert "ありがとうございました" in i.log[0][1]
@@ -600,12 +603,22 @@ def test_group_c_gets_lender_guide(tmp_path, monkeypatch):
         store.set_thread(3, 30)
         store.set_setting("hours", "土日だけ")
         assert await bot.send_ready_now(store.tester(3)) is True
-        (ready, ready_kw), (text, kw) = thread.sent[-2], thread.sent[-1]
+        (ready, ready_kw), (text, kw), (wipe, wipe_kw) = thread.sent[-3], thread.sent[-2], thread.sent[-1]
+        assert "データが消えているか" in wipe and custom_ids(wipe_kw["view"]) == ["gs:wipe:ok", "gs:wipe:left"]
+        assert "テストでやること（一覧）" in thread.sent[0][0]
         assert "次にやること: 予約する" in ready and "土日だけ" in ready
         assert "PC を貸すテストの手順" in text and "GeaspecAgent-Setup-" in text and "詳細情報" in text
         assert custom_ids(kw["view"]) == ["gs:lenderapp", "gs:link"]
         await bot.send_extras(thread, store.tester(3))  # 2 回は送らない
-        assert thread.sent[-1][0] == text and len(thread.sent) == 2
+        assert thread.sent[-1][0] == wipe and len(thread.sent) == 4
+
+        # 貸したあとにデータが消えたかを確かめて押す。残っていたら運営を呼ぶ
+        i = FakeInteraction(FakeUser(3), 30, "gs:wipe:ok")
+        await bot.on_interaction(i)
+        assert "1回目" in i.log[0][1] and "消えていることを確かめました" in ops_log[-1]
+        i = FakeInteraction(FakeUser(3), 30, "gs:wipe:left")
+        await bot.on_interaction(i)
+        assert "何が残っていたか" in i.log[0][1] and "要確認" in ops_log[-1]
         i = FakeInteraction(FakeUser(3), 30, "gs:lenderapp")
         await bot.on_interaction(i)
         assert "承認" in ops_log[-1] and store.summary()["lender_app"] == 1
@@ -902,8 +915,8 @@ def test_testers_waiting_from_an_older_version_get_their_guide(tmp_path, store, 
             assert await bot.send_ready_now(tester) is True
         assert store.waiting_testers() == []
         texts = [t for t, _ in thread.sent]
-        assert len(texts) == 1  # VD の入れ方は予約の案内の中に入れたので、別には送らない
-        assert "Virtual Desktop を入れる" in texts[0] and "次にやること: 予約する" in texts[0]
+        assert len(texts) == 2  # 一覧と予約の案内。VD の入れ方は予約の案内の中に入れたので、別には送らない
+        assert "Virtual Desktop を入れる" in texts[1] and "次にやること: 予約する" in texts[1]
         assert any("no_vd_user" in c for c in sent_ops)
 
     asyncio.run(scenario())
@@ -935,10 +948,170 @@ def test_lenders_get_setup_steps_instead_of_booking(tmp_path, monkeypatch):
         texts = [t for t, _ in thread.sent]
         assert store.tester(7)["grp"] == "C" and store.tester(7)["status"] == "ready"
         assert not any("次にやること: 予約する" in t for t in texts)  # 借りる人向けの案内は出さない
-        steps = texts[-1]
+        steps = texts[-2]
+        assert "データが消えているか" in texts[-1]
         assert "PC を貸すテストの手順" in steps and "Allow remote connections" in steps
         assert f"/releases/download/agent-v{tb.version.VERSION}/GeaspecAgent-Setup-{tb.version.VERSION}.exe" in steps
         assert "貸せる時間" in steps and "PC を貸す" in ops_log[-1]
         store.close()
 
     asyncio.run(scenario())
+
+
+def test_lenders_answer_their_own_survey_after_the_first_wipe_check(tmp_path, monkeypatch):
+    async def scenario():
+        now = [at(0)]
+        thread = FakeThread(40)
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, now, {40: thread}, ops_log)
+        store.apply(4, "貸す人", vrchat="", meta="", gear="RTX 4070", region="関東", schedule="", now=T0)
+        store.set_group(4, "C")
+        store.set_thread(4, 40)
+        lender = FakeUser(4)
+
+        await bot.on_interaction(FakeInteraction(lender, 40, "gs:wipe:ok"))
+        text, kw = thread.sent[-1]
+        assert "貸した人のアンケート 1 / 6" in text and custom_ids(kw["view"])[0] == "gs:l:worry:high"
+        await bot.on_interaction(FakeInteraction(lender, 40, "gs:wipe:ok"))  # 2 回目の確認では送らない
+        assert len(thread.sent) == 1
+
+        await bot.on_interaction(FakeInteraction(lender, 40, "gs:l:worry:some"))
+        await bot.on_interaction(FakeInteraction(lender, 40, "gs:l:worry_what", values=["account", "power"]))
+        bad = FakeInteraction(lender, 40, "gs:l:setup:nope")
+        await bot.on_interaction(bad)
+        assert "受け付けられません" in bad.log[0][1]
+        for cid in ("gs:l:setup:easy", "gs:l:lend_again:yes", "gs:l:lend_price:100", "gs:l:lend_hours:10"):
+            i = FakeInteraction(lender, 40, cid)
+            await bot.on_interaction(i)
+        assert "最後に" in i.log[0][1] and custom_ids(i.log[0][2]["view"]) == ["gs:lc", "gs:ls"]
+
+        i = FakeInteraction(lender, 40, "gs:lc")
+        await bot.on_interaction(i)
+        modal = i.log[0][1]
+        modal.comment = Field("電気代が気になった")
+        done = FakeInteraction(lender, 40)
+        await modal.on_submit(done)
+        assert "ありがとうございました" in done.log[0][1]
+        assert "貸した人のアンケートに答えました" in ops_log[-1] and "〜100円" in ops_log[-1]
+        assert "アカウントやパスワード・電気代" in ops_log[-1] and "電気代が気になった" in ops_log[-1]
+        late = FakeInteraction(lender, 40, "gs:ls")
+        await bot.on_interaction(late)
+        assert "もう終わっています" in late.log[0][1]
+
+        s = store.summary()
+        assert s["lenders_answered"] == 1 and s["lend_price_median"] == 100 and s["lend_again_rate"] == 1.0
+        assert any("もらえたら貸す金額" in line and "〜100円" in line for line in tb.summary_lines(s))
+        csv_text = store.lenders_csv()
+        assert "1時間いくらもらえたら貸しますか？" in csv_text and "〜100円" in csv_text and "電気代が気になった" in csv_text
+        store.close()
+
+    asyncio.run(scenario())
+
+
+class FakeMessage:
+    def __init__(self, author, channel, content="", attachments=()):
+        author.bot = False
+        self.author = author
+        self.channel = channel
+        self.content = content
+        self.attachments = list(attachments)
+        self.reactions = []
+
+    async def add_reaction(self, emoji):
+        self.reactions.append(emoji)
+
+
+class FakeThreadChannel(discord.Thread):
+    """isinstance(..., discord.Thread) を通すためだけの入れ物。"""
+
+    def __init__(self, tid):  # noqa: D107 - 親の __init__ は呼ばない
+        self.id = tid
+
+    @property
+    def mention(self):
+        return f"<#{self.id}>"
+
+
+def test_anything_testers_write_in_their_thread_reaches_ops(tmp_path, monkeypatch):
+    async def scenario():
+        now = [at(0)]
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, now, {}, ops_log)
+        apply(store, 1, thread_id=50)
+        channel = FakeThreadChannel(50)
+
+        msg = FakeMessage(FakeUser(1), channel, "予約ページの日付が分かりにくかったです")
+        await bot.on_message(msg)
+        assert msg.reactions == ["📝"]
+        assert "借りる人" in ops_log[-1] and "> 予約ページの日付が分かりにくかったです" in ops_log[-1]
+
+        # 運営が同じスレッドに書いたもの・ほかのスレッドのものは記録しない
+        await bot.on_message(FakeMessage(FakeUser(99), channel, "運営です"))
+        await bot.on_message(FakeMessage(FakeUser(1), FakeThreadChannel(51), "別の場所"))
+        assert len(store.notes()) == 1 and len(ops_log) == 1
+        notes = store.notes_csv()
+        assert "借りる人" in notes and "日付が分かりにくかった" in notes and "テスター" not in notes
+        assert store.summary()["notes"] == 1
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_testers_are_told_they_can_write_anytime(tmp_path, monkeypatch):
+    store, bot = make_bot(tmp_path, monkeypatch, [at(0)])
+    assert tb.NOTES_HINT in tb.prep_text("https://x/guide")
+    assert tb.NOTES_HINT in bot.lender_text() and tb.NOTES_HINT in bot.thanks_text(1)
+    store.close()
+
+
+def test_pc_price_questions_only_for_people_without_a_vr_pc():
+    without = TesterStore.asked_questions({"own_pc": "none"})
+    with_pc = TesterStore.asked_questions({"own_pc": "vr"})
+    assert len(without) == len(QUESTIONS) and len(with_pc) == len(QUESTIONS) - 2
+    keys = [q["key"] for q in without]
+    assert keys.index("pc_checked") == keys.index("own_pc") + 1 and keys.index("pc_effect") == keys.index("own_pc") + 2
+    before = {k: "x" for k in keys[:keys.index("pc_checked")]}
+
+    async def scenario():
+        text, _ = tb.survey_message(before | {"own_pc": "none"})
+        assert "値段を、最後に調べたのはいつ" in text and f"/ {len(QUESTIONS)}" in text
+        text, _ = tb.survey_message(before | {"own_pc": "vr"})
+        assert "週に何日" in text and f"/ {len(QUESTIONS) - 2}" in text
+
+    asyncio.run(scenario())
+
+
+def test_summary_counts_pc_price_answers(store):
+    apply(store, 1, thread_id=10)
+    apply(store, 2, thread_id=11)
+    run_session(store, 1, answers=ALL_GOOD | {"own_pc": "none", "pc_checked": "week", "pc_effect": "no_need"})
+    run_session(store, 2, answers=ALL_GOOD | {"own_pc": "no_vr", "pc_checked": "older", "pc_effect": "want_more"})
+    s = store.summary()
+    assert s["pc_checked_recent_rate"] == 0.5 and s["pc_effect"]["no_need"] == 0.5 and s["pc_effect"]["later"] == 0.0
+    assert any("1か月以内に調べた: 50%" in line and "買わなくてよくなる 50%" in line for line in summary_lines(s))
+
+
+def test_booking_that_starts_now_says_start_right_away(tmp_path, monkeypatch):
+    async def scenario():
+        now = [at(0)]
+        thread = FakeThread(10)
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, now, {10: thread}, ops_log)
+        apply(store, 1, thread_id=10)
+        site = tmp_path / "geaspec.db"
+        make_site_db(site, [("meta1", at(-20), "confirmed")], last_seen=at(0))  # 20 分前に始まった枠に「今すぐ入る」
+        bot.site_db = site
+        assert await bot.send_booking_notices() == 1
+        assert len(thread.sent) == 1 and "すぐに始められます" in thread.sent[0][0]
+        assert custom_ids(thread.sent[0][1]["view"]) == ["gs:start"]
+        assert await bot.send_booking_notices() == 0
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_long_booking_shows_the_end_date():
+    from app import booking_notice
+    start = dt.datetime(2026, 10, 10, 4, tzinfo=dt.timezone.utc)
+    assert booking_notice.when_text(start, start + dt.timedelta(hours=1)) == "10/10（土）13:00〜14:00"
+    assert booking_notice.when_text(start, start + dt.timedelta(days=2)) == "10/10（土）13:00〜10/12（月）13:00"

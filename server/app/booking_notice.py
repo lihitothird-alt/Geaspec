@@ -38,7 +38,8 @@ def _utc(value) -> dt.datetime | None:
 
 def when_text(start: dt.datetime, end: dt.datetime) -> str:
     s, e = start.astimezone(JST), end.astimezone(JST)
-    return f"{s:%m/%d}（{WEEKDAYS[s.weekday()]}）{s:%H:%M}〜{e:%H:%M}"
+    end = f"{e:%m/%d}（{WEEKDAYS[e.weekday()]}）{e:%H:%M}" if e.date() != s.date() else f"{e:%H:%M}"
+    return f"{s:%m/%d}（{WEEKDAYS[s.weekday()]}）{s:%H:%M}〜{end}"
 
 
 def load_bookings(path: Path, now: dt.datetime) -> list[dict]:

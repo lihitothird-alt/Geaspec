@@ -22,6 +22,8 @@ import webbrowser
 from pathlib import Path
 
 PORT = 8000
+FIRST_WAIT_SEC = 60
+LONG_WAIT_SEC = 600
 HERE = Path(__file__).resolve().parent
 TAILSCALE_PATHS = (r"C:\Program Files\Tailscale\tailscale.exe", r"C:\Program Files (x86)\Tailscale\tailscale.exe")
 
@@ -171,9 +173,13 @@ def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = 
 
     公開の許可 (はじめの 1 回だけ) を待っている間も、この PC ではサイトを使えるようにする。
     """
-    if not wait_until_ready(PORT):
-        print("サイトを起動できませんでした。この画面の写真を運営に送ってください。")
-        return
+    # 新しい版をはじめて起動したときは、Windows のウイルス検査などで数分かかることがある。すぐにあきらめない
+    if not wait_until_ready(PORT, FIRST_WAIT_SEC):
+        print("サイトの起動に時間がかかっています。もう少し待ちます（はじめて起動したときは数分かかることがあります）…")
+        if not wait_until_ready(PORT, LONG_WAIT_SEC):
+            print("サイトを起動できませんでした。この画面の写真を運営に送ってください。")
+            return
+        print("サイトが起動しました。")
     webbrowser.open(f"http://localhost:{PORT}")
     published = bool(tailscale and address) and start_funnel(tailscale)
     print()

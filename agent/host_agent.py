@@ -56,7 +56,7 @@ else:  # テスト・dry-run 用に Windows 以外でも import できるよう�
     winreg = None  # type: ignore[assignment]
 
 AGENT_NAME = "GeaspecAgent"
-AGENT_VERSION = "0.7.14"
+AGENT_VERSION = "0.7.15"
 log = logging.getLogger(AGENT_NAME)
 
 # ---------------------------------------------------------------------------
@@ -1135,6 +1135,10 @@ class ServerClient:
         body = {"email": email, "password": password, "pc_name": pc_name, "machine_id": machine_id}
         return self._request("POST", "/api/agent/login", body, error_body=True)
 
+    def send_specs(self, specs: dict) -> None:
+        """この PC の性能を予約サイトに送る (借りる人が空き枠の一覧で見られる)。"""
+        self._request("POST", "/api/agent/specs", specs)
+
     def hello(self) -> dict | None:
         """接続テスト。届けば {"host": PC の名前} が返る。"""
         return self._request("GET", "/api/agent/hello")
@@ -1260,6 +1264,55 @@ def run_server_job(job: dict, cfg: AgentConfig, client: ServerClient, home: Path
     return interrupted
 
 
+GPU_CLASS_KEY = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+
+
+def detect_specs() -> dict:
+    """この PC の性能 (グラフィックボード・CPU・メモリ)。借りる人が予約前に見られるよう、予約サイトに送る。
+
+    管理者の権限がなくても読めるレジストリと psutil だけを使う。読めないものは空にする。
+    """
+    specs: dict = {"ram_gb": round(psutil.virtual_memory().total / 1024 ** 3)}
+    if sys.platform != "win32":
+        return specs
+    import winreg
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0") as key:
+            specs["cpu"] = " ".join(str(winreg.QueryValueEx(key, "ProcessorNameString")[0]).split())
+    except OSError:
+        pass
+    gpus: list[tuple[int, str]] = []
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, GPU_CLASS_KEY) as cls:
+            for i in range(32):
+                try:
+                    name = winreg.EnumKey(cls, i)
+                except OSError:
+                    break
+                if not name.isdigit():
+                    continue
+                try:
+                    with winreg.OpenKey(cls, name) as key:
+                        desc = str(winreg.QueryValueEx(key, "DriverDesc")[0]).strip()
+                        try:
+                            vram = int(winreg.QueryValueEx(key, "HardwareInformation.qwMemorySize")[0])
+                        except (OSError, TypeError, ValueError):
+                            vram = 0
+                except OSError:
+                    continue
+                if desc and "Microsoft" not in desc and "Virtual" not in desc:
+                    gpus.append((vram, desc))
+    except OSError:
+        pass
+    if gpus:
+        vram, desc = max(gpus)  # いちばん VRAM の多いもの (内蔵 GPU より、ゲーム用のボード)
+        specs["gpu"] = desc
+        if vram:
+            specs["vram_gb"] = round(vram / 1024 ** 3)
+    return specs
+
+
 def serve(cfg: AgentConfig, client: ServerClient, home: Path, poll_interval: float,
           stop: threading.Event | None = None) -> int:
     stop = stop or threading.Event()
@@ -1267,11 +1320,19 @@ def serve(cfg: AgentConfig, client: ServerClient, home: Path, poll_interval: flo
     # 前回が途中で止まっていても、タスクマネージャーを止めたままにしない
     set_task_manager_locked(False)
     install_console_handler()
+    specs_sent = False
     try:
         while not stop.is_set():
             job = client.poll()
             STATUS.last_poll_at = dt.datetime.now()
             STATUS.state = "unreachable" if job is None else "idle"
+            if job is not None and not specs_sent:
+                # サイトに届いてから 1 回だけ送る (届かないうちに送ると、再送を待つぶん最初の確認が遅れる)
+                specs_sent = True
+                try:
+                    client.send_specs(detect_specs())
+                except Exception:  # noqa: BLE001 - 性能が送れなくても貸し出しは続ける
+                    log.warning("PC の性能を送れませんでした", exc_info=True)
             if job is not None and job.get("action") == "none":
                 update_next_booking(job.get("next"))
                 STATUS.host_state = str(job.get("host_state") or "ok")

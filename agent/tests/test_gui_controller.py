@@ -80,7 +80,9 @@ class ControllerTest(unittest.TestCase):
         c.save_settings("http://127.0.0.1:9", "pcvr_0123456789", "-")  # 届かないサーバー
         c.register_lending_user()
         c.poll_interval = 0.05
-        with mock.patch.object(h.ServerClient, "poll", return_value=None):
+        # 性能の送信は、サイトに届かないうちは待たされる (Windows では再送で数秒)。それで最初の確認が遅れないこと
+        with mock.patch.object(h.ServerClient, "poll", return_value=None), \
+                mock.patch.object(h.ServerClient, "send_specs", side_effect=lambda *_: time.sleep(5)):
             self.assertTrue(c.start())
             self.assertFalse(c.start())  # 二重には起動しない
             deadline = time.time() + 2
@@ -112,11 +114,11 @@ class ControllerTest(unittest.TestCase):
             "ends_at": h.local_to_server_time(dt.datetime(2026, 10, 10, 21, 0)),
         })
         title, detail, tone = c.status_text(now)
-        self.assertEqual(title, "あと 1時間23分で Geass を開始します")
+        self.assertEqual(title, "あと 1時間23分で貸し出しを開始します")
         self.assertIn("予約 #7 · 10/10（土） 20:00〜21:00", detail)
         self.assertEqual(tone, "busy")
-        self.assertEqual(c.status_text(dt.datetime(2026, 10, 10, 19, 37))[0], "あと 23分で Geass を開始します")
-        self.assertEqual(c.status_text(dt.datetime(2026, 10, 10, 19, 59, 30))[0], "まもなく Geass を開始します")
+        self.assertEqual(c.status_text(dt.datetime(2026, 10, 10, 19, 37))[0], "あと 23分で貸し出しを開始します")
+        self.assertEqual(c.status_text(dt.datetime(2026, 10, 10, 19, 59, 30))[0], "まもなく貸し出しを開始します")
         # 同じ予約を何度知らされても「新しい予約」は 1 回だけ
         self.assertEqual(h.STATUS.new_bookings, 1)
         h.update_next_booking({"booking_id": 7, "starts_at": "2026-10-10T11:00:00Z", "ends_at": "2026-10-10T12:00:00Z"})
@@ -282,7 +284,7 @@ class CoverContentTest(unittest.TestCase):
     def test_running_then_ending_soon_then_cleaning(self):
         ends = self.NOW + dt.timedelta(minutes=42, seconds=13)
         c = g.cover_content("session", ends, 3600, self.NOW)
-        self.assertEqual((c["mode"], c["pill"], c["countdown"], c["end_label"]), ("running", "Geass 利用中", "42:13", "12:42 に終了"))
+        self.assertEqual((c["mode"], c["pill"], c["countdown"], c["end_label"]), ("running", "Geaspec で貸し出し中", "42:13", "12:42 に終了"))
         self.assertAlmostEqual(c["progress"], (42 * 60 + 13) / 3600)
         self.assertIn("ゲームはそのまま続いています", c["lines"])
         c = g.cover_content("session", self.NOW + dt.timedelta(minutes=4), 3600, self.NOW)

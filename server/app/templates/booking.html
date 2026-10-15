@@ -23,9 +23,9 @@
   <div class="ticket">
     <div class="ticket-main">
       <p class="ticket-date">{{ booking.slot.start_at|jst("%Y/%m/%d") }}<span class="{% if wd == '土' %}wd-sat{% elif wd == '日' %}wd-sun{% endif %}">（{{ wd }}）</span></p>
-      <p class="ticket-time">{{ booking.slot.start_at|jst("%H:%M") }}<span class="sep">〜</span>{{ booking.slot.play_end_at|jst("%H:%M") }}</p>
+      <p class="ticket-time">{{ booking.slot.start_at|jst("%H:%M") }}<span class="sep">〜</span>{% if booking.slot.end_at|jst("%Y%m%d") != booking.slot.start_at|jst("%Y%m%d") %}<span class="small">{{ booking.slot.end_at|jst("%m/%d") }} </span>{% endif %}{{ booking.slot.end_at|jst("%H:%M") }}<small class="end-note">（{{ turnover_minutes }}分前に終了）</small></p>
       <dl class="kv">
-        <dt>PC</dt><dd>{{ booking.slot.host.name }}</dd>
+        <dt>PC</dt><dd>{{ booking.slot.host.name }}{% if booking.slot.host.spec_text %}<br><span class="muted small">{{ booking.slot.host.spec_text }}</span>{% endif %}</dd>
         {% if lender %}<dt>貸し手</dt><dd>{% if simple %}{{ lender.display_name }} さん{% else %}<a href="/lenders/{{ lender.id }}">{{ lender.display_name }} さん</a>{% endif %}</dd>{% endif %}
         <dt>Meta ユーザー名</dt><dd>{{ booking.user.meta_username }}</dd>
       </dl>
@@ -38,14 +38,14 @@
   </div>
 
   {% if booking.status == "confirmed" and booking.slot.start_at > now %}
-  <div class="countdown" data-countdown="{{ booking.slot.start_at|iso }}" data-template="あと {} で Geass を開始します" role="timer">
-    <strong data-countdown-text>あと {{ until_text((booking.slot.start_at - now).total_seconds()) }} で Geass を開始します</strong>
+  <div class="countdown" data-countdown="{{ booking.slot.start_at|iso }}" data-template="あと {} で開始します" role="timer">
+    <strong data-countdown-text>あと {{ until_text((booking.slot.start_at - now).total_seconds()) }} で開始します</strong>
     <span class="sub">{{ booking.slot.start_at|jst("%m/%d %H:%M") }} 開始。下の手順 1 は先に済ませておけます。</span>
   </div>
   {% elif booking.status in live_states and booking.slot.play_end_at > now %}
   <div class="countdown live" data-countdown="{{ booking.slot.play_end_at|iso }}" data-template="利用中 · 残り {}" role="timer">
     <strong data-countdown-text>利用中 · 残り {{ until_text((booking.slot.play_end_at - now).total_seconds()) }}</strong>
-    <span class="sub">{{ booking.slot.play_end_at|jst("%H:%M") }} に自動で終了します</span>
+    <span class="sub">{{ booking.slot.end_at|jst("%m/%d %H:%M" if booking.slot.end_at|jst("%Y%m%d") != now|jst("%Y%m%d") else "%H:%M") }} の {{ turnover_minutes }}分前に自動で終了します</span>
   </div>
   {% endif %}
 
@@ -65,13 +65,13 @@
   {% elif booking.status in live_states %}
     <div class="guide-head">
       <h2>接続手順</h2>
-      <p>1 は開始前に済ませておくとスムーズです。Quest のブラウザでこのページを開くと、キーをコピーして貼り付けられます。</p>
+      <p>1 は開始前に済ませておくとスムーズです。</p>
     </div>
     <ol class="stepper">
       <li class="st">
         <div class="st-body">
-          <h3><svg class="i" aria-hidden="true"><use href="#i-key"/></svg>VPN に接続</h3>
           {% if booking.vpn_auth_key %}
+          <h3><svg class="i" aria-hidden="true"><use href="#i-key"/></svg>VPN に接続</h3>
             <p>Quest の Tailscale アプリで「認証キーでログイン」を選び、次のキーを入力してください（1回限り・終了時刻まで有効）。</p>
             <div class="secret-box">
               <span class="label" id="vpn-key-label">VPN 認証キー</span>
@@ -81,11 +81,9 @@
               </div>
             </div>
             <p class="sub">キーはタップすると全体が選択されます。他の人には教えないでください。</p>
-          {% elif vpn_mode == "manual" %}
-            <p>接続用の招待は、開始前に運営からメールでお送りします。</p>
-            <p class="sub"><svg class="i" aria-hidden="true"><use href="#i-mail"/></svg> 登録したメールアドレス（{{ booking.user.email }}）をご確認ください。</p>
           {% else %}
-            <p>接続キーを準備中です。届かない場合は運営までご連絡ください。</p>
+          <h3><svg class="i" aria-hidden="true"><use href="#i-key"/></svg>VPN をオフにする</h3>
+            <p>Quest・スマホ・家のルーターで VPN を使っている人は、オフにしてください。Virtual Desktop でインターネット越しに直接つなぎます。</p>
           {% endif %}
         </div>
       </li>
@@ -119,7 +117,7 @@
       <li class="st">
         <div class="st-body">
           <h3><svg class="i" aria-hidden="true"><use href="#i-power"/></svg>終了</h3>
-          <p><strong class="num">{{ booking.slot.play_end_at|jst("%H:%M") }}</strong> に自動で終了し、PC 上のログイン情報やキャッシュはすべて削除されます。VRChat で撮った写真は終了時にこのページへ届き、{{ settings.screenshot_days }} 日間ダウンロードできます。</p>
+          <p><strong class="num">{{ booking.slot.end_at|jst("%H:%M") }}</strong> の {{ turnover_minutes }}分前に自動で終了し、PC 上のログイン情報やキャッシュはすべて削除されます。VRChat で撮った写真は終了時にこのページへ届き、{{ settings.screenshot_days }} 日間ダウンロードできます。</p>
         </div>
       </li>
     </ol>

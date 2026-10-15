@@ -10,6 +10,7 @@ from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from . import clock
 from .models import Booking, BookingStatus, Host, Slot, User
 from .vpn import VpnProvider
 
@@ -38,16 +39,94 @@ def blocking_booking(db: Session, slot: Slot, now: dt.datetime, hold_minutes: in
     return None
 
 
+# 始まっている枠に「今すぐ」入れるのは、遊べる時間がこれだけ残っていて、貸し手のアプリが動いているときだけ
+NOW_MIN_PLAY = dt.timedelta(minutes=20)
+# Agent は 15 秒ごとに問い合わせてくる。これより長く連絡がなければ PC は動いていないとみなす
+ONLINE_WITHIN = dt.timedelta(minutes=3)
+
+
+def host_online(host: Host, now: dt.datetime) -> bool:
+    return host.last_seen_at is not None and now - host.last_seen_at <= ONLINE_WITHIN
+
+
+def is_now_slot(slot: Slot, now: dt.datetime) -> bool:
+    """もう始まっている枠 (「今すぐ」入る枠) か。"""
+    return slot.start_at <= now
+
+
 def is_available(db: Session, slot: Slot, now: dt.datetime, hold_minutes: int) -> bool:
-    return (
-        slot.start_at > now and not slot.closed and slot.host.active
-        and blocking_booking(db, slot, now, hold_minutes) is None
-    )
+    if slot.closed or not slot.host.active or blocking_booking(db, slot, now, hold_minutes) is not None:
+        return False
+    if slot.start_at > now:
+        return True
+    return slot.play_end_at - now >= NOW_MIN_PLAY and host_online(slot.host, now)
 
 
 def available_slots(db: Session, now: dt.datetime, hold_minutes: int) -> list[Slot]:
-    slots = db.scalars(select(Slot).where(Slot.start_at > now).order_by(Slot.start_at)).all()
+    query = select(Slot).where(Slot.end_at > now).order_by(Slot.start_at)
+    slots = db.scalars(query).all()
+    stale = [s for s in slots if s.merged and blocking_booking(db, s, now, hold_minutes) is None]
+    if stale:
+        for s in stale:
+            release_merged(db, s, now)  # 支払いが終わらないまま確保時間が切れた: 1 時間ずつに戻す
+        db.commit()
+        slots = db.scalars(query).all()
     return [s for s in slots if is_available(db, s, now, hold_minutes)]
+
+
+def following_slots(db: Session, slot: Slot, now: dt.datetime, hold_minutes: int, max_hours: int = 0) -> list[Slot]:
+    """slot のすぐ後に続いていて、まとめて予約できる空き枠 (同じ PC・すき間なし)。
+
+    max_hours が 0 より大きければ、slot と合わせてその時間までにする。
+    予約の履歴がある枠はつなげない (つなぐときに消すため)。
+    """
+    later = db.scalars(
+        select(Slot).where(Slot.host_id == slot.host_id, Slot.start_at >= slot.end_at).order_by(Slot.start_at)
+    ).all()
+    chain: list[Slot] = []
+    end = slot.end_at
+    for s in later:
+        if s.start_at != end or s.bookings or s.merged or not is_available(db, s, now, hold_minutes):
+            break
+        if max_hours and (s.end_at - slot.start_at) > dt.timedelta(hours=max_hours):
+            break
+        chain.append(s)
+        end = s.end_at
+    return chain
+
+
+def merge_slots(db: Session, slot: Slot, chain: list[Slot]) -> None:
+    """slot に、続く枠 chain をつないで 1 つの長い枠にする (料金は合計)。"""
+    if not chain:
+        return
+    slot.end_at = chain[-1].end_at
+    slot.price_yen += sum(s.price_yen for s in chain)
+    slot.merged = True
+    for s in chain:
+        db.delete(s)
+    db.flush()
+
+
+def release_merged(db: Session, slot: Slot, now: dt.datetime) -> None:
+    """つないだ枠を、まだ始まっていない部分だけ 1 時間ずつの枠に戻す (予約がキャンセルされたとき)。"""
+    if not slot.merged:
+        return
+    hours = max(1, round((slot.end_at - slot.start_at) / SCHEDULE_CELL))
+    per_hour = max(50, slot.price_yen // hours)
+    cut = slot.start_at + SCHEDULE_CELL
+    while cut <= now:
+        cut += SCHEDULE_CELL
+    end = slot.end_at
+    if cut >= end:
+        return
+    slot.end_at = cut
+    slot.price_yen = per_hour * max(1, round((cut - slot.start_at) / SCHEDULE_CELL))
+    slot.merged = cut - slot.start_at > SCHEDULE_CELL
+    t = cut
+    while t < end:
+        db.add(Slot(host=slot.host, start_at=t, end_at=min(t + SCHEDULE_CELL, end), price_yen=per_hour))
+        t += SCHEDULE_CELL
+    db.flush()
 
 
 def create_slot(db: Session, host: Host, start_at: dt.datetime, end_at: dt.datetime, price_yen: int) -> Slot:
@@ -92,6 +171,15 @@ def until_text(seconds: float) -> str:
     if minutes >= 60:
         return f"{minutes // 60}時間{minutes % 60}分"
     return f"{max(minutes, 1)}分"
+
+
+def minutes_text(minutes: int) -> str:
+    """利用時間を「55分」「1時間55分」「2日3時間」のように。"""
+    minutes = max(0, int(minutes))
+    days, rest = divmod(minutes, 24 * 60)
+    hours, mins = divmod(rest, 60)
+    parts = ([f"{days}日"] if days else []) + ([f"{hours}時間"] if hours else []) + ([f"{mins}分"] if mins or not minutes else [])
+    return "".join(parts)
 
 
 def slot_state(db: Session, slot: Slot, now: dt.datetime, hold_minutes: int) -> str:
@@ -238,30 +326,57 @@ def trial_discount_yen(slot: Slot, trial_minutes: int) -> int:
     return slot.price_yen * min(trial_minutes, minutes) // minutes
 
 
+def price_now(slot: Slot, now: dt.datetime) -> int:
+    """いま予約したときの料金。始まっている枠は、残りの利用時間の分だけにする。"""
+    if slot.start_at >= now or slot.play_end_at <= slot.start_at:
+        return slot.price_yen
+    left = max(dt.timedelta(0), slot.play_end_at - now)
+    return -(-slot.price_yen * int(left.total_seconds()) // int((slot.play_end_at - slot.start_at).total_seconds()))
+
+
 def quote(db: Session, user: User, slot: Slot, now: dt.datetime, hold_minutes: int, trial_minutes: int,
-          free: bool = False) -> tuple[int, int]:
-    """(支払い額, 割引額) を返す。決済手段の最低額 (50円) を下回る端数は無料にする。free なら常に 0 円。"""
+          free: bool = False, chain: list[Slot] | None = None) -> tuple[int, int]:
+    """(支払い額, 割引額) を返す。決済手段の最低額 (50円) を下回る端数は無料にする。free なら常に 0 円。
+
+    chain は、続けて予約する枠 (following_slots の一部)。
+    """
     if free:
         return 0, 0
-    discount = trial_discount_yen(slot, trial_minutes) if trial_eligible(db, user, now, hold_minutes) else 0
-    amount = slot.price_yen - discount
+    price = price_now(slot, now) + sum(s.price_yen for s in chain or [])
+    discount = 0
+    if trial_eligible(db, user, now, hold_minutes):
+        discount = min(price, trial_discount_yen(slot, trial_minutes))
+    amount = price - discount
     if 0 < amount < 50:
-        discount, amount = slot.price_yen, 0
+        discount, amount = price, 0
     return amount, discount
 
 
 # --- 予約 -----------------------------------------------------------------
 
 
+def chain_until(db: Session, slot: Slot, until_id: int, now: dt.datetime, hold_minutes: int,
+                max_hours: int = 0) -> list[Slot]:
+    """「何時まで」で選ばれた枠 until_id までの、続けて予約する枠。until_id が slot 自身や 0 なら空。"""
+    if not until_id or until_id == slot.id:
+        return []
+    chain = following_slots(db, slot, now, hold_minutes, max_hours)
+    ids = [s.id for s in chain]
+    if until_id not in ids:
+        raise BookingError("続けて予約しようとした時間が、もう埋まっています。もう一度えらんでください")
+    return chain[:ids.index(until_id) + 1]
+
+
 def create_booking(
     db: Session, user: User, slot: Slot, now: dt.datetime, hold_minutes: int, trial_minutes: int = 0,
-    free: bool = False,
+    free: bool = False, chain: list[Slot] | None = None,
 ) -> Booking:
     if not user.meta_username:
         raise BookingError("先にアカウント設定で Meta (Quest) のユーザー名を登録してください")
     if not is_available(db, slot, now, hold_minutes):
         raise BookingError("この枠はすでに埋まっています")
-    amount, discount = quote(db, user, slot, now, hold_minutes, trial_minutes, free)
+    amount, discount = quote(db, user, slot, now, hold_minutes, trial_minutes, free, chain)
+    merge_slots(db, slot, chain or [])
     booking = Booking(
         slot=slot, user=user, status=BookingStatus.PENDING_PAYMENT, created_at=now,
         amount_yen=amount, discount_yen=discount,
@@ -308,6 +423,7 @@ def confirm_booking(db: Session, booking: Booking, vpn: VpnProvider, now: dt.dat
 def expire_booking(db: Session, booking: Booking) -> None:
     if booking.status == BookingStatus.PENDING_PAYMENT:
         booking.status = BookingStatus.EXPIRED
+        release_merged(db, booking.slot, clock.utcnow())
         db.commit()
 
 
@@ -320,6 +436,7 @@ def cancel_booking(db: Session, booking: Booking, vpn: VpnProvider, reason: str)
     if was_paid:
         booking.note += "\n支払い済みのため、Stripe で返金してください。"
     _revoke_vpn(booking, vpn)
+    release_merged(db, booking.slot, clock.utcnow())
     db.commit()
 
 
