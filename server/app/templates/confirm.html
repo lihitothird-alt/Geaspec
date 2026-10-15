@@ -16,10 +16,10 @@
   <div class="ticket">
     <div class="ticket-main">
       <p class="ticket-date">{% if now_slot %}<span class="badge confirmed now-badge">今すぐ</span> {% endif %}{{ start_at|jst("%Y/%m/%d") }}<span class="{% if wd == '土' %}wd-sat{% elif wd == '日' %}wd-sun{% endif %}">（{{ wd }}）</span></p>
-      <p class="ticket-time">{{ start_at|jst("%H:%M") }}<span class="sep">〜</span>{% if end_at|jst("%Y%m%d") != start_at|jst("%Y%m%d") %}<span class="small">{{ end_at|jst("%m/%d") }} </span>{% endif %}{{ end_at|jst("%H:%M") }}</p>
+      <p class="ticket-time">{{ start_at|jst("%H:%M") }}<span class="sep">〜</span>{% if end_at|jst("%Y%m%d") != start_at|jst("%Y%m%d") %}<span class="small">{{ end_at|jst("%m/%d") }} </span>{% endif %}{{ end_at|jst("%H:%M") }}<small class="end-note">（{{ turnover_minutes }}分前に終了）</small></p>
       <dl class="kv">
         <dt>PC</dt><dd>{{ slot.host.name }}{% if slot.host.spec_text %}<br><span class="muted small">{{ slot.host.spec_text }}</span>{% endif %}</dd>
-        <dt>利用時間</dt><dd>{{ play_minutes|minutes_text }}<small class="muted">（最後の {{ slot.duration_minutes - slot.play_minutes }} 分は PC の片づけと次の人の準備）</small></dd>
+        <dt>利用時間</dt><dd>{{ play_minutes|minutes_text }}<small class="muted">（最後の {{ turnover_minutes }}分は PC の片づけと次の人の準備）</small></dd>
         <dt>Meta ユーザー名</dt><dd>{{ user.meta_username }}</dd>
       </dl>
     </div>
@@ -44,9 +44,9 @@
     <label for="until">何時まで使いますか？</label>
     <p class="muted small">この PC は、このあとも空いています。続けて予約すると、途中で切れずにそのまま遊べます。</p>
     <select id="until" name="until" onchange="this.form.submit()">
-      <option value="0"{% if not until %} selected{% endif %}>{{ slot.play_end_at|jst("%H:%M") }} まで（この枠だけ）</option>
+      <option value="0"{% if not until %} selected{% endif %}>{{ slot.end_at|jst("%H:%M") }} まで（この枠だけ）</option>
       {% for s in following %}
-      <option value="{{ s.id }}"{% if s.id == until %} selected{% endif %}>{% if s.play_end_at|jst("%Y%m%d") != slot.start_at|jst("%Y%m%d") %}{{ s.play_end_at|jst("%m/%d") }} {% endif %}{{ s.play_end_at|jst("%H:%M") }} まで（{{ ((s.play_end_at - start_at).total_seconds() // 60)|int|minutes_text }}）</option>
+      <option value="{{ s.id }}"{% if s.id == until %} selected{% endif %}>{% if s.end_at|jst("%Y%m%d") != slot.start_at|jst("%Y%m%d") %}{{ s.end_at|jst("%m/%d") }} {% endif %}{{ s.end_at|jst("%H:%M") }} まで（{{ ((s.end_at - start_at).total_seconds() // 60)|int|minutes_text }}）</option>
       {% endfor %}
     </select>
     <noscript><button class="btn small ghost">決める</button></noscript>

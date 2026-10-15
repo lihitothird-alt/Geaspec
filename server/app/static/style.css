@@ -1142,3 +1142,4 @@ td a.badge:hover { text-decoration: underline; }
 .until-form label { font-weight: 700; }
 .until-form p { margin: 0; }
 .until-form select { min-height: 44px; font-size: 1rem; }
+.end-note { font-size: .45em; font-weight: 600; color: var(--text-muted); margin-left: .3em; letter-spacing: 0; white-space: nowrap; }

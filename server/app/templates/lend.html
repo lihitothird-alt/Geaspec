@@ -44,7 +44,7 @@
       {% for b in upcoming %}
       <li class="person">
         <div class="person-main">
-          <span class="td-strong num">{{ b.slot.start_at|jst("%m/%d") }}（{{ b.slot.start_at|wday }}） {{ b.slot.start_at|jst("%H:%M") }}〜{{ b.slot.play_end_at|jst("%H:%M") }}</span>
+          <span class="td-strong num">{{ b.slot.start_at|jst("%m/%d") }}（{{ b.slot.start_at|wday }}） {{ b.slot.start_at|jst("%H:%M") }}〜{{ b.slot.end_at|jst("%H:%M") }}</span>
           <div class="person-tags"><span>{{ b.user.display_name }} さん</span>{{ stars(ratings.get(b.user_id, (None, 0))) }}<span class="muted">{{ b.slot.host.name }}</span></div>
         </div>
       </li>
@@ -62,7 +62,7 @@
       {% for b in finished %}
       <li class="person wrap-row">
         <div class="person-main">
-          <span class="td-strong num">{{ b.slot.start_at|jst("%m/%d %H:%M") }}〜{{ b.slot.play_end_at|jst("%H:%M") }}</span>
+          <span class="td-strong num">{{ b.slot.start_at|jst("%m/%d %H:%M") }}〜{{ b.slot.end_at|jst("%H:%M") }}</span>
           <div class="person-tags"><span>{{ b.user.display_name }} さん</span>{{ stars(ratings.get(b.user_id, (None, 0))) }}</div>
         </div>
         {% if simple %}

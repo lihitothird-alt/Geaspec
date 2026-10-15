@@ -32,7 +32,7 @@
     {% for s in slots %}
     <li class="slot">
       <div>
-        <div class="slot-time"><span class="num">{{ s.start_at|jst("%m/%d") }}（{{ s.start_at|wday }}） {{ s.start_at|jst("%H:%M") }}〜{{ s.play_end_at|jst("%H:%M") }}</span></div>
+        <div class="slot-time"><span class="num">{{ s.start_at|jst("%m/%d") }}（{{ s.start_at|wday }}） {{ s.start_at|jst("%H:%M") }}〜{{ s.end_at|jst("%H:%M") }}</span></div>
         <div class="slot-meta"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>{{ s.host.name }}</div>
       </div>
       <div class="slot-buy">

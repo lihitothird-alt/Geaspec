@@ -111,6 +111,8 @@ def create_app(
     templates.env.globals["until_text"] = services.until_text
     templates.env.globals["provider_labels"] = PROVIDER_LABELS
     templates.env.globals["trial_minutes"] = 0 if settings.free_mode else settings.trial_minutes
+    # 表示は枠の終わり (例: 16:00) にして、片づけのぶん早く終わることを「(5分前に終了)」と添える
+    templates.env.globals["turnover_minutes"] = settings.turnover_minutes
     templates.env.globals["free_mode"] = settings.free_mode
     templates.env.globals["asset_version"] = VERSION
     templates.env.globals["simple"] = settings.simple_mode
@@ -131,7 +133,7 @@ def create_app(
 
     def booking_when(booking: Booking) -> str:
         s = booking.slot
-        return f"{clock.to_jst(s.start_at):%m/%d}（{'月火水木金土日'[clock.to_jst(s.start_at).weekday()]}）{clock.to_jst(s.start_at):%H:%M}〜{clock.to_jst(s.play_end_at):%H:%M}"
+        return f"{clock.to_jst(s.start_at):%m/%d}（{'月火水木金土日'[clock.to_jst(s.start_at).weekday()]}）{clock.to_jst(s.start_at):%H:%M}〜{clock.to_jst(s.end_at):%H:%M}"
 
     def confirm_and_notify(db: Session, booking: Booking, now: dt.datetime) -> None:
         """支払い完了 → 予約確定。はじめて確定したときだけ、借り手と貸し手にメールを送る。"""
@@ -463,7 +465,7 @@ def create_app(
         amount, discount = services.quote(db, user, slot, now, settings.hold_minutes, settings.trial_minutes,
                                           settings.free_mode, chain)
         start_at = max(slot.start_at, now)
-        end_at = chain[-1].play_end_at if chain else slot.play_end_at
+        end_at = chain[-1].end_at if chain else slot.end_at
         return render(
             request, db, "confirm.html", slot=slot, amount=amount, discount=discount,
             providers=list(request.app.state.payments), following=following,
@@ -510,7 +512,7 @@ def create_app(
 
         description = (
             f"{settings.service_name} {clock.to_jst(slot.start_at):%m/%d %H:%M}〜"
-            f"{clock.to_jst(slot.play_end_at):%H:%M} ({slot.host.name})"
+            f"{clock.to_jst(slot.end_at):%H:%M} ({slot.host.name})"
         )
         booking.payment_provider = provider
         try:

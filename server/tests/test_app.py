@@ -825,8 +825,8 @@ def test_notification_mails(tmp_path, now):
     del mails[:]
     borrower.post("/slots/1/book")
     assert [(to, subj) for to, subj, _ in mails] == [
-        ("user@example.com", "【Geaspec】予約が確定しました 10/10（土）13:00〜13:55"),
-        ("lender@example.com", "【Geaspec】新しい予約が入りました 10/10（土）13:00〜13:55"),
+        ("user@example.com", "【Geaspec】予約が確定しました 10/10（土）13:00〜14:00"),
+        ("lender@example.com", "【Geaspec】新しい予約が入りました 10/10（土）13:00〜14:00"),
     ]
     assert "/bookings/1" in mails[0][2]
 
@@ -879,7 +879,8 @@ def test_last_minutes_of_a_slot_are_for_turnover(setup, now):
     app, _, user, agent = setup
     user.post("/slots/1/book")
     page = user.get("/bookings/1").text
-    assert "13:55" in page and "14:00" not in page
+    # 見やすいように枠の終わり (14:00) を出し、片づけのぶん早く終わることを添える
+    assert "14:00" in page and "5分前に終了" in page and "13:55" not in page
     now["t"] = dt.datetime(2026, 10, 10, 4, 0)
     agent.get("/api/agent/poll")
     agent.post("/api/agent/bookings/1/started")
@@ -1051,9 +1052,9 @@ def test_consecutive_hours_are_booked_as_one_long_session(setup, now):
     # 続いて空いている 05:00・06:00 は「何時まで」でえらべる。すき間のある 08:00 はえらべない
     page = user.get("/slots/1/confirm").text
     assert "何時まで使いますか" in page
-    assert "15:55 まで（2時間55分）" in page and "17:55" not in page
+    assert "16:00 まで（3時間）" in page and "18:00" not in page
     page = user.get(f"/slots/1/confirm?until={six}").text
-    assert "2時間55分" in page and "15:55" in page
+    assert "3時間" in page and "16:00" in page and "5分前に終了" in page
 
     r = user.post("/slots/1/book", data={"until": six}, follow_redirects=False)
     assert r.headers["location"] == "/bookings/1"
@@ -1092,7 +1093,7 @@ def test_long_bookings_can_be_limited(tmp_path, now):
     user = TestClient(app)
     signup(user, "user@example.com")
     page = user.get("/slots/1/confirm").text
-    assert "14:55 まで" in page and "15:55 まで" not in page
+    assert "15:00 まで" in page and "16:00 まで" not in page
     r = user.post("/slots/1/book", data={"until": slots["2026-10-10T06:00:00Z"]["id"]}, follow_redirects=False)
     assert r.headers["location"] == "/slots/1/confirm"
     assert db(app).get(Slot, 1).end_at == dt.datetime(2026, 10, 10, 5)
