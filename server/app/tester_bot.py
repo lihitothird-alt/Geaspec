@@ -7,6 +7,7 @@
 - 申し込みチャンネル: 「申し込む」ボタンを置く。テスターはボタンを押すだけ
 - テスターごとのスレッド: 申し込むと、本人と運営だけが見られるスレッドができる。テストはここで進める
 - 運営チャンネル: 申し込み・テスト開始・「困った」・結果のお知らせが届く
+- テスターがスレッドに書いたことは意見として記録し、運営チャンネルにも回す
 
 ボタンの押下は custom_id ("gs:...") だけで処理するので、ボットを再起動しても前のボタンが使える。
 """
@@ -28,8 +29,8 @@ import discord
 from discord import app_commands
 
 from . import booking_notice, feedback, invite, version
-from .tester_store import (FOLLOWUPS, GROUPS, MISSIONS, QUESTIONS, TesterStore, format_duration, option_label,
-                           summary_lines)
+from .tester_store import (FOLLOWUPS, GROUPS, LENDER_QUESTIONS, MISSIONS, QUESTIONS, TesterStore, format_duration,
+                           option_label, summary_lines)
 
 log = logging.getLogger(__name__)
 
@@ -122,8 +123,12 @@ def prep_text(guide_url: str = "") -> str:
         "**ルール**: VRChat を開いたとき、もし **自分ではない人のアカウントでログインされていたら**、何も触らずに"
         "「困った」を押してください。テストはそこで中止します（貸してくれた人を守るためです）\n"
         "3. **当日、VRChat に入ったら FPS と Ping の表示をオンにする**: Launch Pad の歯車（設定）→ いちばん下の"
-        f"「デバッグ」→「FPS と Ping の表示」。貸し出しの PC は毎回設定が消えるので、テストのたびにオンにしてください{guide}"
+        f"「デバッグ」→「FPS と Ping の表示」。貸し出しの PC は毎回設定が消えるので、テストのたびにオンにしてください{guide}\n\n"
+        + NOTES_HINT
     )
+
+
+NOTES_HINT = "迷ったこと・気づいたこと・こうしてほしいことは、いつでもこのスレッドに書いてください。そのまま運営に届きます。"
 
 
 def test_items_text(worlds: list[str]) -> str:
@@ -193,6 +198,26 @@ def followup_message(user_id: int, answers: dict) -> tuple[str, discord.ui.View]
     text = f"{head}**{index + 1} / {len(FOLLOWUPS)}** {q['text']}"
     return text, make_view(*[button(label, f"gs:f:{q['key']}:{value}", row=i // 5)
                              for i, (value, label) in enumerate(q["options"])])
+
+
+def lender_survey_message(user_id: int, answers: dict) -> tuple[str, discord.ui.View]:
+    """PC を貸した人へのアンケートの次の質問 (全部答えたら、ひとこと欄への案内)。"""
+    key = TesterStore.next_lender_question(answers)
+    if key is None:
+        return ("**最後に（任意）**\n貸してみて気づいたこと・こうしてほしいことがあれば書いてください。\n"
+                "なければ「スキップして終わる」で完了です。",
+                make_view(button("✍ 書く", "gs:lc", discord.ButtonStyle.primary), button("スキップして終わる", "gs:ls")))
+    index = [q["key"] for q in LENDER_QUESTIONS].index(key)
+    q = LENDER_QUESTIONS[index]
+    head = (f"<@{user_id}> 貸してくれてありがとうございます！ 貸す側の感想も聞かせてください"
+            f"（ボタンで{len(LENDER_QUESTIONS)}問・1分ほど）\n") if index == 0 else ""
+    text = f"{head}**貸した人のアンケート {index + 1} / {len(LENDER_QUESTIONS)}**\n{q['text']}"
+    if q.get("multi"):
+        select = discord.ui.Select(
+            custom_id=f"gs:l:{key}", placeholder="えらんでください（いくつでも）", min_values=1,
+            max_values=len(q["options"]), options=[discord.SelectOption(label=l, value=v) for v, l in q["options"]])
+        return text, make_view(select)
+    return text, make_view(*[button(label, f"gs:l:{key}:{value}", row=i // 5) for i, (value, label) in enumerate(q["options"])])
 
 
 def play_view(missions: dict) -> discord.ui.View:
@@ -274,6 +299,18 @@ class CommentModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         await self.bot.on_comment(interaction, self)
+
+
+class LenderCommentModal(discord.ui.Modal):
+    def __init__(self, bot: "TesterBot") -> None:
+        super().__init__(title="貸してみて（任意）", timeout=1800)
+        self.bot = bot
+        self.comment = discord.ui.TextInput(label="気づいたこと・こうしてほしいこと", style=discord.TextStyle.paragraph,
+                                            required=False, max_length=1000)
+        self.add_item(self.comment)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        await self.bot.on_lender_comment(interaction, self)
 
 
 def _version_key(ver: str) -> tuple[int, ...]:
@@ -615,9 +652,11 @@ class TesterBot(discord.Client):
         summary = self.store.summary()
         embed = discord.Embed(title="テストの集計", description="\n".join(summary_lines(summary)), color=0x5B3CF0)
         forms = feedback.load_from_site_db(self.site_db) if self.site_db else None
-        data = io.BytesIO(self.store.to_csv(forms).encode("utf-8-sig"))
-        name = f"geaspec-tests-{self.clock().astimezone():%Y%m%d-%H%M}.csv"
-        await interaction.response.send_message(embed=embed, file=discord.File(data, filename=name), ephemeral=True)
+        stamp = f"{self.clock().astimezone():%Y%m%d-%H%M}"
+        files = [discord.File(io.BytesIO(text.encode("utf-8-sig")), filename=f"geaspec-{kind}-{stamp}.csv")
+                 for kind, text in (("tests", self.store.to_csv(forms)), ("lenders", self.store.lenders_csv()),
+                                    ("notes", self.store.notes_csv()))]
+        await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
 
     # ボタン・選択
     async def on_interaction(self, interaction: discord.Interaction) -> None:
@@ -821,7 +860,7 @@ class TesterBot(discord.Client):
                 "6. 貸す前に、貸し出し用の Windows ユーザーの VRChat から **ログアウト** しておく（アプリも開始前に消しますが、念のため）\n"
                 "7. 貸す時間は、PC の電源を入れてアプリを動かしたままにしておく。貸し出し中は画面が幕で覆われ、"
                 "終わると借りた人のデータが自動で消えます\n\n"
-                "よければ 15分ほど、「貸すなら何が心配か」などのお話も聞かせてください（運営から連絡します）。")
+                "はじめて貸したあとに、貸す側のアンケート（ボタンで6問）が届きます。" + NOTES_HINT)
 
     async def send_ready(self, thread: discord.Thread, tester: dict) -> None:
         """予約の案内。スレッドのいちばん下に「次にやること」が来るように、最後に送る。"""
@@ -863,6 +902,64 @@ class TesterBot(discord.Client):
                 "画面の写真もあると助かります（借りた人の名前などが写っていたら隠してください）。")
             await self.notify_ops(f"【要確認】<@{tester['user_id']}> さんの PC で、貸し出しのあとにデータが残っていました "
                                   f"<#{interaction.channel_id}>")
+        # はじめて確かめてくれたときに、貸す側のアンケートを 1 回だけ送る
+        if self.store.start_lender_survey(tester["user_id"], self.clock()):
+            thread = interaction.channel or await self._existing_thread(tester)
+            if thread is not None:
+                text, view = lender_survey_message(tester["user_id"], {})
+                await thread.send(text, view=view)
+
+    async def on_lender_action(self, interaction: discord.Interaction, tester: dict, action: str, args: list[str]) -> None:
+        uid = tester["user_id"]
+        row = self.store.lender_survey(uid)
+        if row is None or row["done_at"]:
+            await self.reply(interaction, "このアンケートはもう終わっています。ありがとうございました。")
+            return
+        if action == "lc":
+            await interaction.response.send_modal(LenderCommentModal(self))
+            return
+        if action == "ls":
+            await self.finish_lender(interaction, tester, "", from_modal=False)
+            return
+        if not args:
+            await self.reply(interaction, "その答えは受け付けられませんでした。")
+            return
+        key = args[0]
+        value: str | list[str] = args[1] if len(args) > 1 else list((interaction.data or {}).get("values") or [])
+        try:
+            self.store.answer_lender(uid, key, value)
+        except ValueError:
+            await self.reply(interaction, "その答えは受け付けられませんでした。")
+            return
+        text, view = lender_survey_message(uid, json.loads(self.store.lender_survey(uid)["answers"]))
+        await interaction.response.edit_message(content=text, view=view)
+
+    async def on_lender_comment(self, interaction: discord.Interaction, modal: LenderCommentModal) -> None:
+        tester = self.store.tester_by_thread(interaction.channel_id)
+        row = self.store.lender_survey(tester["user_id"]) if tester else None
+        if row is None or row["done_at"]:
+            await self.reply(interaction, "このアンケートはもう終わっています。ありがとうございました。")
+            return
+        await self.finish_lender(interaction, tester, modal.comment.value, from_modal=True)
+
+    async def finish_lender(self, interaction: discord.Interaction, tester: dict, comment: str, *, from_modal: bool) -> None:
+        uid = tester["user_id"]
+        self.store.finish_lender(uid, self.clock(), comment)
+        text = ("**ありがとうございました！ 記録しました。**\n"
+                "ほかにも気づいたことがあれば、いつでもこのスレッドに書いてください（運営に届きます）。")
+        if from_modal:
+            await interaction.response.send_message(text)
+        else:
+            await interaction.response.edit_message(content=text, view=None)
+        a = json.loads(self.store.lender_survey(uid)["answers"])
+        picks = [f"{q['text'].split('？')[0]}: " +
+                 ("・".join(option_label(q["key"], x) for x in a[q["key"]]) if isinstance(a[q["key"]], list)
+                  else option_label(q["key"], a[q["key"]]))
+                 for q in LENDER_QUESTIONS if q["key"] in a]
+        lines = [f"<@{uid}> さんが貸した人のアンケートに答えました", *picks]
+        if comment.strip():
+            lines.append(f"ひとこと: {comment.strip()}")
+        await self.notify_ops("\n".join(lines))
 
     async def on_session_action(self, interaction: discord.Interaction, action: str, args: list[str]) -> None:
         tester = self.store.tester_by_thread(interaction.channel_id)
@@ -890,6 +987,9 @@ class TesterBot(discord.Client):
             return
         if action == "f":
             await self.on_followup(interaction, tester, args)
+            return
+        if action in ("l", "lc", "ls"):
+            await self.on_lender_action(interaction, tester, action, args)
             return
         session = self.store.open_session(interaction.channel_id)
         if session is None:
@@ -1063,7 +1163,8 @@ class TesterBot(discord.Client):
                 "時間になると自動で終わり、ログイン情報はパソコンから消えます。\n\n"
                 "FPS と Ping の写真がまだなら、このスレッドに貼ってください。\n\n"
                 "VRChat のカメラで撮った写真（自撮りなど）は、時間が終わると予約サイトの予約ページからダウンロードできます（7日間）。\n"
-                f"3日後にもう一度だけ、ここで4つ質問させてください。よければ 15分ほどお話も聞かせてください（運営から連絡します）。")
+                f"3日後にもう一度だけ、ここで4つ質問させてください。よければ 15分ほどお話も聞かせてください（運営から連絡します）。\n"
+                + NOTES_HINT)
 
     @staticmethod
     def again_view() -> discord.ui.View:
@@ -1178,7 +1279,11 @@ class TesterBot(discord.Client):
 
     # スクショ
     async def on_message(self, message: discord.Message) -> None:
-        if message.author.bot or not isinstance(message.channel, discord.Thread) or not message.attachments:
+        if message.author.bot or not isinstance(message.channel, discord.Thread):
+            return
+        if (message.content or "").strip():
+            await self.save_note(message)
+        if not message.attachments:
             return
         # テストが終わってから (スマホから) 貼ることが多いので、終わったテストにも付ける
         session = self.store.open_session(message.channel.id) or self.store.latest_session(message.channel.id)
@@ -1201,6 +1306,22 @@ class TesterBot(discord.Client):
                 await message.add_reaction("📸")
             except discord.HTTPException:
                 pass
+
+
+    async def save_note(self, message: discord.Message) -> None:
+        """テスターが自分のスレッドに書いたことを意見として記録し、運営に回す。"""
+        tester = self.store.tester_by_thread(message.channel.id)
+        if tester is None or tester["user_id"] != message.author.id:
+            return
+        text = message.content.strip()
+        self.store.add_note(tester["user_id"], message.channel.id, text, self.clock())
+        role = "貸す人" if tester.get("grp") == "C" else "借りる人"
+        quoted = "\n".join("> " + line for line in text[:500].splitlines())
+        await self.notify_ops(f"💬 <@{tester['user_id']}> さん（{role}）がスレッドに書きました {message.channel.mention}\n{quoted}")
+        try:
+            await message.add_reaction("📝")
+        except discord.HTTPException:
+            pass
 
 
 async def _run(token: str, store: TesterStore, shots_dir: Path, site_url: str, say: Callable[[str], None],

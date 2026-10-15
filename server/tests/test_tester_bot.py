@@ -954,3 +954,109 @@ def test_lenders_get_setup_steps_instead_of_booking(tmp_path, monkeypatch):
         store.close()
 
     asyncio.run(scenario())
+
+
+def test_lenders_answer_their_own_survey_after_the_first_wipe_check(tmp_path, monkeypatch):
+    async def scenario():
+        now = [at(0)]
+        thread = FakeThread(40)
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, now, {40: thread}, ops_log)
+        store.apply(4, "貸す人", vrchat="", meta="", gear="RTX 4070", region="関東", schedule="", now=T0)
+        store.set_group(4, "C")
+        store.set_thread(4, 40)
+        lender = FakeUser(4)
+
+        await bot.on_interaction(FakeInteraction(lender, 40, "gs:wipe:ok"))
+        text, kw = thread.sent[-1]
+        assert "貸した人のアンケート 1 / 6" in text and custom_ids(kw["view"])[0] == "gs:l:worry:high"
+        await bot.on_interaction(FakeInteraction(lender, 40, "gs:wipe:ok"))  # 2 回目の確認では送らない
+        assert len(thread.sent) == 1
+
+        await bot.on_interaction(FakeInteraction(lender, 40, "gs:l:worry:some"))
+        await bot.on_interaction(FakeInteraction(lender, 40, "gs:l:worry_what", values=["account", "power"]))
+        bad = FakeInteraction(lender, 40, "gs:l:setup:nope")
+        await bot.on_interaction(bad)
+        assert "受け付けられません" in bad.log[0][1]
+        for cid in ("gs:l:setup:easy", "gs:l:lend_again:yes", "gs:l:lend_price:100", "gs:l:lend_hours:10"):
+            i = FakeInteraction(lender, 40, cid)
+            await bot.on_interaction(i)
+        assert "最後に" in i.log[0][1] and custom_ids(i.log[0][2]["view"]) == ["gs:lc", "gs:ls"]
+
+        i = FakeInteraction(lender, 40, "gs:lc")
+        await bot.on_interaction(i)
+        modal = i.log[0][1]
+        modal.comment = Field("電気代が気になった")
+        done = FakeInteraction(lender, 40)
+        await modal.on_submit(done)
+        assert "ありがとうございました" in done.log[0][1]
+        assert "貸した人のアンケートに答えました" in ops_log[-1] and "〜100円" in ops_log[-1]
+        assert "アカウントやパスワード・電気代" in ops_log[-1] and "電気代が気になった" in ops_log[-1]
+        late = FakeInteraction(lender, 40, "gs:ls")
+        await bot.on_interaction(late)
+        assert "もう終わっています" in late.log[0][1]
+
+        s = store.summary()
+        assert s["lenders_answered"] == 1 and s["lend_price_median"] == 100 and s["lend_again_rate"] == 1.0
+        assert any("もらえたら貸す金額" in line and "〜100円" in line for line in tb.summary_lines(s))
+        csv_text = store.lenders_csv()
+        assert "1時間いくらもらえたら貸しますか？" in csv_text and "〜100円" in csv_text and "電気代が気になった" in csv_text
+        store.close()
+
+    asyncio.run(scenario())
+
+
+class FakeMessage:
+    def __init__(self, author, channel, content="", attachments=()):
+        author.bot = False
+        self.author = author
+        self.channel = channel
+        self.content = content
+        self.attachments = list(attachments)
+        self.reactions = []
+
+    async def add_reaction(self, emoji):
+        self.reactions.append(emoji)
+
+
+class FakeThreadChannel(discord.Thread):
+    """isinstance(..., discord.Thread) を通すためだけの入れ物。"""
+
+    def __init__(self, tid):  # noqa: D107 - 親の __init__ は呼ばない
+        self.id = tid
+
+    @property
+    def mention(self):
+        return f"<#{self.id}>"
+
+
+def test_anything_testers_write_in_their_thread_reaches_ops(tmp_path, monkeypatch):
+    async def scenario():
+        now = [at(0)]
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, now, {}, ops_log)
+        apply(store, 1, thread_id=50)
+        channel = FakeThreadChannel(50)
+
+        msg = FakeMessage(FakeUser(1), channel, "予約ページの日付が分かりにくかったです")
+        await bot.on_message(msg)
+        assert msg.reactions == ["📝"]
+        assert "借りる人" in ops_log[-1] and "> 予約ページの日付が分かりにくかったです" in ops_log[-1]
+
+        # 運営が同じスレッドに書いたもの・ほかのスレッドのものは記録しない
+        await bot.on_message(FakeMessage(FakeUser(99), channel, "運営です"))
+        await bot.on_message(FakeMessage(FakeUser(1), FakeThreadChannel(51), "別の場所"))
+        assert len(store.notes()) == 1 and len(ops_log) == 1
+        notes = store.notes_csv()
+        assert "借りる人" in notes and "日付が分かりにくかった" in notes and "テスター" not in notes
+        assert store.summary()["notes"] == 1
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_testers_are_told_they_can_write_anytime(tmp_path, monkeypatch):
+    store, bot = make_bot(tmp_path, monkeypatch, [at(0)])
+    assert tb.NOTES_HINT in tb.prep_text("https://x/guide")
+    assert tb.NOTES_HINT in bot.lender_text() and tb.NOTES_HINT in bot.thanks_text(1)
+    store.close()
