@@ -295,7 +295,8 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         assert "VPN を切る" in prep and "FPS と Ping の表示" in prep and "Allow remote connections" not in prep
         assert "https://lg.example.ts.net/guide" in prep and "#" not in prep  # ページのいちばん上から開く
         # 申し込んだらすぐ、いちばん下に「次にやること: 予約する」が届く (運営も、2つの答えも待たない)
-        assert store.tester(1)["status"] == "ready" and len(thread.sent) == 3
+        assert store.tester(1)["status"] == "ready" and len(thread.sent) == 4
+        assert "テストでやること（一覧）" in thread.sent[-2][0] and "VRChat のカメラで写真" in thread.sent[-2][0]
         assert "次にやること: 予約する" in thread.sent[-1][0]
         assert any("hikari_meta" in c for c, _ in ops_log)
         sent_before = len(thread.sent)
@@ -575,7 +576,7 @@ def test_followup_three_days_later(tmp_path, monkeypatch):
         assert "3日たちました" in text and custom_ids(kw["view"])[0] == "gs:f:again_3d:yes"
 
         tester = FakeUser(1)
-        for cid in ("gs:f:again_3d:maybe", "gs:f:told:yes", "gs:f:price_3d:800"):
+        for cid in ("gs:f:again_3d:maybe", "gs:f:told:yes", "gs:f:photos_3d:got", "gs:f:price_3d:800"):
             i = FakeInteraction(tester, 10, cid)
             await bot.on_interaction(i)
         assert "ありがとうございました" in i.log[0][1]
@@ -601,11 +602,12 @@ def test_group_c_gets_lender_guide(tmp_path, monkeypatch):
         store.set_setting("hours", "土日だけ")
         assert await bot.send_ready_now(store.tester(3)) is True
         (ready, ready_kw), (text, kw) = thread.sent[-2], thread.sent[-1]
+        assert "テストでやること（一覧）" in thread.sent[0][0]
         assert "次にやること: 予約する" in ready and "土日だけ" in ready
         assert "PC を貸すテストの手順" in text and "GeaspecAgent-Setup-" in text and "詳細情報" in text
         assert custom_ids(kw["view"]) == ["gs:lenderapp", "gs:link"]
         await bot.send_extras(thread, store.tester(3))  # 2 回は送らない
-        assert thread.sent[-1][0] == text and len(thread.sent) == 2
+        assert thread.sent[-1][0] == text and len(thread.sent) == 3
         i = FakeInteraction(FakeUser(3), 30, "gs:lenderapp")
         await bot.on_interaction(i)
         assert "承認" in ops_log[-1] and store.summary()["lender_app"] == 1
@@ -902,8 +904,8 @@ def test_testers_waiting_from_an_older_version_get_their_guide(tmp_path, store, 
             assert await bot.send_ready_now(tester) is True
         assert store.waiting_testers() == []
         texts = [t for t, _ in thread.sent]
-        assert len(texts) == 1  # VD の入れ方は予約の案内の中に入れたので、別には送らない
-        assert "Virtual Desktop を入れる" in texts[0] and "次にやること: 予約する" in texts[0]
+        assert len(texts) == 2  # 一覧と予約の案内。VD の入れ方は予約の案内の中に入れたので、別には送らない
+        assert "Virtual Desktop を入れる" in texts[1] and "次にやること: 予約する" in texts[1]
         assert any("no_vd_user" in c for c in sent_ops)
 
     asyncio.run(scenario())

@@ -121,6 +121,20 @@ def prep_text(guide_url: str = "") -> str:
     )
 
 
+def test_items_text(worlds: list[str]) -> str:
+    """テスターに先に見せる「テストでやること」の一覧。"""
+    names = "」「".join(worlds)
+    return ("**テストでやること（一覧）**\n"
+            "1. 開始 5分前に「テストを始める」を押して、Quest の Virtual Desktop で貸し出しの PC につなぐ\n"
+            "2. VRChat にメールアドレスとパスワードでログインして、ワールドに入ったら「ワールドに入れた」を押す\n"
+            f"3. FPS と Ping の表示をオンにして、「{names}」で 30秒ほど歩き回りながら、Quest のスクリーンショットを撮る"
+            "（撮れなかったら、見えた数字をこのスレッドに書くだけでも大丈夫です）\n"
+            "4. 重いワールドに行く・人の多いインスタンスに入る\n"
+            "5. VRChat のカメラで写真を 1枚撮る（終わったあと、あなたの手元にちゃんと届くかを確かめます）\n"
+            "6. 遊び終わったら「遊び終わった」を押して、ボタンでアンケートに答える\n"
+            "7. 3日後に届く 4つの質問に答える（写真を受け取れたかも聞きます）")
+
+
 def vd_install_text(tester: dict) -> str:
     """Quest の Virtual Desktop を持っていない人への案内。持っている人には何も出さない。"""
     if tester.get("has_vd") != 0:
@@ -155,7 +169,7 @@ def followup_message(user_id: int, answers: dict) -> tuple[str, discord.ui.View]
     keys = [q["key"] for q in FOLLOWUPS]
     index = next(i for i, k in enumerate(keys) if k not in answers)
     q = FOLLOWUPS[index]
-    head = f"<@{user_id}> テストから3日たちました。最後に3つだけ教えてください\n" if index == 0 else ""
+    head = f"<@{user_id}> テストから3日たちました。最後に4つだけ教えてください\n" if index == 0 else ""
     text = f"{head}**{index + 1} / {len(FOLLOWUPS)}** {q['text']}"
     return text, make_view(*[button(label, f"gs:f:{q['key']}:{value}", row=i // 5)
                              for i, (value, label) in enumerate(q["options"])])
@@ -790,6 +804,7 @@ class TesterBot(discord.Client):
     async def send_ready(self, thread: discord.Thread, tester: dict) -> None:
         """予約の案内。スレッドのいちばん下に「次にやること」が来るように、最後に送る。"""
         user_id = tester["user_id"]
+        await thread.send(test_items_text(self.worlds()))
         await thread.send(
             f"<@{user_id}> **次にやること: 予約する**\n\n" + vd_install_text(tester) +
             "**① 予約する**\n" + self.site_lines(tester) +
@@ -901,7 +916,9 @@ class TesterBot(discord.Client):
             f"画像: {self.site_url}/guide\n"
             f"2. 「{worlds}」に行き、それぞれ**30秒ほど歩き回りながら**、FPS と Ping が写るように Quest のスクリーンショットを撮る"
             "（右手の Meta ボタンを押したまま、トリガーを引く）\n"
-            "3. 撮った写真を、**このスレッドに貼る**（テストが終わってから、スマホからでも大丈夫です）\n\n"
+            "3. 撮った写真を、**このスレッドに貼る**（テストが終わってから、スマホからでも大丈夫です）。"
+            "撮れなかったら、見えた数字をこのスレッドに書くだけでも大丈夫です\n"
+            "4. VRChat のカメラで写真を 1枚撮る（終わったあと、手元に届くかを確かめます）\n\n"
             "左手首に残り時間が出ます。遊び終わったら「遊び終わった」を押してください。",
             view=play_view(json.loads(session["missions"])))
         await self.notify_ops(f"<@{tester['user_id']}> さんがワールドに入りました（{format_duration(seconds)}）")
@@ -1003,7 +1020,8 @@ class TesterBot(discord.Client):
         return ("**ありがとうございました！ 記録しました。**\n"
                 "時間になると自動で終わり、ログイン情報はパソコンから消えます。\n\n"
                 "FPS と Ping の写真がまだなら、このスレッドに貼ってください。\n\n"
-                f"3日後にもう一度だけ、ここで3つ質問させてください。よければ 15分ほどお話も聞かせてください（運営から連絡します）。")
+                "VRChat のカメラで撮った写真は、時間が終わると予約サイトの予約ページからダウンロードできます（7日間）。\n"
+                f"3日後にもう一度だけ、ここで4つ質問させてください。よければ 15分ほどお話も聞かせてください（運営から連絡します）。")
 
     @staticmethod
     def again_view() -> discord.ui.View:
