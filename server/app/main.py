@@ -47,7 +47,8 @@ SITE_GATE_OPEN_PREFIXES = (
     # ホーム画面アプリの設定と裏方のスクリプト。ブラウザは合言葉の Cookie を付けずに読みに来る
     "/manifest.webmanifest", "/sw.js",
 )
-LEGAL_PAGES = {"tokushoho": "特定商取引法に基づく表記", "terms": "利用規約", "privacy": "プライバシーポリシー"}
+LEGAL_PAGES = {"tokushoho": "特定商取引法に基づく表記", "terms": "利用規約", "privacy": "プライバシーポリシー",
+               "platforms": "VRChat・Steam などの規約について"}
 
 
 def create_app(
@@ -214,7 +215,8 @@ def create_app(
     def legal(page: str, request: Request, db: Session = Depends(get_db)):
         if page not in LEGAL_PAGES or (page == "tokushoho" and settings.free_mode):
             raise HTTPException(404)
-        return render(request, db, "legal.html", page=page, title=LEGAL_PAGES[page])
+        template = "platforms.html" if page == "platforms" else "legal.html"
+        return render(request, db, template, page=page, title=LEGAL_PAGES[page])
 
     @app.get("/healthz")
     def healthz():

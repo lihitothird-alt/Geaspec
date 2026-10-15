@@ -977,6 +977,12 @@ def test_guide_and_terms_are_readable_before_joining(tmp_path):
         assert f"/static/guide/{img}.webp" in page.text
         assert client.get(f"/static/guide/{img}.webp").status_code == 200
     assert client.get("/legal/terms", follow_redirects=False).status_code == 200
+    rules = client.get("/legal/platforms", follow_redirects=False)
+    assert rules.status_code == 200 and "Steam 利用契約" in rules.text and "自分のアカウント" in rules.text
+    assert "/legal/platforms" in client.get("/legal/terms").text
+    # 貸す人向けの説明に切り替えられる
+    lend = client.get("/guide?for=lend")
+    assert "貸せる時間を決める" in lend.text and "geaspec://open" in lend.text and "Meta ユーザー名の見つけ方" not in lend.text
     assert client.get("/slots", follow_redirects=False).status_code == 303
 
 

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} | {{ settings.service_name }}{% endblock %}
+{% block content %}
+<section class="wrap narrow section tight legal">
+  <h1>{{ title }}</h1>
+  <p>{{ settings.service_name }} は、使うサービスそれぞれの規約を守れるように作っています。このページでは、運営の考え方と、借りる人・貸す人に守ってほしいことをまとめます。</p>
+  <p class="muted">運営の理解をまとめたもので、各社の公式な見解ではありません。規約は変わることがあるので、最新の内容は各社のページで確かめてください。分からない点は、運営が各社に問い合わせながら進めます（2026年10月）。</p>
+
+  <h2>VRChat</h2>
+  <ul>
+    <li>VRChat のアカウントは一人ひとりのものです。<strong>借りる人は、必ず自分のアカウントで</strong>ログインします（メールアドレスまたはユーザー名とパスワード）。貸し手のアカウントを使うことはありません。</li>
+    <li>貸し手の PC は、貸し出しの前と後に VRChat のログイン情報を自動で消します。</li>
+    <li>VRChat を開いたときに<strong>自分ではない人のアカウントでログインされていたら</strong>、何も触らずに Discord の「困った」を押してください。テストはそこで中止します。</li>
+    <li>この実験は無料で、VRChat を使ってお金を得ることはしません。</li>
+    <li>VRChat のコミュニティガイドラインも守ってください。</li>
+  </ul>
+  <p class="small">VRChat の規約: <a href="https://hello.vrchat.com/legal" target="_blank" rel="noopener">hello.vrchat.com/legal</a></p>
+
+  <h2>Steam</h2>
+  <ul>
+    <li>貸し手の PC では、VRChat を起動するために<strong>貸し手の Steam</strong> が動いています。</li>
+    <li>Steam の利用規約（Steam 利用契約）では、アカウントを他人と共有したり、使わせたりすることは認められていません。</li>
+    <li>そのため、<strong>貸し手は貸し出し専用の Steam アカウント</strong>を使ってください（ふだん使っているアカウントは使わないでください）。</li>
+    <li><strong>借りる人は Steam を操作しません</strong>。ストア・ライブラリ・フレンド・チャット・購入などには触らず、VRChat に Steam でログインすることもしません。</li>
+    <li>ただし、貸し手の Steam で起動した VRChat を、ほかの人が自分の VRChat アカウントで遊ぶことが規約上どう扱われるかは、はっきりしていません。運営はこれを確認中の課題にしていて、問題があると分かったら、しくみを変えます。</li>
+  </ul>
+  <p class="small">Steam 利用契約: <a href="https://store.steampowered.com/subscriber_agreement/" target="_blank" rel="noopener">store.steampowered.com/subscriber_agreement</a></p>
+
+  <h2>Virtual Desktop・Meta</h2>
+  <ul>
+    <li>借りる人は、<strong>自分で買った Quest 用の Virtual Desktop</strong> と、自分の Meta アカウントを使います。</li>
+    <li>PC 側の Virtual Desktop Streamer は無料のソフトで、貸し手が自分の PC に入れます。</li>
+  </ul>
+
+  <h2>守ってほしいこと（まとめ）</h2>
+  <h3>借りる人</h3>
+  <ul>
+    <li>VRChat には、自分のアカウントにメールアドレス（またはユーザー名）とパスワードでログインする</li>
+    <li>Steam や、PC の中のファイル・ほかのアプリには触らない</li>
+    <li>自分ではない人のアカウントでログインされていたら、触らずに「困った」を押す</li>
+  </ul>
+  <h3>貸す人</h3>
+  <ul>
+    <li>貸し出し専用の Windows ユーザーと、貸し出し専用の Steam アカウントを使う</li>
+    <li>貸す前に、自分の VRChat からログアウトしておく</li>
+    <li>自分のインターネット回線やソフトの契約で、PC を人に使ってもらうことに問題がないか確かめる</li>
+  </ul>
+  <p>利用規約全体は <a href="/legal/terms">利用規約</a> を見てください。</p>
+</section>
+{% endblock %}
