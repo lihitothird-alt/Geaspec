@@ -597,7 +597,7 @@ class AgentWindow:
         self.home: HomeView | None = None
 
         root = self.root = tk.Tk()
-        root.title(f"Geaspec Agent {h.AGENT_VERSION}")
+        root.title(WINDOW_TITLE)
         root.geometry("700x760")
         root.minsize(640, 600)
         root.configure(bg=COLORS["bg"])
@@ -1402,6 +1402,9 @@ class SettingsDialog:
 # ---------------------------------------------------------------------------
 
 
+WINDOW_TITLE = f"Geaspec Agent {h.AGENT_VERSION}"
+
+
 def acquire_single_instance() -> bool:
     """二重起動すると予約を二重に処理してしまうので、1 つだけにする。"""
     if sys.platform != "win32":
@@ -1413,8 +1416,25 @@ def acquire_single_instance() -> bool:
     return ctypes.windll.kernel32.GetLastError() != 183  # ERROR_ALREADY_EXISTS
 
 
+def bring_existing_window_to_front() -> bool:
+    """もう開いているウィンドウを前に出す。説明ページの「アプリに戻る」(geaspec://open) から開かれたときに使う。"""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    hwnd = user32.FindWindowW(None, WINDOW_TITLE)
+    if not hwnd:
+        return False
+    user32.ShowWindow(hwnd, 9)  # SW_RESTORE: 最小化されていても元に戻す
+    user32.SetForegroundWindow(hwnd)
+    return True
+
+
 def main() -> int:
     if not acquire_single_instance():
+        if bring_existing_window_to_front():
+            return 0
         import tkinter as tk
         from tkinter import messagebox
 

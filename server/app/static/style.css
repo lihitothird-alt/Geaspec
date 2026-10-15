@@ -1129,3 +1129,6 @@ td a.badge:hover { text-decoration: underline; }
 
 .guide-next { margin-top: 40px; padding: 24px 20px; border-radius: 14px; background: var(--surface-2, rgba(127,127,127,.08)); text-align: center; }
 .guide-next h2 { margin-top: 0; }
+.guide-switch { display: inline-flex; gap: 4px; padding: 4px; margin: 4px 0 12px; border-radius: 999px; background: var(--surface-2, rgba(127,127,127,.1)); }
+.guide-switch a { padding: 8px 16px; border-radius: 999px; text-decoration: none; color: inherit; font-weight: 600; }
+.guide-switch a[aria-current="page"] { background: var(--surface, #fff); box-shadow: 0 1px 3px rgba(0,0,0,.15); }

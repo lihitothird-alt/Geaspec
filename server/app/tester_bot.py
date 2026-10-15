@@ -105,7 +105,7 @@ def panel_text(hours: str, site_url: str = "") -> str:
 
 
 def prep_text(guide_url: str = "") -> str:
-    """申し込んだ人に、当日までにやっておくことをまとめて伝える。guide_url は説明ページ (#fps) へのリンク。"""
+    """申し込んだ人に、当日までにやっておくことをまとめて伝える。guide_url は説明ページへのリンク (ページのいちばん上から開く)。"""
     # URL のすぐ後ろに「）」などを付けると Discord がそこまでリンクにしてしまうので、URL は行の最後に置く
     guide = f"\n　画像つきの説明: {guide_url}" if guide_url else ""
     return (
@@ -657,7 +657,7 @@ class TesterBot(discord.Client):
             else:
                 await thread.send(head + "\nQuest の Virtual Desktop を持っているか、えらんでください"
                                   "（えらばなくても、このまま予約に進めます）。", view=welcome_view(tester))
-                await thread.send(prep_text(self.site_link(tester, "/guide#fps")))
+                await thread.send(prep_text(self.site_link(tester, "/guide")))
         if modal.lend:
             if self.store.mark_ready(user.id, self.clock()):
                 await self.send_extras(thread, tester)
@@ -776,13 +776,13 @@ class TesterBot(discord.Client):
                 "2. **Geaspec アプリ**をダウンロードして開く。青い画面「Windows によって PC が保護されました」が出たら"
                 "「詳細情報」→「実行」→「インストール」（署名をしていないために出ます。画像つきの説明は下）\n"
                 f"　ダウンロード: {self.installer_url()}\n"
-                f"　画像つきの説明: {self.site_url}/guide#lend\n"
+                f"　画像つきの説明: {self.site_url}/guide?for=lend\n"
                 "　※ 貸し出しのたびに、その Windows ユーザーの VRChat のログイン情報と設定を消します。"
                 "ふだんの VRChat の設定を残したい人は、貸し出し専用の Windows ユーザーを作って、そこで入れてください\n"
                 "3. 予約サイトでアカウントを作る（メールアドレスとパスワードを決める）\n"
                 f"　{self.site_lines(tester).rstrip()}\n"
                 "4. アプリに、3 のメールアドレスとパスワードでログインして、下の「アプリを入れた」を押す。運営が確認して承認します\n"
-                "5. 承認されたら、アプリのカレンダーで **貸せる時間** をえらんで「保存」。予約が入ると、アプリに開始までの時間が出ます\n"
+                "5. 承認されたら、アプリのカレンダーで **貸せる時間** のマスをクリックして「保存」（やり方は上の説明ページの 4）。予約が入ると、アプリに開始までの時間が出ます\n"
                 "6. 貸す時間は、PC の電源を入れてアプリを動かしたままにしておく。貸し出し中は画面が幕で覆われ、"
                 "終わると借りた人のデータが自動で消えます\n\n"
                 "よければ 15分ほど、「貸すなら何が心配か」などのお話も聞かせてください（運営から連絡します）。")
@@ -898,7 +898,7 @@ class TesterBot(discord.Client):
             "楽しんでください！ 遊びながら、できたらお願いします。\n\n"
             "**FPS と Ping の写真**\n"
             "1. VRChat のメニュー（Launch Pad）の歯車（設定）→ いちばん下の「デバッグ」→「FPS と Ping の表示」をオン。"
-            f"画像: {self.site_url}/guide#fps\n"
+            f"画像: {self.site_url}/guide\n"
             f"2. 「{worlds}」に行き、それぞれ**30秒ほど歩き回りながら**、FPS と Ping が写るように Quest のスクリーンショットを撮る"
             "（右手の Meta ボタンを押したまま、トリガーを引く）\n"
             "3. 撮った写真を、**このスレッドに貼る**（テストが終わってから、スマホからでも大丈夫です）\n\n"

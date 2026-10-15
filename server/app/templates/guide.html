@@ -1,15 +1,20 @@
 {% extends "base.html" %}
 {% block title %}はじめての方へ | {{ settings.service_name }}{% endblock %}
 {% block content %}
+{% if not lend %}<script>if (location.hash === "#lend") location.replace("/guide?for=lend");</script>{% endif %}
 <section class="wrap narrow section tight guide">
   <h1>はじめての方へ</h1>
-  <p class="intro">テストに参加するときに使う画面を、画像で説明します。</p>
+  <nav class="guide-switch" aria-label="説明の切り替え">
+    <a href="/guide"{% if not lend %} aria-current="page"{% endif %}>PC を借りる人</a>
+    <a href="/guide?for=lend"{% if lend %} aria-current="page"{% endif %}>PC を貸す人</a>
+  </nav>
+  {% if not lend %}
+  <p class="intro">Quest から PC を借りてテストするときに使う画面を、画像で説明します。</p>
   <nav class="guide-toc" aria-label="もくじ">
     <a href="#meta">1. Meta ユーザー名の見つけ方</a>
     <a href="#login">2. 当日までの準備</a>
     <a href="#connect">3. 当日のつなぎ方</a>
     <a href="#fps">4. FPS と Ping の見方</a>
-    <a href="#lend">5. PC を貸す人: アプリの入れ方</a>
   </nav>
 
   <h2 id="meta">1. Meta ユーザー名の見つけ方</h2>
@@ -37,7 +42,7 @@
     <li>家の Wi-Fi で参加してください（スマホのテザリングだとつながらないことがあります）。</li>
     <li><strong>VPN は切ってください。</strong>Quest・スマホ・パソコン・家のルーターで VPN を使っていると、つながらないことがあります。</li>
     <li>FPS と Ping の表示は、貸し出しの PC では毎回消えます。当日 VRChat に入ったら、<a href="#fps">下の手順</a>でオンにしてください。</li>
-    <li>自分の PC を貸す人だけ: 自分の PC に <a href="https://www.vrdesktop.net/" target="_blank" rel="noopener">Virtual Desktop Streamer</a>（無料・「Download Streamer」ボタン）を入れて、「Allow remote connections」（外からの接続を許可）にチェックを入れてください。借りるだけの人は何もしなくて大丈夫です（Quest の Virtual Desktop アプリだけで使えます）。</li>
+    <li>自分の PC を貸す人は、上のスイッチで「PC を貸す人」に切り替えると、貸すための手順が読めます。</li>
   </ul>
 
   <h2 id="connect">3. 当日のつなぎ方</h2>
@@ -64,12 +69,31 @@
   </ol>
   <p class="muted">FPS と PING が写るように Quest のスクリーンショット（右手の Meta ボタンを押したまま、トリガーを引く）を撮って、Discord の自分のスレッドに貼ってください。テストが終わってから、スマホから貼っても大丈夫です。</p>
 
-  <h2 id="lend">5. PC を貸す人: アプリの入れ方</h2>
-  <p>借りるだけの人は読まなくて大丈夫です。</p>
+  <div class="guide-next">
+    <h2>準備ができたら、予約しましょう</h2>
+    <p><a class="btn lg" href="/slots">予約する</a></p>
+    <p class="muted small">開けないときは、Discord の自分のスレッドにある「サイトを開く」ボタンを押してください（あなた専用のリンクが届きます）。</p>
+  </div>
+  {% else %}
+  <p class="intro">自分の PC を貸してテストするときの手順です。借りるだけの人は、上のスイッチで「PC を借りる人」に切り替えてください。</p>
+  <nav class="guide-toc" aria-label="もくじ">
+    <a href="#streamer">1. Virtual Desktop Streamer の準備</a>
+    <a href="#install">2. Geaspec アプリを入れる</a>
+    <a href="#login">3. アカウントを作ってログイン</a>
+    <a href="#calendar">4. 貸せる時間を決める</a>
+    <a href="#day">5. 貸す日にすること</a>
+  </nav>
+
+  <h2 id="streamer">1. Virtual Desktop Streamer の準備</h2>
+  <ol class="guide-list">
+    <li><a href="https://www.vrdesktop.net/" target="_blank" rel="noopener">Virtual Desktop Streamer</a>（無料・「Download Streamer」ボタン）を入れて開きます。</li>
+    <li><strong>「Allow remote connections」</strong>（外からの接続を許可）にチェックを入れます。借りる人は家の外からつなぐので、これがないとつながりません。</li>
+    <li>予約が入ると、借りる人の Meta ユーザー名を運営から伝えます。Streamer のユーザー名の欄に追加してください（いまは手で入れてもらっています）。</li>
+  </ol>
+
+  <h2 id="install">2. Geaspec アプリを入れる</h2>
+  <p>貸し出しのたびに、その Windows ユーザーの VRChat のログイン情報と設定を消します。ふだんの VRChat の設定を残したい人は、<strong>貸し出し専用の Windows ユーザー</strong>を作って、そこで入れてください。</p>
   <ol class="guide-steps">
-    <li>
-      <p><a href="https://www.vrdesktop.net/" target="_blank" rel="noopener">Virtual Desktop Streamer</a>（無料・「Download Streamer」ボタン）を入れて、「Allow remote connections」にチェックを入れます。</p>
-    </li>
     <li>
       <p>Discord のスレッドに届いたリンクから、Geaspec アプリ（<code>GeaspecAgent-Setup-….exe</code>）をダウンロードして開きます。</p>
     </li>
@@ -82,18 +106,39 @@
       <img src="/static/guide/smartscreen-2.webp" alt="詳細情報を押したあとの画面。実行のボタンに印" width="600" height="559" loading="lazy">
     </li>
     <li>
-      <p>セットアップの画面で<strong>「インストール」</strong>を押します。</p>
+      <p>セットアップの画面で<strong>「インストール」</strong>を押します。終わると Geaspec アプリが開きます。</p>
       <img src="/static/guide/setup-install.webp" alt="Geaspec Agent のセットアップ画面。インストールのボタンに印" width="700" height="536" loading="lazy">
-    </li>
-    <li>
-      <p>アプリが開いたら、予約サイトのメールアドレスとパスワードでログインします。運営が確認すると、貸し出せるようになります。</p>
     </li>
   </ol>
 
+  <h2 id="login">3. アカウントを作ってログイン</h2>
+  <ol class="guide-list">
+    <li>Discord のスレッドに届いた、あなた専用のリンクから予約サイトを開き、メールアドレスとパスワードを決めてアカウントを作ります。</li>
+    <li>Geaspec アプリに、そのメールアドレスとパスワードでログインします。</li>
+    <li>Discord のスレッドで「アプリを入れた」を押します。運営が確認して承認すると、貸し出せるようになります（承認されるまでは、借りる人には見えません）。</li>
+  </ol>
+
+  <h2 id="calendar">4. 貸せる時間を決める</h2>
+  <ol class="guide-list">
+    <li>Geaspec アプリのホーム画面の下にある<strong>カレンダー</strong>を見ます。1 マスが 1 時間です。</li>
+    <li>貸せる時間の<strong>マスをクリック</strong>します。なぞると、まとめて選べます。もう一度押すと外れます。</li>
+    <li>上の「◀ 前の週」「次の週 ▶」で週を切り替えられます。毎週同じなら「前の週と同じにする」が便利です。</li>
+    <li>選んだら<strong>「保存」</strong>を押します。保存すると、予約サイトの空き枠に出ます。料金の欄は 0 のままで大丈夫です（いまは無料の実験です）。</li>
+    <li>予約が入ったマスは色が変わり、アプリの上に「次の予約まであと何分」が出ます。予約が入ったマスは外せません。</li>
+  </ol>
+
+  <h2 id="day">5. 貸す日にすること</h2>
+  <ul class="guide-list">
+    <li>貸す時間は、<strong>PC の電源を入れて、Geaspec アプリと Virtual Desktop Streamer を動かしたまま</strong>にしておきます。</li>
+    <li>開始の少し前に、アプリが前の人のデータを消して VRChat を準備します。貸し出し中は PC の画面が「利用中」の幕で隠れます。</li>
+    <li>終わると、借りた人の VRChat のログイン情報などは自動で消えます。</li>
+  </ul>
+
   <div class="guide-next">
-    <h2>準備ができたら、予約しましょう</h2>
-    <p><a class="btn lg" href="/slots">予約する</a></p>
-    <p class="muted small">開けないときは、Discord の自分のスレッドにある「サイトを開く」ボタンを押してください（あなた専用のリンクが届きます）。</p>
+    <h2>読み終わったら、アプリに戻りましょう</h2>
+    <p><a class="btn lg" href="geaspec://open">Geaspec アプリに戻る</a></p>
+    <p class="muted small">「Geaspec Agent を開きますか？」と聞かれたら「開く」を押してください。アプリを入れる前は、このボタンは使えません。</p>
   </div>
+  {% endif %}
 </section>
 {% endblock %}

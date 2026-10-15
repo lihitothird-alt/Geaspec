@@ -293,7 +293,7 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         assert custom_ids(thread.sent[0][1]["view"]) == ["gs:vd"]
         prep = thread.sent[1][0]  # 申し込んだらやっておくこと
         assert "VPN を切る" in prep and "FPS と Ping の表示" in prep and "Allow remote connections" not in prep
-        assert "https://lg.example.ts.net/guide#fps" in prep
+        assert "https://lg.example.ts.net/guide" in prep and "#" not in prep  # ページのいちばん上から開く
         # 申し込んだらすぐ、いちばん下に「次にやること: 予約する」が届く (運営も、2つの答えも待たない)
         assert store.tester(1)["status"] == "ready" and len(thread.sent) == 3
         assert "次にやること: 予約する" in thread.sent[-1][0]

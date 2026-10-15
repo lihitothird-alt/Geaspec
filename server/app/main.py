@@ -203,8 +203,12 @@ def create_app(
 
     @app.get("/guide", response_class=HTMLResponse)
     def guide(request: Request, db: Session = Depends(get_db)):
-        """画像つきの「はじめての方へ」。申し込む前にも読めるよう、招待リンクなしで見られる。"""
-        return render(request, db, "guide.html")
+        """画像つきの「はじめての方へ」。申し込む前にも読めるよう、招待リンクなしで見られる。
+
+        ?for=lend で PC を貸す人向けの説明に切り替える (上のスイッチでいつでも切り替えられる)。
+        """
+        lend = request.query_params.get("for") == "lend"
+        return render(request, db, "guide.html", lend=lend)
 
     @app.get("/legal/{page}", response_class=HTMLResponse)
     def legal(page: str, request: Request, db: Session = Depends(get_db)):
