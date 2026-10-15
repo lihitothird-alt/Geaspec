@@ -1037,7 +1037,7 @@ class TesterBot(discord.Client):
             f"2. パソコンの一覧から「{pc}」を選ぶ\n"
             "3. VRChat が自動で立ち上がったら、**メールアドレス（またはユーザー名）とパスワード** で自分のアカウントにログイン（Steam のボタンは押さない）\n"
             "　※ もし **自分ではない人のアカウントでログインされていたら**、何も触らずに「困った」を押してください（テストは中止します）\n"
-            "パソコンの画面は「Geass 利用中」の幕で隠れていますが、それで正常です。\n\n"
+            "パソコンの画面は「Geaspec で貸し出し中」の幕で隠れていますが、それで正常です。\n\n"
             "ワールドに入れたら「ワールドに入れた」を押してください。",
             view=make_view(button("✅ ワールドに入れた", "gs:entered", discord.ButtonStyle.success),
                            button("🆘 困った", "gs:help", discord.ButtonStyle.danger),

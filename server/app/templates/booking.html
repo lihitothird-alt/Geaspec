@@ -38,8 +38,8 @@
   </div>
 
   {% if booking.status == "confirmed" and booking.slot.start_at > now %}
-  <div class="countdown" data-countdown="{{ booking.slot.start_at|iso }}" data-template="あと {} で Geass を開始します" role="timer">
-    <strong data-countdown-text>あと {{ until_text((booking.slot.start_at - now).total_seconds()) }} で Geass を開始します</strong>
+  <div class="countdown" data-countdown="{{ booking.slot.start_at|iso }}" data-template="あと {} で開始します" role="timer">
+    <strong data-countdown-text>あと {{ until_text((booking.slot.start_at - now).total_seconds()) }} で開始します</strong>
     <span class="sub">{{ booking.slot.start_at|jst("%m/%d %H:%M") }} 開始。下の手順 1 は先に済ませておけます。</span>
   </div>
   {% elif booking.status in live_states and booking.slot.play_end_at > now %}

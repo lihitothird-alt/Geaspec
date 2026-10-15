@@ -112,11 +112,11 @@ class ControllerTest(unittest.TestCase):
             "ends_at": h.local_to_server_time(dt.datetime(2026, 10, 10, 21, 0)),
         })
         title, detail, tone = c.status_text(now)
-        self.assertEqual(title, "あと 1時間23分で Geass を開始します")
+        self.assertEqual(title, "あと 1時間23分で貸し出しを開始します")
         self.assertIn("予約 #7 · 10/10（土） 20:00〜21:00", detail)
         self.assertEqual(tone, "busy")
-        self.assertEqual(c.status_text(dt.datetime(2026, 10, 10, 19, 37))[0], "あと 23分で Geass を開始します")
-        self.assertEqual(c.status_text(dt.datetime(2026, 10, 10, 19, 59, 30))[0], "まもなく Geass を開始します")
+        self.assertEqual(c.status_text(dt.datetime(2026, 10, 10, 19, 37))[0], "あと 23分で貸し出しを開始します")
+        self.assertEqual(c.status_text(dt.datetime(2026, 10, 10, 19, 59, 30))[0], "まもなく貸し出しを開始します")
         # 同じ予約を何度知らされても「新しい予約」は 1 回だけ
         self.assertEqual(h.STATUS.new_bookings, 1)
         h.update_next_booking({"booking_id": 7, "starts_at": "2026-10-10T11:00:00Z", "ends_at": "2026-10-10T12:00:00Z"})
@@ -282,7 +282,7 @@ class CoverContentTest(unittest.TestCase):
     def test_running_then_ending_soon_then_cleaning(self):
         ends = self.NOW + dt.timedelta(minutes=42, seconds=13)
         c = g.cover_content("session", ends, 3600, self.NOW)
-        self.assertEqual((c["mode"], c["pill"], c["countdown"], c["end_label"]), ("running", "Geass 利用中", "42:13", "12:42 に終了"))
+        self.assertEqual((c["mode"], c["pill"], c["countdown"], c["end_label"]), ("running", "Geaspec で貸し出し中", "42:13", "12:42 に終了"))
         self.assertAlmostEqual(c["progress"], (42 * 60 + 13) / 3600)
         self.assertIn("ゲームはそのまま続いています", c["lines"])
         c = g.cover_content("session", self.NOW + dt.timedelta(minutes=4), 3600, self.NOW)

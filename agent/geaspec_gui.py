@@ -242,7 +242,7 @@ class AgentController:
             detail = f"予約 #{st.booking_id} の後片付けをしています"
         elif st.state == "idle" and st.next_starts_at:
             left = (st.next_starts_at - now).total_seconds()
-            title = f"あと {until_text(left)}で Geass を開始します" if left > 60 else "まもなく Geass を開始します"
+            title = f"あと {until_text(left)}で貸し出しを開始します" if left > 60 else "まもなく貸し出しを開始します"
             detail = (
                 f"予約 #{st.next_booking_id} · {day_label(st.next_starts_at)} "
                 f"{st.next_starts_at:%H:%M}〜{st.next_ends_at:%H:%M}\n"
@@ -425,13 +425,13 @@ def cover_content(state: str, ends_at: dt.datetime | None, total_seconds: float,
     """幕に出す文言と色 (デザイン案: 利用中 / 残り 5 分 / 片づけ中)。"""
     if state == "cleaning":
         return {
-            "mode": "cleaning", "pill": "Geass は終了しました", "pill_bg": COVER["mint"], "pill_fg": COVER["bg"],
+            "mode": "cleaning", "pill": "貸し出しは終了しました", "pill_bg": COVER["mint"], "pill_fg": COVER["bg"],
             "big": "データを片づけています" + "." * dots, "lines": ("ご利用ありがとうございました", ""),
             "footer": "片づけが終わるまで、電源を切らないでください",
         }
     if ends_at is None:
         return {
-            "mode": "preparing", "pill": "Geass 利用中", "pill_bg": COVER["primary"], "pill_fg": COVER["text"],
+            "mode": "preparing", "pill": "Geaspec で貸し出し中", "pill_bg": COVER["primary"], "pill_fg": COVER["text"],
             "big": "準備しています" + "." * dots, "lines": ("まもなく始まります", ""),
             "footer": "このパソコンは利用中のため操作できません",
         }
@@ -441,7 +441,7 @@ def cover_content(state: str, ends_at: dt.datetime | None, total_seconds: float,
     color = COVER["yellow"] if ending else COVER["primary"]
     return {
         "mode": "ending" if ending else "running",
-        "pill": "まもなく終了します" if ending else "Geass 利用中",
+        "pill": "まもなく終了します" if ending else "Geaspec で貸し出し中",
         "pill_bg": color, "pill_fg": COVER["bg"] if ending else COVER["text"],
         "countdown": countdown_text(left), "countdown_fg": COVER["yellow"] if ending else COVER["text"],
         "end_label": f"{ends_at:%H:%M} に終了", "progress": progress, "bar": color,

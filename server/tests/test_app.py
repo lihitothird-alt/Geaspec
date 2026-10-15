@@ -180,7 +180,7 @@ def test_full_session_flow(setup, now):
         "next": {"booking_id": 1, "starts_at": "2026-10-10T04:00:00Z", "ends_at": "2026-10-10T04:55:00Z",
                  "starts_in_seconds": 3600},
     }
-    assert "あと 1時間0分 で Geass を開始します" in booking_page
+    assert "あと 1時間0分 で開始します" in booking_page
 
     # 開始 2 分前になると開始指示
     now["t"] = dt.datetime(2026, 10, 10, 3, 58, 30)
