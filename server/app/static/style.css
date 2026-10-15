@@ -1019,7 +1019,7 @@ td a.badge:hover { text-decoration: underline; }
 .schedule-grid td.cell.past, .cell-sample.past { background: var(--surface-2); border-color: transparent; }
 
 /* --- 開始までのカウントダウン ---------------------------------------- */
-.countdown { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 18px; padding: 16px 20px; border: 2px solid var(--edge); border-radius: var(--radius); background: var(--mint-soft); box-shadow: var(--shadow-s); color: var(--sticker-ink); }
+.countdown { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 18px; padding: 16px 20px; border: 2px solid var(--edge); border-radius: var(--radius); background: var(--mint-soft); box-shadow: var(--shadow-s); color: var(--text); }
 .countdown.live { background: var(--primary); color: var(--on-primary); }
 .countdown strong { font: 700 1.5rem/1.3 var(--font-round); }
 .countdown .sub { font-size: .92rem; }
