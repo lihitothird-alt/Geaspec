@@ -505,6 +505,51 @@ def test_early_end_by_lender_is_flagged_for_refund(setup, now):
     assert "35 分前に終了" in db(app).get(Booking, 1).note  # 使える終わり (13:55) まで
 
 
+def test_borrower_can_end_now_and_the_pc_cleans_up_right_away(setup, now):
+    """早く遊び終わったら「いま終わる」。PC のアプリは予約が終わったことに気づいて、すぐにログイン情報を消す。"""
+    from app import invite
+
+    app, _, user, agent = setup
+    user.post("/slots/1/book")
+    # 始まる前は押せない
+    user.post("/bookings/1/end")
+    assert db(app).get(Booking, 1).status == "confirmed"
+    now["t"] = dt.datetime(2026, 10, 10, 4, 0)
+    agent.get("/api/agent/poll")
+    agent.post("/api/agent/bookings/1/started")
+    page = user.get("/bookings/1").text
+    assert 'action="/bookings/1/end"' in page and "いま終わる" in page
+
+    now["t"] = dt.datetime(2026, 10, 10, 4, 20)
+    user.post("/bookings/1/end")
+    b = db(app).get(Booking, 1)
+    assert b.status == "completed" and b.end_reason == "borrower_ended" and "残り 35 分" in b.note
+    # PC のアプリは予約の状態を見て止まり、いつもの終了処理のあとに報告する
+    assert agent.get("/api/agent/bookings/1").json()["status"] == "completed"
+    agent.post("/api/agent/bookings/1/finished", json={"clean": True, "end_reason": "server_cancelled"})
+    b = db(app).get(Booking, 1)
+    assert b.end_reason == "borrower_ended" and "返金" not in b.note and b.finished_at is not None
+
+
+def test_discord_bot_ends_a_booking_only_with_the_signature(setup, now):
+    from app import invite
+
+    app, _, user, agent = setup
+    user.post("/slots/1/book")
+    now["t"] = dt.datetime(2026, 10, 10, 4, 0)
+    agent.get("/api/agent/poll")
+    agent.post("/api/agent/bookings/1/started")
+    bot = TestClient(app)  # 合言葉や Cookie なしで呼ぶ
+    assert bot.post("/api/bot/bookings/1/end").status_code == 403
+    assert bot.post("/api/bot/bookings/1/end", headers={"X-Geaspec-Signature": "x"}).status_code == 403
+    secret = app.state.settings.secret_key
+    r = bot.post("/api/bot/bookings/1/end", headers={"X-Geaspec-Signature": invite.bot_signature(secret, 1)})
+    assert r.json() == {"ok": True} and db(app).get(Booking, 1).status == "completed"
+    # もう終わっている
+    r = bot.post("/api/bot/bookings/1/end", headers={"X-Geaspec-Signature": invite.bot_signature(secret, 1)})
+    assert r.json() == {"ok": False}
+
+
 def make_zip(names):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:

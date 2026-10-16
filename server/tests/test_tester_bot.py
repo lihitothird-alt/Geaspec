@@ -1266,6 +1266,12 @@ def test_lenders_hear_about_approval_bookings_and_the_end_of_lending(tmp_path, m
         # 貸し終わった → データが消えたかの確認と、はじめてなら貸す人のアンケート
         set_status(bot.site_db, booking_id, "completed")
         now[0] = at(200)
+        assert await bot.send_lender_notices() == 0  # PC のアプリが削除まで終えた報告を待つ
+        import sqlite3
+        con = sqlite3.connect(bot.site_db)
+        con.execute("UPDATE bookings SET finished_at = '2026-10-19 15:00:00' WHERE id = ?", (booking_id,))
+        con.commit()
+        con.close()
         assert await bot.send_lender_notices() == 1
         (done, done_kw), (survey, survey_kw) = thread.sent[-2], thread.sent[-1]
         assert "貸し出しが終わりました" in done and "データが消えているか" in done
@@ -1292,3 +1298,45 @@ def test_unapproved_pc_is_not_announced(tmp_path, monkeypatch):
         store.close()
 
     asyncio.run(scenario())
+
+
+def test_end_now_asks_once_more_and_asks_the_site(tmp_path, monkeypatch):
+    async def scenario():
+        now = [at(0)]
+        thread = FakeThread(10)
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, now, {10: thread}, ops_log)
+        apply(store, 1, thread_id=10)
+        bot.site_db = tmp_path / "geaspec.db"
+        _, booking_id = make_lending_db(bot.site_db, borrower_thread="555/10", status="active", start=at(-10))
+        asked = []
+
+        async def end_booking(bid):
+            asked.append(bid)
+            return True
+
+        monkeypatch.setattr(bot, "end_booking", end_booking)
+        tester = FakeUser(1)
+        i = FakeInteraction(tester, 10, "gs:endnow")
+        await bot.on_interaction(i)
+        assert "いま終わりにしますか" in i.log[0][1] and i.log[0][2]["ephemeral"]
+        assert custom_ids(i.log[0][2]["view"]) == ["gs:endnow:yes"] and asked == []
+        i = FakeInteraction(tester, 10, "gs:endnow:yes")
+        await bot.on_interaction(i)
+        assert asked == [booking_id] and "ログイン情報が消えます" in i.log[0][1]
+        assert "いま終わる" in ops_log[-1]
+
+        # 利用中の予約がなければ、頼まない
+        set_status(bot.site_db, booking_id, "completed")
+        i = FakeInteraction(tester, 10, "gs:endnow:yes")
+        await bot.on_interaction(i)
+        assert "見つかりませんでした" in i.log[0][1] and asked == [booking_id]
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_end_booking_without_the_site_api_says_to_use_the_booking_page(tmp_path, monkeypatch):
+    store, bot = make_bot(tmp_path, monkeypatch, [at(0)])
+    assert asyncio.run(bot.end_booking(1)) is False
+    store.close()

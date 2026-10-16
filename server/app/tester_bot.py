@@ -22,6 +22,7 @@ import logging
 import re
 import threading
 import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Callable
 
@@ -388,7 +389,7 @@ def unannounced_versions(last: str) -> list[str]:
 
 class TesterBot(discord.Client):
     def __init__(self, store: TesterStore, shots_dir: Path, site_url: str, *, site_password: str = "", invite_secret: str = "",
-                 site_db: Path | None = None, message_content: bool = True,
+                 site_db: Path | None = None, message_content: bool = True, site_api: str = "", api_secret: str = "",
                  clock: Callable[[], dt.datetime] = utcnow, say: Callable[[str], None] | None = None) -> None:
         intents = discord.Intents.default()
         intents.message_content = message_content  # スクショ (添付画像) を受け取るため
@@ -399,6 +400,9 @@ class TesterBot(discord.Client):
         self.site_password = site_password
         self.invite_secret = invite_secret  # サイトの SECRET_KEY。あれば合言葉の代わりに本人専用リンクを渡す
         self.site_db = site_db
+        # 「いま終わる」をサイトに頼む先 (同じ PC で動くサイト) と署名の鍵。なければ予約ページから終えてもらう
+        self.site_api = site_api.rstrip("/")
+        self.api_secret = api_secret
         self.clock = clock
         self.say = say or log.info
         self.tree = app_commands.CommandTree(self)
@@ -1035,6 +1039,48 @@ class TesterBot(discord.Client):
         await interaction.followup.send(self.thanks_text(session["id"], tester), view=self.again_view())
         await self.report_done(session["id"])
 
+    # いま終わる (早く遊び終わったら、時間を待たずにログイン情報を消す)
+    async def on_end_now(self, interaction: discord.Interaction, tester: dict, confirmed: bool) -> None:
+        if not confirmed:
+            await interaction.response.send_message(
+                "いま終わりにしますか？ VRChat が閉じて、PC からあなたのログイン情報が消えます（もう一度は入れません）。",
+                view=make_view(button("はい、いま終わる", "gs:endnow:yes", discord.ButtonStyle.danger)), ephemeral=True)
+            return
+        uid = tester["user_id"]
+        now = self.clock()
+        running = [b for b in (booking_notice.load_bookings(self.site_db, now) if self.site_db else [])
+                   if (b["status"] == "active" or (b["status"] == "confirmed" and b["start"] <= now))
+                   and (t := self.tester_for(b)) and t["user_id"] == uid]
+        if not running:
+            await self.reply(interaction, "いま利用中の予約が見つかりませんでした（もう終わっているかもしれません）。")
+            return
+        ok = await self.end_booking(running[0]["id"])
+        if not ok:
+            await self.reply(interaction, "うまく終われませんでした。予約サイトの予約ページの「いま終わる」を押してください"
+                                          "（時間になれば、自動で消えます）。")
+            return
+        await self.reply(interaction, "終わりにしました。1分ほどで VRChat が閉じて、PC からログイン情報が消えます。"
+                                      "ありがとうございました！")
+        await self.notify_ops(f"<@{uid}> さんが「いま終わる」を押しました（{running[0]['host']}）<#{interaction.channel_id}>")
+
+    async def end_booking(self, booking_id: int) -> bool:
+        """同じ PC で動いているサイトに、予約をいま終わりにするよう頼む。"""
+        if not (self.site_api and self.api_secret):
+            return False
+
+        def call() -> bool:
+            req = urllib.request.Request(
+                f"{self.site_api}/api/bot/bookings/{booking_id}/end", data=b"", method="POST",
+                headers={"X-Geaspec-Signature": invite.bot_signature(self.api_secret, booking_id)})
+            try:
+                with urllib.request.urlopen(req, timeout=15) as res:
+                    return bool(json.loads(res.read() or b"{}").get("ok"))
+            except (OSError, ValueError):
+                log.exception("「いま終わる」をサイトに頼めませんでした")
+                return False
+
+        return await asyncio.to_thread(call)
+
     # 貸す人へのお知らせ (承認された・貸し終わった)
     async def send_lender_notices(self) -> int:
         if self.site_db is None:
@@ -1176,6 +1222,9 @@ class TesterBot(discord.Client):
             return
         if action in ("l", "lc", "ls"):
             await self.on_lender_action(interaction, tester, action, args)
+            return
+        if action == "endnow":
+            await self.on_end_now(interaction, tester, args[:1] == ["yes"])
             return
         session = self.store.open_session(interaction.channel_id)
         if session is None:
@@ -1321,7 +1370,10 @@ class TesterBot(discord.Client):
         self.store.finish_play(session["id"], self.clock(), connected=True)
         await interaction.response.edit_message(
             content="遊び終わりました。おつかれさまでした！\n"
-                    "FPS と Ping の写真がまだなら、あとでこのスレッドに貼ってください。", view=None)
+                    "FPS と Ping の写真がまだなら、あとでこのスレッドに貼ってください。\n\n"
+                    "予約の時間がまだ残っていたら、「いま終わる」を押してください。すぐに VRChat を閉じて、"
+                    "PC からあなたのログイン情報を消します（押さなくても、時間になれば自動で消えます）。",
+            view=make_view(button("⏹ いま終わる（PC を返す）", "gs:endnow", discord.ButtonStyle.danger)))
         text, view = survey_message(json.loads(session["answers"]))
         await interaction.followup.send(text, view=view)
 
@@ -1566,11 +1618,12 @@ class TesterBot(discord.Client):
 
 
 async def _run(token: str, store: TesterStore, shots_dir: Path, site_url: str, say: Callable[[str], None],
-               site_password: str = "", invite_secret: str = "") -> None:
+               site_password: str = "", invite_secret: str = "", site_api: str = "", api_secret: str = "") -> None:
     message_content = True
     while True:
-        bot = TesterBot(store, shots_dir, site_url, site_password=site_password, invite_secret=invite_secret, site_db=shots_dir.parent / "geaspec.db",
-                        message_content=message_content, say=say)
+        bot = TesterBot(store, shots_dir, site_url, site_password=site_password, invite_secret=invite_secret,
+                        site_db=shots_dir.parent / "geaspec.db", message_content=message_content, say=say,
+                        site_api=site_api, api_secret=api_secret)
         try:
             await bot.start(token)
             return
@@ -1592,14 +1645,15 @@ async def _run(token: str, store: TesterStore, shots_dir: Path, site_url: str, s
 
 
 def start_tester_bot(token: str, data: Path, site_url: str, site_password: str = "", invite_secret: str = "",
-                     say: Callable[[str], None] = print) -> threading.Thread:
+                     say: Callable[[str], None] = print, site_api: str = "", api_secret: str = "") -> threading.Thread:
     """予約サイトと同じ黒い画面の中で、別のスレッドとしてボットを動かす。"""
     data.mkdir(parents=True, exist_ok=True)
     store = TesterStore(data / "tester_bot.db")
 
     def target() -> None:
         try:
-            asyncio.run(_run(token, store, data / "tester_screenshots", site_url, say, site_password, invite_secret))
+            asyncio.run(_run(token, store, data / "tester_screenshots", site_url, say, site_password, invite_secret,
+                             site_api, api_secret))
         except Exception as exc:  # noqa: BLE001 - ボットが止まってもサイトは動かし続ける
             say(f"Discord ボットが止まりました: {exc}")
 

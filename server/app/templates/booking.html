@@ -47,6 +47,13 @@
     <strong data-countdown-text>利用中 · 残り {{ until_text((booking.slot.play_end_at - now).total_seconds()) }}</strong>
     <span class="sub">{{ booking.slot.end_at|jst("%m/%d %H:%M" if booking.slot.end_at|jst("%Y%m%d") != now|jst("%Y%m%d") else "%H:%M") }} の {{ turnover_minutes }}分前に自動で終了します</span>
   </div>
+  {% if is_borrower %}
+  <form method="post" action="/bookings/{{ booking.id }}/end" class="end-now"
+        onsubmit="return confirm('いま終わりにしますか？ VRChat が閉じて、PC からあなたのログイン情報が消えます。')">
+    <button class="btn ghost small">いま終わる（PC を返す）</button>
+    <span class="muted small">早く遊び終わったら押してください。すぐにログイン情報を消します</span>
+  </form>
+  {% endif %}
   {% endif %}
 
   {% if discord_url and booking.status in live_states and booking.slot.play_end_at > now %}

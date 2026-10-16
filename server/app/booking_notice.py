@@ -26,7 +26,7 @@ SELECT b.id, b.status, s.start_at, s.end_at, h.name, h.last_seen_at, u.meta_user
        {threads}
 FROM bookings b JOIN slots s ON s.id = b.slot_id JOIN hosts h ON h.id = s.host_id JOIN users u ON u.id = b.user_id
 LEFT JOIN users o ON o.id = h.owner_id
-WHERE b.status IN ({statuses}) AND s.end_at > ?
+WHERE b.status IN ({statuses}) AND s.end_at > ?{extra}
 ORDER BY s.start_at
 """
 # Discord のスレッドの列は 0.7.17 で足した。サイトがまだ古い版のデータベースなら空として読む
@@ -57,14 +57,18 @@ def load_bookings(path: Path, now: dt.datetime, *, finished: bool = False) -> li
     if not path.exists():
         return []
     statuses = "'completed'" if finished else LIVE_STATUSES
+    # 終わった予約は、PC のアプリが終了処理 (データの削除) まで報告したものだけ
+    extra = " AND b.finished_at IS NOT NULL" if finished else ""
     try:
         con = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
         try:
             cutoff = now.astimezone(dt.timezone.utc).replace(tzinfo=None).isoformat(sep=" ")
             try:
-                rows = con.execute(QUERY.format(threads=THREAD_COLUMNS, statuses=statuses), (cutoff,)).fetchall()
+                rows = con.execute(QUERY.format(threads=THREAD_COLUMNS, statuses=statuses, extra=extra),
+                                   (cutoff,)).fetchall()
             except sqlite3.OperationalError:
-                rows = con.execute(QUERY.format(threads=NO_THREAD_COLUMNS, statuses=statuses), (cutoff,)).fetchall()
+                rows = con.execute(QUERY.format(threads=NO_THREAD_COLUMNS, statuses=statuses, extra=extra),
+                                   (cutoff,)).fetchall()
         finally:
             con.close()
     except sqlite3.Error:

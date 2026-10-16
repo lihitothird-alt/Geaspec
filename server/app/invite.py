@@ -67,3 +67,8 @@ def read_token(secret: str, token: str, now: dt.datetime) -> dict | None:
 def thread_url(thread: str) -> str:
     """「サーバー番号/スレッド番号」から、Discord でそのスレッドを開くリンク。形がおかしければ空。"""
     return f"https://discord.com/channels/{thread}" if THREAD_RE.match(thread or "") else ""
+
+
+def bot_signature(secret: str, booking_id: int) -> str:
+    """Discord のボットがサイトに「この予約をいま終わりにして」と頼むときの署名 (同じ SECRET_KEY で作る)。"""
+    return hmac.new(_key(secret), f"end:{booking_id}".encode(), hashlib.sha256).hexdigest()

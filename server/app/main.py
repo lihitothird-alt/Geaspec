@@ -45,7 +45,8 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 META_USERNAME_RE = re.compile(r"^[A-Za-z0-9._-]{2,64}$")
 # 合言葉なしで通すパス。Agent・決済サービスからの通知は機械が呼ぶので、それぞれ別の方法で認証している
 SITE_GATE_OPEN_PREFIXES = (
-    "/site-login", "/join", "/guide", "/legal/", "/healthz", "/robots.txt", "/static/", "/api/agent/", "/stripe/webhook",
+    "/site-login", "/join", "/guide", "/legal/", "/healthz", "/robots.txt", "/static/", "/api/agent/", "/api/bot/",
+    "/stripe/webhook",
     # ホーム画面アプリの設定と裏方のスクリプト。ブラウザは合言葉の Cookie を付けずに読みに来る
     "/manifest.webmanifest", "/sw.js",
 )
@@ -569,6 +570,7 @@ def create_app(
             and services.screenshots_available(booking, media_root, clock.utcnow()),
             discord_url=invite.thread_url(user.discord_thread or request.session.get("discord_thread", ""))
             if booking.user_id == user.id else "",
+            is_borrower=booking.user_id == user.id,
         )
 
     @app.post("/bookings/{booking_id}/review")
@@ -665,6 +667,28 @@ def create_app(
             media_type="application/zip",
             filename=f"geaspec-{booking.id}-screenshots.zip",
         )
+
+    @app.post("/bookings/{booking_id}/end")
+    def booking_end_now(booking_id: int, request: Request, db: Session = Depends(get_db)):
+        """借りた人が「いま終わる」を押した。PC のアプリが、すぐにログイン情報を消す。"""
+        user = require_user(request, db)
+        booking = db.get(Booking, booking_id)
+        if not booking or booking.user_id != user.id:
+            raise HTTPException(404)
+        if services.end_now(db, booking, request.app.state.vpn, clock.utcnow()):
+            flash(request, "終わりにしました。1分ほどで VRChat が閉じて、PC からログイン情報が消えます")
+        else:
+            flash(request, "この予約は、いま利用中ではありません", "error")
+        return redirect(f"/bookings/{booking.id}")
+
+    @app.post("/api/bot/bookings/{booking_id}/end")
+    def bot_end_now(booking_id: int, request: Request, db: Session = Depends(get_db)):
+        """Discord のボットから「いま終わる」。サイトと同じ SECRET_KEY の署名で確かめる。"""
+        sig = request.headers.get("X-Geaspec-Signature", "")
+        if not settings.secret_key or not hmac.compare_digest(sig, invite.bot_signature(settings.secret_key, booking_id)):
+            raise HTTPException(403)
+        booking = db.get(Booking, booking_id) or _404()
+        return {"ok": services.end_now(db, booking, request.app.state.vpn, clock.utcnow())}
 
     @app.post("/bookings/{booking_id}/cancel")
     def booking_cancel(booking_id: int, request: Request, db: Session = Depends(get_db)):
