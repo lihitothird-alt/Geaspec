@@ -208,10 +208,12 @@ def start_discord_bot(config: dict, address: str, data: Path) -> bool:
         print(f"Discord ボットを読み込めませんでした: {exc}")
         return False
     # サイトに入るためのリンク (または合言葉) は、準備ができたテスターの専用スレッド (本人と運営だけが見られる) で伝える
+    # 「いま終わる」は、同じ PC で動くサイトに直接頼む (SECRET_KEY の署名つき)
+    api = {"site_api": f"http://127.0.0.1:{PORT}", "api_secret": str(config.get("secret_key") or "")}
     if invite_mode(config):
-        start_tester_bot(token, data, address or f"http://localhost:{PORT}", invite_secret=config["secret_key"])
+        start_tester_bot(token, data, address or f"http://localhost:{PORT}", invite_secret=config["secret_key"], **api)
     else:
-        start_tester_bot(token, data, address or f"http://localhost:{PORT}", str(config.get("site_password") or ""))
+        start_tester_bot(token, data, address or f"http://localhost:{PORT}", str(config.get("site_password") or ""), **api)
     return True
 
 

@@ -20,6 +20,8 @@ log = logging.getLogger(__name__)
 TAKEN_STATUSES = (BookingStatus.CONFIRMED, BookingStatus.ACTIVE, BookingStatus.COMPLETED)
 # 予定どおりの終わり方。これ以外で終了時刻より前に終わったら返金を検討する
 NORMAL_END_REASONS = ("duration_elapsed", "server_cleanup", "server_cancelled")
+# 借りた人が「いま終わる」を押した。早く終わっても、貸し手の都合ではない
+BORROWER_ENDED = "borrower_ended"
 
 
 class BookingError(Exception):
@@ -538,17 +540,37 @@ def mark_started(db: Session, booking: Booking, now: dt.datetime) -> None:
         db.commit()
 
 
+def end_now(db: Session, booking: Booking, vpn: VpnProvider, now: dt.datetime) -> bool:
+    """借りた人が、時間の途中で「いま終わる」を押した。始まっていなければ何もしない (False)。
+
+    予約を「終了」にすると、PC のアプリは 30 秒ほどでそれに気づいて、VRChat を閉じて
+    ログイン情報を消す (いつもの終了処理)。終わったあとの報告は mark_finished で受け取る。
+    """
+    started = booking.status == BookingStatus.ACTIVE or (
+        booking.status == BookingStatus.CONFIRMED and booking.slot.start_at <= now)
+    if not started or booking.slot.play_end_at <= now:
+        return False
+    left = int((booking.slot.play_end_at - now).total_seconds() // 60)
+    booking.status = BookingStatus.COMPLETED
+    booking.end_reason = BORROWER_ENDED
+    booking.note = (booking.note + "\n" if booking.note else "") + f"借りた人が「いま終わる」を押しました（残り {left} 分）。"
+    _revoke_vpn(booking, vpn)
+    db.commit()
+    return True
+
+
 def mark_finished(db: Session, booking: Booking, report: dict, vpn: VpnProvider, now: dt.datetime) -> None:
+    ended_by_borrower = booking.end_reason == BORROWER_ENDED
     if booking.status in (BookingStatus.CONFIRMED, BookingStatus.ACTIVE):
         booking.status = BookingStatus.COMPLETED
     booking.finished_at = now
-    booking.end_reason = str(report.get("end_reason", ""))[:64]
+    booking.end_reason = BORROWER_ENDED if ended_by_borrower else str(report.get("end_reason", ""))[:64]
     booking.clean = bool(report.get("clean"))
     booking.report_json = json.dumps(report, ensure_ascii=False)[:20000]
     if not booking.clean:
         log.error("クリーンアップにエラーあり: booking=%s", booking.id)
     lost_minutes = int((booking.slot.play_end_at - now).total_seconds() // 60)
-    if booking.end_reason not in NORMAL_END_REASONS and lost_minutes >= 1:
+    if booking.end_reason not in (*NORMAL_END_REASONS, BORROWER_ENDED) and lost_minutes >= 1:
         # 貸し手 PC 側の都合 (Ctrl+C・起動失敗・想定外のエラー) で早く終わった
         booking.note = (booking.note + "\n" if booking.note else "") + (
             f"終了予定の {lost_minutes} 分前に終了しました（{booking.end_reason}）。返金を検討してください。"

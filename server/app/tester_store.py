@@ -191,7 +191,9 @@ CREATE TABLE IF NOT EXISTS booking_notices (
 # あとから増やした列。前の版で作ったファイルにも足す
 ADDED_COLUMNS = {
     "testers": {"booked_at": "TEXT", "booking_help": "INTEGER NOT NULL DEFAULT 0", "lender_app_at": "TEXT"},
-    "sessions": {"fps_worlds": "TEXT NOT NULL DEFAULT '{}'", "ping_ms": "INTEGER", "completed_at": "TEXT", "followup_sent_at": "TEXT"},
+    "sessions": {"fps_worlds": "TEXT NOT NULL DEFAULT '{}'", "ping_ms": "INTEGER", "completed_at": "TEXT", "followup_sent_at": "TEXT",
+                 # どの PC で測ったか (Virtual Desktop の一覧に出る名前)。PC ごとの実測 FPS を出すのに使う
+                 "pc": "TEXT NOT NULL DEFAULT ''"},
 }
 
 
@@ -347,13 +349,13 @@ class TesterStore:
     def session(self, session_id: int) -> dict | None:
         return self._one("SELECT * FROM sessions WHERE id = ?", (session_id,))
 
-    def start_session(self, user_id: int, thread_id: int, now: dt.datetime) -> tuple[dict, bool]:
-        """テストを始める。途中のテストがあればそれを返す (2つ目は作らない)。"""
+    def start_session(self, user_id: int, thread_id: int, now: dt.datetime, pc: str = "") -> tuple[dict, bool]:
+        """テストを始める。途中のテストがあればそれを返す (2つ目は作らない)。pc はつなぐ PC の名前。"""
         current = self.open_session(thread_id)
         if current:
             return current, False
-        cur = self._run("INSERT INTO sessions (user_id, thread_id, status, opened_at) VALUES (?, ?, 'connecting', ?)",
-                        (user_id, thread_id, _iso(now)))
+        cur = self._run("INSERT INTO sessions (user_id, thread_id, status, opened_at, pc) VALUES (?, ?, 'connecting', ?, ?)",
+                        (user_id, thread_id, _iso(now), pc.strip()))
         return self.session(cur.lastrowid), True
 
     def mark_entered(self, session_id: int, now: dt.datetime) -> float:
@@ -437,6 +439,10 @@ class TesterStore:
     @staticmethod
     def next_question(answers: dict) -> str | None:
         return next((q["key"] for q in TesterStore.asked_questions(answers) if q["key"] not in answers), None)
+
+    def save_comment(self, session_id: int, *, stuck: str = "", comment: str = "") -> None:
+        """ひとことだけ記録する (テストはまだ終えない。最後に「送信」で終える)。"""
+        self._run("UPDATE sessions SET stuck = ?, comment = ? WHERE id = ?", (stuck.strip(), comment.strip(), session_id))
 
     def complete(self, session_id: int, now: dt.datetime, *, stuck: str = "", comment: str = "") -> None:
         self._run("UPDATE sessions SET stuck = ?, comment = ?, status = 'done', completed_at = ? WHERE id = ?",
@@ -577,6 +583,7 @@ class TesterStore:
             "ping_median": statistics.median(ping) if ping else None,
             "lender_app": sum(1 for t in testers if t["lender_app_at"]),
             "fps_by_world": fps_by_world,
+            "fps_by_pc": self.fps_by_pc(rows),
             "latency_median": statistics.median(lat) if lat else None,
             "screenshots": sum(len(json.loads(r["screenshots"])) for r in rows),
             "groups": groups,
@@ -584,6 +591,23 @@ class TesterStore:
             "pc_checked_recent_rate": share("pc_checked", {"week", "month"}),
             "pc_effect": {v: share("pc_effect", {v}) for v, _ in next(q for q in QUESTIONS if q["key"] == "pc_effect")["options"]},
         }
+
+    def fps_by_pc(self, rows: list[dict] | None = None) -> dict[str, dict]:
+        """PC ごとの実測。{PC の名前: {"tests": 測った回数, "fps": {ワールド: 真ん中の値}, "ping": 真ん中の値}}。
+
+        将来、空き枠の一覧でスペックの代わりに見せる (「テスターの実測: 集会場 72fps」)。
+        """
+        rows = self.rows() if rows is None else rows
+        out: dict[str, dict] = {}
+        for pc in sorted({r["pc"] for r in rows if r.get("pc")}):
+            rs = [r for r in rows if r.get("pc") == pc and (self.world_fps(r) or r["ping_ms"] is not None)]
+            if not rs:
+                continue
+            fps = {name: round(statistics.median([self.world_fps(r)[name] for r in rs if name in self.world_fps(r)]))
+                   for name in self.world_names(rs)}
+            ping = [r["ping_ms"] for r in rs if r["ping_ms"] is not None]
+            out[pc] = {"tests": len(rs), "fps": fps, "ping": round(statistics.median(ping)) if ping else None}
+        return out
 
     def lender_summary(self) -> dict:
         rows = [json.loads(r["answers"]) for r in self._all("SELECT answers FROM lenders")]
@@ -638,7 +662,7 @@ class TesterStore:
         out = io.StringIO()
         w = csv.writer(out)
         w.writerow(["回", "グループ", "VDを持っていた", "地方", "機材", "準備できてから予約まで(分)", "予約で迷った回数",
-                    "開始", "ワールドに入るまで(秒)", "つながった", "困った回数", "困った場面", *MISSIONS.values(),
+                    "開始", "PC", "ワールドに入るまで(秒)", "つながった", "困った回数", "困った場面", *MISSIONS.values(),
                     *[f"FPS: {w}" for w in worlds], "Ping(ms)", "VDの遅れ(ms)", "スクショ枚数",
                     *[q["text"] for q in QUESTIONS], "迷ったところ", "ひとこと",
                     *[f"3日後: {q['text']}" for q in FOLLOWUPS], *[f"フォーム: {label}" for _, label in fb_cols]])
@@ -660,7 +684,7 @@ class TesterStore:
             w.writerow([
                 r["id"], r["grp"] or "", {1: "はい", 0: "いいえ"}.get(r["has_vd"], ""), r["region"] or "", r["gear"] or "",
                 num(booked), r["booking_help"] or 0,
-                r["opened_at"], num(int(enter) if enter is not None else None),
+                r["opened_at"], r.get("pc") or "", num(int(enter) if enter is not None else None),
                 {1: "はい", 0: "いいえ"}.get(r["connected"], ""),
                 r["help_count"], "・".join(h["step"] for h in json.loads(r["help_steps"])),
                 *["はい" if m.get(k) else "" for k in MISSIONS], *[num(fps.get(w)) for w in worlds], num(r["ping_ms"]),
@@ -703,6 +727,9 @@ def summary_lines(s: dict) -> list[str]:
         "・ FPS（真ん中の値）: " + ("／".join(f"{w} {v}" for w, v in s["fps_by_world"].items()) or "—") + " ／ "
         f"Ping {'—' if s['ping_median'] is None else str(s['ping_median']) + 'ms'} ／ "
         f"VD の遅れ {'—' if s['latency_median'] is None else str(s['latency_median']) + 'ms'} ／ スクショ {s['screenshots']}枚",
+        *[f"・ PC「{pc}」の実測（{d['tests']}回）: "
+          + ("／".join(f"{w} {v}fps" for w, v in d["fps"].items()) or "FPS —")
+          + f" ／ Ping {'—' if d['ping'] is None else str(d['ping']) + 'ms'}" for pc, d in s["fps_by_pc"].items()],
         f"・ カクつきの気にならなさ: {'—' if s['stutter_avg'] is None else s['stutter_avg']}（5 がまったく気にならない）",
         f"・ 3日後もまた使いたい: {_pct(s['again_3d_rate'])} ／ 友達に話した: {_pct(s['told_rate'])}",
         f"・ 貸し手ベータのアプリを入れた人: {s['lender_app']}人",

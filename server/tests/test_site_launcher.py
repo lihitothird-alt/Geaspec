@@ -58,9 +58,10 @@ def test_discord_bot_starts_only_with_a_token(tmp_path, monkeypatch):
     import app.tester_bot as bot
 
     started = []
-    monkeypatch.setattr(bot, "start_tester_bot", lambda *args: started.append(args))
+    monkeypatch.setattr(bot, "start_tester_bot", lambda *args, **kw: started.append((args, kw)))
     assert s.start_discord_bot({"discord_token": "t", "site_password": "himitsu"}, "", tmp_path) is True
-    assert started == [("t", tmp_path, "http://localhost:8000", "himitsu")]
+    assert started == [(("t", tmp_path, "http://localhost:8000", "himitsu"),
+                        {"site_api": "http://127.0.0.1:8000", "api_secret": ""})]
 
 
 def test_with_a_discord_bot_the_site_uses_personal_links_instead_of_a_password(tmp_path, monkeypatch):
@@ -72,7 +73,9 @@ def test_with_a_discord_bot_the_site_uses_personal_links_instead_of_a_password(t
     started = []
     monkeypatch.setattr(bot, "start_tester_bot", lambda *args, **kw: started.append((args, kw)))
     assert s.start_discord_bot(config, "", tmp_path) is True
-    assert started == [(("t", tmp_path, "http://localhost:8000"), {"invite_secret": "k"})]
+    # 「いま終わる」は、同じ PC のサイトに署名つきで頼む
+    assert started == [(("t", tmp_path, "http://localhost:8000"),
+                        {"invite_secret": "k", "site_api": "http://127.0.0.1:8000", "api_secret": "k"})]
     # 合言葉に戻すこともできる
     back = s.site_environment({**config, "invite_only": False}, "", tmp_path)
     assert back["INVITE_ONLY"] == "0" and back["SITE_PASSWORD"] == "himitsu"

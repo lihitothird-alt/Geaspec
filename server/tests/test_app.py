@@ -505,6 +505,51 @@ def test_early_end_by_lender_is_flagged_for_refund(setup, now):
     assert "35 分前に終了" in db(app).get(Booking, 1).note  # 使える終わり (13:55) まで
 
 
+def test_borrower_can_end_now_and_the_pc_cleans_up_right_away(setup, now):
+    """早く遊び終わったら「いま終わる」。PC のアプリは予約が終わったことに気づいて、すぐにログイン情報を消す。"""
+    from app import invite
+
+    app, _, user, agent = setup
+    user.post("/slots/1/book")
+    # 始まる前は押せない
+    user.post("/bookings/1/end")
+    assert db(app).get(Booking, 1).status == "confirmed"
+    now["t"] = dt.datetime(2026, 10, 10, 4, 0)
+    agent.get("/api/agent/poll")
+    agent.post("/api/agent/bookings/1/started")
+    page = user.get("/bookings/1").text
+    assert 'action="/bookings/1/end"' in page and "いま終わる" in page
+
+    now["t"] = dt.datetime(2026, 10, 10, 4, 20)
+    user.post("/bookings/1/end")
+    b = db(app).get(Booking, 1)
+    assert b.status == "completed" and b.end_reason == "borrower_ended" and "残り 35 分" in b.note
+    # PC のアプリは予約の状態を見て止まり、いつもの終了処理のあとに報告する
+    assert agent.get("/api/agent/bookings/1").json()["status"] == "completed"
+    agent.post("/api/agent/bookings/1/finished", json={"clean": True, "end_reason": "server_cancelled"})
+    b = db(app).get(Booking, 1)
+    assert b.end_reason == "borrower_ended" and "返金" not in b.note and b.finished_at is not None
+
+
+def test_discord_bot_ends_a_booking_only_with_the_signature(setup, now):
+    from app import invite
+
+    app, _, user, agent = setup
+    user.post("/slots/1/book")
+    now["t"] = dt.datetime(2026, 10, 10, 4, 0)
+    agent.get("/api/agent/poll")
+    agent.post("/api/agent/bookings/1/started")
+    bot = TestClient(app)  # 合言葉や Cookie なしで呼ぶ
+    assert bot.post("/api/bot/bookings/1/end").status_code == 403
+    assert bot.post("/api/bot/bookings/1/end", headers={"X-Geaspec-Signature": "x"}).status_code == 403
+    secret = app.state.settings.secret_key
+    r = bot.post("/api/bot/bookings/1/end", headers={"X-Geaspec-Signature": invite.bot_signature(secret, 1)})
+    assert r.json() == {"ok": True} and db(app).get(Booking, 1).status == "completed"
+    # もう終わっている
+    r = bot.post("/api/bot/bookings/1/end", headers={"X-Geaspec-Signature": invite.bot_signature(secret, 1)})
+    assert r.json() == {"ok": False}
+
+
 def make_zip(names):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
@@ -964,6 +1009,39 @@ def test_invite_link_lets_testers_in_and_carries_the_meta_username(tmp_path, now
     other = TestClient(app)
     r = other.get(f"/join?t={token}&next=%2Ffeedback%3Ft%3D3", follow_redirects=False)
     assert r.headers["location"] == "/feedback?t=3"
+
+
+def test_booking_page_sends_testers_back_to_their_discord_thread(tmp_path, now):
+    """予約できたら、予約ページから Discord の自分のスレッドに戻って「予約した」を押してもらう。"""
+    from app import invite
+
+    app, _ = make_app(tmp_path, invite_only=True, free_mode=True)
+    admin = TestClient(app)
+    admin.get(f"/join?t={invite.make_token('test', meta='', discord_id=9, now=clock_now(now))}")
+    admin_setup(admin)
+
+    tester = TestClient(app)
+    token = invite.make_token("test", meta="hikari_quest", discord_id=1, now=clock_now(now), thread="555/777")
+    tester.get(f"/join?t={token}")
+    tester.post("/signup", data={"email": "hikari@example.com", "password": "password123", "agree": "1"})
+    user = next(u for u in db(app).query(User).all() if u.email == "hikari@example.com")
+    assert user.discord_thread == "555/777"
+    tester.post("/slots/1/book")
+    page = tester.get("/bookings/1").text
+    assert "https://discord.com/channels/555/777" in page and "「予約した」" in page
+
+    # 別のブラウザでログインし直しても、アカウントに残っているので戻れる
+    phone = TestClient(app)
+    phone.get(f"/join?t={invite.make_token('test', meta='hikari_quest', discord_id=1, now=clock_now(now))}")
+    phone.post("/login", data={"email": "hikari@example.com", "password": "password123"})
+    assert "https://discord.com/channels/555/777" in phone.get("/bookings/1").text
+
+    # Discord から来ていない人には出さない
+    plain = TestClient(app)
+    plain.get(f"/join?t={invite.make_token('test', meta='q2', discord_id=2, now=clock_now(now))}")
+    plain.post("/signup", data={"email": "q2@example.com", "password": "password123", "agree": "1"})
+    plain.post("/slots/2/book")
+    assert "discord.com/channels" not in plain.get("/bookings/2").text
 
 
 def clock_now(now):
