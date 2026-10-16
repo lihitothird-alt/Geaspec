@@ -1272,12 +1272,12 @@ class TesterBot(discord.Client):
             return
         if self.store.open_session(interaction.channel_id) is None and not self.store.get_setting(f"cycle:{tester['user_id']}"):
             self.store.set_setting(f"cycle:{tester['user_id']}", self._now_iso())
-        session, created = self.store.start_session(tester["user_id"], interaction.channel_id, self.clock())
+        # Virtual Desktop の一覧には、予約した PC の名前 (Windows のコンピューター名) が出る
+        pc = self.booking_info(tester["user_id"]).get("host") or self.store.get_setting("pc_name", "LG")
+        session, created = self.store.start_session(tester["user_id"], interaction.channel_id, self.clock(), pc=pc)
         if not created:
             await self.reply(interaction, "テストはもう始まっています。上のメッセージのボタンを使ってください。")
             return
-        # Virtual Desktop の一覧には、予約した PC の名前 (Windows のコンピューター名) が出る
-        pc = self.booking_info(tester["user_id"]).get("host") or self.store.get_setting("pc_name", "LG")
         await interaction.response.send_message(
             "**計測をはじめました**\n"
             "1. Quest で Virtual Desktop を開く\n"

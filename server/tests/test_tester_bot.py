@@ -1215,6 +1215,7 @@ def test_booked_button_checks_the_site_and_shows_the_booked_pc(tmp_path, monkeyp
         i = FakeInteraction(tester, 10, "gs:start")
         await bot.on_interaction(i)
         assert "「GAMING-PC」を選ぶ" in i.log[0][1]
+        assert store.latest_session(10)["pc"] == "GAMING-PC"  # どの PC で測ったかを残す
 
         # 送信は、そろうまで押せない
         i = FakeInteraction(tester, 10, "gs:submit")
@@ -1340,3 +1341,20 @@ def test_end_booking_without_the_site_api_says_to_use_the_booking_page(tmp_path,
     store, bot = make_bot(tmp_path, monkeypatch, [at(0)])
     assert asyncio.run(bot.end_booking(1)) is False
     store.close()
+
+
+def test_fps_is_kept_per_pc(store):
+    """PC ごとの実測 FPS。将来、空き枠の一覧でスペックの代わりに見せる。"""
+    for uid, pc, fps, ping in ((1, "GAMING-PC", 72, 40), (2, "GAMING-PC", 68, 50), (3, "LG", 90, 30), (4, "", 50, 99)):
+        apply(store, uid)
+        s, _ = store.start_session(uid, uid * 10, at(0), pc=pc)
+        store.set_performance(s["id"], fps_by_world={"集会場": fps}, ping_ms=ping)
+    apply(store, 5)
+    store.start_session(5, 50, at(0), pc="LG")  # 数字のないテストは数えない
+    by_pc = store.fps_by_pc()
+    assert by_pc == {"GAMING-PC": {"tests": 2, "fps": {"集会場": 70}, "ping": 45},
+                     "LG": {"tests": 1, "fps": {"集会場": 90}, "ping": 30}}
+    text = "\n".join(summary_lines(store.summary()))
+    assert "PC「GAMING-PC」の実測（2回）: 集会場 70fps ／ Ping 45ms" in text
+    rows = list(csv.reader(io.StringIO(store.to_csv())))
+    assert dict(zip(rows[0], rows[1]))["PC"] == "GAMING-PC"
