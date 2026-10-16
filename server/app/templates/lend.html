@@ -8,6 +8,13 @@
     {% if hosts and not simple %}<p class="profile-meta">あなたの評価 {{ stars(rating) }} <a href="/lenders/{{ user.id }}">公開ページを見る</a></p>{% endif %}
   </header>
 
+  <div class="panel" id="prepare">
+    <div class="panel-head"><h2>貸す PC の準備</h2></div>
+    <p><strong>貸せる時間の登録は、PC に入れた Geaspec アプリのカレンダーからお願いします。</strong>このサイトからは登録できません。</p>
+    <p><a class="btn" href="https://www.vrdesktop.net/" target="_blank" rel="noopener">Virtual Desktop Streamer をダウンロード</a></p>
+    <p class="muted small">公式サイトの「Download Streamer」ボタンから入れて、「Allow remote connections」にチェックを入れてください。くわしくは<a href="/guide?for=lend">貸す人の手順</a>へ。</p>
+  </div>
+
   {% if not hosts %}
   <div class="empty">
     <svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>

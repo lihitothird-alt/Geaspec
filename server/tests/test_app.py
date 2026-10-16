@@ -998,6 +998,9 @@ def test_simple_mode_hides_follow_reviews_and_the_app_page(tmp_path, now):
     for page in ("/", "/slots", "/account"):
         html = user.get(page).text
         assert "フォロー中" not in html and 'href="/app"' not in html and "/lenders/" not in html, page
+    # 貸し出しのページには、Streamer のダウンロードと「時間の登録はアプリから」の案内を出す
+    lend = user.get("/lend").text
+    assert "https://www.vrdesktop.net/" in lend and "Geaspec アプリのカレンダーから" in lend
     assert user.get("/following").status_code == 404
     assert user.get("/app").status_code == 404
     assert user.get("/lenders/1").status_code == 404
