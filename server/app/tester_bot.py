@@ -91,9 +91,9 @@ def panel_text(hours: str, site_url: str = "") -> str:
 **流れ**
 1. 下の「テスターに申し込む」を押して、PC を借りる側か貸す側かをえらぶ
 2. あなた専用のスレッドができて、すぐに予約サイトのリンクと次にやることが届きます
-3. スレッドに届くあなた専用のリンクから、予約サイトで予約する
-4. 当日、スレッドの「テストを始める」を押して、Virtual Desktop でつなぐ
-5. 遊び終わったら、FPS と Ping の写真をスレッドに貼り、ボタンで答えるアンケート（5分）
+3. スレッドに届くあなた専用のリンクから、予約サイトで予約して、スレッドに戻って「予約した」を押す（チェックリストが出ます）
+4. 当日、チェックリストの「テストを始める」を押して、Virtual Desktop でつなぐ
+5. FPS と Ping の写真をスレッドに貼り、ボタンで答えるアンケート（10分ほど）に答えたら「送信」で完了
 
 **申し込む前に**
 ・Meta ユーザー名: スマホの Meta Horizon アプリでプロフィールを開くと見られます（表示名ではなく、ユーザー名のほう）。Virtual Desktop を持っている人は、VD で使っているものと同じです
@@ -142,7 +142,9 @@ def test_items_text(worlds: list[str]) -> str:
             "4. 重いワールドに行く・人の多いインスタンスに入る\n"
             "5. VRChat のカメラで **自撮り** を 1枚撮る（終わったあと、あなたの手元にちゃんと届くかを確かめます）\n"
             "6. 遊び終わったら「遊び終わった」を押して、ボタンでアンケートに答える\n"
-            "7. 3日後に届く 4つの質問に答える（写真を受け取れたかも聞きます）")
+            "7. チェックリストがそろったら「送信してテストを終える」を押す（運営に届いて、テスト完了です）\n"
+            "8. 3日後に届く 4つの質問に答える（写真を受け取れたかも聞きます）\n"
+            "VRChat からのログアウトはいりません。終わると Geaspec が自動でログイン情報を消します")
 
 
 WIPE_CHECK_TEXT = (
@@ -174,10 +176,10 @@ def survey_message(answers: dict) -> tuple[str, discord.ui.View]:
     """次の質問 (全部答えたら、ひとこと欄への案内) を作る。"""
     key = TesterStore.next_question(answers)
     if key is None:
-        text = ("**最後に（任意）**\nいちばん迷ったところや、ひとこと感想があれば書いてください。\n"
-                "なければ「スキップして終わる」で完了です。")
-        return text, make_view(button("✍ 書く", "gs:comment", discord.ButtonStyle.primary),
-                               button("スキップして終わる", "gs:skip"))
+        text = ("**アンケートは以上です。ありがとうございました！**\n"
+                "いちばん迷ったところや、ひとこと感想があれば「書く」から（任意）。\n"
+                "最後に、下のチェックリストの「送信してテストを終える」を押してください。")
+        return text, make_view(button("✍ 書く（任意）", "gs:comment"))
     asked = TesterStore.asked_questions(answers)
     index = [q["key"] for q in asked].index(key)
     q = asked[index]
@@ -219,6 +221,62 @@ def lender_survey_message(user_id: int, answers: dict) -> tuple[str, discord.ui.
             max_values=len(q["options"]), options=[discord.SelectOption(label=l, value=v) for v, l in q["options"]])
         return text, make_view(select)
     return text, make_view(*[button(label, f"gs:l:{key}:{value}", row=i // 5) for i, (value, label) in enumerate(q["options"])])
+
+
+# 予約してから「送信」までを 1 つのチェックリストにまとめる。終わったものに ✅ が付き、必要なものがそろうと送信できる
+MISSION_SHORT = {"heavy": "重いワールド", "crowd": "人の多いインスタンス", "photo": "自撮り"}
+CHECK_REQUIRED = ("booked", "started", "entered", "photo", "survey")
+CHECK_LABELS = {
+    "booked": "1. 予約する",
+    "started": "2. 開始 5分前に「テストを始める」を押して、Quest の Virtual Desktop でつなぐ",
+    "entered": "3. VRChat にログインして、ワールドに入ったら「ワールドに入れた」を押す",
+    "photo": "4. FPS と Ping が写った写真を、このスレッドに貼る（撮れなかったら「数字で入力」）",
+    "survey": "6. 遊び終わったら「遊び終わった」を押して、アンケートに答える",
+}
+
+
+def checklist_state(session: dict | None, booked: bool) -> dict:
+    """チェックリストのどこまで終わったか。session は今回のテスト (まだ始めていなければ None)。"""
+    if session is None:
+        return {"booked": booked, "started": False, "entered": False, "photo": False, "survey": False,
+                "missions": {}, "done": False}
+    answers = json.loads(session["answers"])
+    return {
+        "booked": True,  # テストを始めたなら予約はできている
+        "started": True,
+        "entered": bool(session["entered_at"]),
+        "photo": bool(json.loads(session["screenshots"]) or json.loads(session["fps_worlds"])
+                      or session["ping_ms"] is not None),
+        "survey": session["status"] in ("survey", "done") and bool(session["connected"])
+        and TesterStore.next_question(answers) is None,
+        "missions": json.loads(session["missions"]),
+        "done": session["status"] == "done",
+    }
+
+
+def checklist_message(state: dict, booking_line: str = "") -> tuple[str, discord.ui.View]:
+    mark = lambda ok: "✅" if ok else "⬜"  # noqa: E731
+    lines = ["**📋 テストのチェックリスト**"]
+    if booking_line:
+        lines.append(booking_line)
+    lines += [f"{mark(state[k])} {CHECK_LABELS[k]}" for k in ("booked", "started", "entered", "photo")]
+    missions = " ／ ".join(f"{name} {mark(state['missions'].get(k))}" for k, name in MISSION_SHORT.items())
+    lines.append(f"{mark(all(state['missions'].get(k) for k in MISSION_SHORT))} 5. （できたら）{missions}")
+    lines.append(f"{mark(state['survey'])} {CHECK_LABELS['survey']}")
+    ready = all(state[k] for k in CHECK_REQUIRED)
+    items: list[discord.ui.Item] = []
+    if state["done"]:
+        lines.append("\n**送信しました。テストは完了です。ありがとうございました！**")
+    elif ready:
+        lines.append("\nそろいました！ 下の「送信してテストを終える」を押してください（運営に届きます）。")
+        items.append(button("📤 送信してテストを終える", "gs:submit", discord.ButtonStyle.success))
+    else:
+        lines.append("\n1〜4 と 6 がそろうと、「送信してテストを終える」ボタンが出ます。")
+        if not state["started"]:
+            items.append(button("▶ テストを始める", "gs:start", discord.ButtonStyle.primary))
+        elif not state["photo"]:
+            items.append(button("📝 数字で入力", "gs:perf"))
+    return "\n".join(lines), make_view(*items)
 
 
 def play_view(missions: dict) -> discord.ui.View:
@@ -362,6 +420,8 @@ class TesterBot(discord.Client):
         for guild in self.guilds:
             await self._sync(guild)
         self.say(f"Discord ボットが動いています（{', '.join(g.name for g in self.guilds) or 'サーバー未参加'}）")
+        if self.guilds:
+            self.store.set_setting("guild_id", str(self.guilds[0].id))
         if self.guilds and not self.store.get_setting("panel_channel_id"):
             await self.first_setup(self.guilds[0])
         if self.guilds:
@@ -704,6 +764,8 @@ class TesterBot(discord.Client):
     # 申し込み
     async def on_apply(self, interaction: discord.Interaction, modal: ApplyModal) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
+        if getattr(interaction, "guild_id", None):
+            self.store.set_setting("guild_id", str(interaction.guild_id))
         user = interaction.user
         before = self.store.tester(user.id)
         tester = self.store.apply(
@@ -791,7 +853,6 @@ class TesterBot(discord.Client):
             await thread.send(f"<@{uid}> " + self.lender_text(tester), view=make_view(
                 button("📥 アプリを入れた", "gs:lenderapp", discord.ButtonStyle.primary),
                 button("🔗 サイトを開く", "gs:link")))
-            await thread.send(WIPE_CHECK_TEXT, view=wipe_check_view())
 
     async def send_ready_now(self, tester: dict, thread: discord.Thread | None = None) -> bool:
         """運営を待たずに、スレッドへ予約の案内を送る (1 回だけ)。"""
@@ -824,9 +885,15 @@ class TesterBot(discord.Client):
         if not self.invite_secret:
             return self.site_url + next_path
         token = invite.make_token(self.invite_secret, meta=(tester or {}).get("meta", ""),
-                                  discord_id=(tester or {}).get("user_id", 0), now=self.clock())
+                                  discord_id=(tester or {}).get("user_id", 0), now=self.clock(),
+                                  thread=self.thread_ref(tester))
         url = f"{self.site_url}/join?t={token}"
         return url + (f"&next={urllib.parse.quote(next_path, safe='')}" if next_path else "")
+
+    def thread_ref(self, tester: dict | None) -> str:
+        """「サーバー番号/スレッド番号」。サイトはこれで、予約のあとにスレッドへ戻るボタンを出す。"""
+        guild, thread = self.store.get_setting("guild_id"), (tester or {}).get("thread_id")
+        return f"{guild}/{thread}" if guild and thread else ""
 
     def site_lines(self, tester: dict | None = None) -> str:
         if self.invite_secret:
@@ -856,12 +923,15 @@ class TesterBot(discord.Client):
                 "ふだんの VRChat の設定を残したい人は、貸し出し専用の Windows ユーザーを作って、そこで入れてください\n"
                 "3. 予約サイトでアカウントを作る（メールアドレスとパスワードを決める）\n"
                 f"　{self.site_lines(tester).rstrip()}\n"
-                "4. アプリに、3 のメールアドレスとパスワードでログインして、下の「アプリを入れた」を押す。運営が確認して承認します\n"
+                "4. アプリに、3 のメールアドレスとパスワードでログインして、下の「アプリを入れた」を押す。"
+                "運営が確認して承認すると、このスレッドにお知らせが届きます\n"
                 "5. 承認されたら、アプリのカレンダーで **貸せる時間** のマスをクリックして「保存」（やり方は上の説明ページの 4）。予約が入ると、アプリに開始までの時間が出ます\n"
-                "6. 貸す前に、貸し出し用の Windows ユーザーの VRChat から **ログアウト** しておく（アプリも開始前に消しますが、念のため）\n"
-                "7. 貸す時間は、PC の電源を入れてアプリを動かしたままにしておく。貸し出し中は画面が幕で覆われ、"
-                "終わると借りた人のデータが自動で消えます\n\n"
-                "はじめて貸したあとに、貸す側のアンケート（ボタンで6問）が届きます。" + NOTES_HINT)
+                "6. 貸す前に、貸し出し用の Windows ユーザーの VRChat から **ログアウト** しておく"
+                "（アプリも開始前と終わったあとに、VRChat のログイン情報を自動で消しますが、念のため）\n"
+                "7. 貸す時間は、PC の電源を入れてアプリを動かしたままにしておく。予約が入ると、このスレッドにもお知らせが届きます。"
+                "貸し出し中は画面が幕で覆われ、終わると借りた人のデータが自動で消えます\n"
+                "8. 貸し終わるたびに、このスレッドに「データが消えたか確かめる」お願いが届きます。"
+                "はじめて貸し終わったときは、貸す側のアンケート（ボタンで6問）も届きます\n\n" + NOTES_HINT)
 
     async def send_ready(self, thread: discord.Thread, tester: dict) -> None:
         """予約の案内。スレッドのいちばん下に「次にやること」が来るように、最後に送る。"""
@@ -875,17 +945,132 @@ class TesterBot(discord.Client):
              "　1. 「新規登録」でメールアドレスとパスワードを決める\n"
              "　2. 「アカウント」で Meta ユーザー名を入れる（ここで書いたものと同じ）\n") +
             "　・「空き枠」から好きな時間を選んで「予約する」\n"
-            "　予約できると、ここに日時のお知らせが届きます。迷ったら「予約で迷った」を押してください\n\n"
-            "**② 当日**\n"
-            "　**開始 5分前**になったら「テストを始める」を押して、Quest で Virtual Desktop を開いてください\n"
+            "　迷ったら「予約で迷った」を押してください\n\n"
+            "**② 予約したら、このスレッドに戻って「予約した」を押す**\n"
+            "　テストのチェックリストが出ます。当日はチェックリストに沿って進めて、最後に「送信」を押すと完了です\n"
             f"テストができる時間: {self.hours()}\n"
             "家の Wi-Fi で参加してください（スマホのテザリングだとつながらないことがあります）。途中でやめても大丈夫です。",
             view=make_view(button("🔗 サイトを開く", "gs:link"),
-                           button("🆘 予約で迷った", "gs:bookhelp", discord.ButtonStyle.danger),
-                           button("▶ テストを始める", "gs:start", discord.ButtonStyle.primary)))
+                           button("✅ 予約した", "gs:booked", discord.ButtonStyle.success),
+                           button("🆘 予約で迷った", "gs:bookhelp", discord.ButtonStyle.danger)))
         if tester.get("has_vd") == 0:
             self.store.set_setting(f"sent_vd:{user_id}", "1")  # 上の案内に入れたので、もう送らない
         await self.send_extras(thread, tester)
+
+    # チェックリスト (予約した → テスト → 写真・アンケート → 送信)
+    def booking_info(self, uid: int) -> dict:
+        try:
+            return json.loads(self.store.get_setting(f"booking:{uid}") or "{}")
+        except ValueError:
+            return {}
+
+    def booking_line(self, uid: int) -> str:
+        b = self.booking_info(uid)
+        return f"予約: **{b['when']}** ／ PC「{b['host']}」" if b.get("when") else ""
+
+    def tester_for(self, booking: dict) -> dict | None:
+        """予約した人のテスター記録。サイトに残したスレッドで探し、なければ Meta ユーザー名で探す。"""
+        tid = booking_notice.thread_id(booking.get("thread", ""))
+        return (self.store.tester_by_thread(tid) if tid else None) or self.store.tester_by_meta(booking.get("meta", ""))
+
+    def lender_for(self, booking_or_host: dict) -> dict | None:
+        tid = booking_notice.thread_id(booking_or_host.get("owner_thread", ""))
+        return self.store.tester_by_thread(tid) if tid else None
+
+    def current_session(self, tester: dict) -> dict | None:
+        """チェックリストに出す今回のテスト。前のテストが送信済みで、そのあとに予約し直したら、まだ始めていない扱い。"""
+        s = self.store.latest_session(tester["thread_id"]) if tester.get("thread_id") else None
+        if s is None or s["status"] != "done":
+            return s
+        cycle = self.store.get_setting(f"cycle:{tester['user_id']}")
+        return s if cycle and s["opened_at"] >= cycle else None
+
+    def _now_iso(self) -> str:
+        return self.clock().astimezone(dt.timezone.utc).isoformat(timespec="seconds")
+
+    async def begin_checklist(self, tester: dict, booking: dict | None, thread=None) -> None:
+        """予約できた。予約の日時を覚えて、まっさらなチェックリストを出す (テストの途中なら、その続き)。"""
+        uid = tester["user_id"]
+        if booking:
+            self.store.set_setting(f"booking:{uid}", json.dumps(
+                {"id": booking["id"], "when": booking_notice.when_text(booking["start"], booking["end"]),
+                 "host": booking["host"]}, ensure_ascii=False))
+            self.store.set_setting(f"checklist_booking:{uid}", str(booking["id"]))
+        if self.store.open_session(tester["thread_id"]) is None:
+            self.store.set_setting(f"cycle:{uid}", self._now_iso())
+        await self.show_checklist(tester, thread)
+
+    async def show_checklist(self, tester: dict, thread=None, *, move: bool = True) -> None:
+        """チェックリストを、スレッドのいちばん下に出し直す (move=False なら、その場で書き換える)。"""
+        thread = thread or await self._existing_thread(tester)
+        if thread is None:
+            return
+        uid = tester["user_id"]
+        booked = bool(self.store.get_setting(f"cycle:{uid}"))
+        text, view = checklist_message(checklist_state(self.current_session(tester), booked), self.booking_line(uid))
+        old = self.store.get_setting(f"checklist_msg:{uid}")
+        partial = getattr(thread, "get_partial_message", None)
+        if old and partial:
+            try:
+                if not move:
+                    await partial(int(old)).edit(content=text, view=view)
+                    return
+                await partial(int(old)).delete()
+            except (discord.HTTPException, ValueError):
+                pass
+        sent = await thread.send(text, view=view)
+        if getattr(sent, "id", None):
+            self.store.set_setting(f"checklist_msg:{uid}", str(sent.id))
+
+    async def on_submit(self, interaction, tester, session, args) -> None:
+        state = checklist_state(session, True)
+        missing = [CHECK_LABELS[k] for k in CHECK_REQUIRED if not state[k]]
+        if missing:
+            await self.reply(interaction, "まだ終わっていない項目があります。\n" + "\n".join(f"⬜ {m}" for m in missing))
+            return
+        self.store.complete(session["id"], self.clock(), stuck=session["stuck"], comment=session["comment"])
+        text, view = checklist_message(checklist_state(self.store.session(session["id"]), True),
+                                       self.booking_line(tester["user_id"]))
+        await interaction.response.edit_message(content=text, view=view)
+        await interaction.followup.send(self.thanks_text(session["id"], tester), view=self.again_view())
+        await self.report_done(session["id"])
+
+    # 貸す人へのお知らせ (承認された・貸し終わった)
+    async def send_lender_notices(self) -> int:
+        if self.site_db is None:
+            return 0
+        sent = 0
+        for host in booking_notice.load_lender_hosts(self.site_db):
+            key = f"host_ok:{host['id']}"
+            if not host["approved"] or self.store.get_setting(key):
+                continue
+            self.store.set_setting(key, "1")
+            lender = self.lender_for(host)
+            thread = await self._existing_thread(lender) if lender else None
+            if thread is None:
+                continue
+            await thread.send(
+                f"<@{lender['user_id']}> PC「{host['name']}」が承認されました。貸し出せるようになりました！\n"
+                "Geaspec アプリのカレンダーで、貸せる時間のマスをクリックして「保存」してください。保存すると、予約サイトの空き枠に出ます。")
+            sent += 1
+        # 貸し終わった予約 (ボットが止まっていた間の分も、2 日前まではさかのぼる)
+        for b in booking_notice.load_bookings(self.site_db, self.clock() - dt.timedelta(days=2), finished=True):
+            key = f"lent_done:{b['id']}"
+            if not b["owner_thread"] or self.store.get_setting(key):
+                continue
+            self.store.set_setting(key, "1")
+            lender = self.lender_for(b)
+            thread = await self._existing_thread(lender) if lender else None
+            if thread is None:
+                continue
+            uid = lender["user_id"]
+            await thread.send(f"<@{uid}> 貸し出しが終わりました（{booking_notice.when_text(b['start'], b['end'])}）。"
+                              "ありがとうございました！\n\n" + WIPE_CHECK_TEXT, view=wipe_check_view())
+            if self.store.start_lender_survey(uid, self.clock()):
+                text, view = lender_survey_message(uid, {})
+                await thread.send(text, view=view)
+            sent += 1
+        return sent
 
     # テスト本体
     async def on_wipe_check(self, interaction: discord.Interaction, tester: dict, ok: bool) -> None:
@@ -999,7 +1184,7 @@ class TesterBot(discord.Client):
         handler = {
             "entered": self.on_entered, "help": self.on_help, "giveup": self.on_giveup, "done": self.on_done,
             "m": self.on_mission, "perf": self.on_perf_button, "a": self.on_answer, "comment": self.on_comment_button,
-            "skip": self.on_skip,
+            "skip": self.on_skip, "submit": self.on_submit,
         }.get(action)
         if handler:
             await handler(interaction, tester, session, args)
@@ -1007,9 +1192,19 @@ class TesterBot(discord.Client):
     async def on_tester_step(self, interaction: discord.Interaction, tester: dict, action: str) -> None:
         uid = tester["user_id"]
         if action == "booked":
+            booking = None
+            if self.site_db is not None:  # サイトに本当に予約があるか確かめる (押し間違い・予約し忘れを防ぐ)
+                mine = [b for b in booking_notice.load_bookings(self.site_db, self.clock())
+                        if b["status"] in ("confirmed", "active") and (t := self.tester_for(b)) and t["user_id"] == uid]
+                if not mine:
+                    await self.reply(interaction, "予約が見つかりませんでした。予約サイトの「予約一覧」に出ているか確かめてください。"
+                                                  "出ているのにこの表示になるときは「予約で迷った」を押してください。")
+                    return
+                booking = mine[0]
             if self.store.mark_booked(uid, self.clock()):
                 await self.notify_ops(f"<@{uid}> さんが予約できました <#{interaction.channel_id}>")
-            await self.reply(interaction, "記録しました！ 当日、開始 5分前に「テストを始める」を押してください。")
+            await self.reply(interaction, "記録しました！ 下のチェックリストに沿って進めてください。")
+            await self.begin_checklist(tester, booking)
         elif action == "bookhelp":
             count = self.store.add_booking_help(uid)
             await interaction.response.send_message(
@@ -1026,11 +1221,14 @@ class TesterBot(discord.Client):
         if tester["status"] != "ready":
             await self.reply(interaction, "まだ申し込みが終わっていません。申し込みチャンネルの「テスターに申し込む」から申し込んでください。")
             return
+        if self.store.open_session(interaction.channel_id) is None and not self.store.get_setting(f"cycle:{tester['user_id']}"):
+            self.store.set_setting(f"cycle:{tester['user_id']}", self._now_iso())
         session, created = self.store.start_session(tester["user_id"], interaction.channel_id, self.clock())
         if not created:
             await self.reply(interaction, "テストはもう始まっています。上のメッセージのボタンを使ってください。")
             return
-        pc = self.store.get_setting("pc_name", "LG")
+        # Virtual Desktop の一覧には、予約した PC の名前 (Windows のコンピューター名) が出る
+        pc = self.booking_info(tester["user_id"]).get("host") or self.store.get_setting("pc_name", "LG")
         await interaction.response.send_message(
             "**計測をはじめました**\n"
             "1. Quest で Virtual Desktop を開く\n"
@@ -1043,6 +1241,7 @@ class TesterBot(discord.Client):
                            button("🆘 困った", "gs:help", discord.ButtonStyle.danger),
                            button("つながらなかった", "gs:giveup")))
         await self.notify_ops(f"<@{tester['user_id']}> さんがテストを始めました <#{interaction.channel_id}>")
+        await self.show_checklist(tester, interaction.channel)
 
     async def on_entered(self, interaction, tester, session, args) -> None:
         if session["status"] != "connecting":
@@ -1065,12 +1264,14 @@ class TesterBot(discord.Client):
             "左手首に残り時間が出ます。遊び終わったら「遊び終わった」を押してください。",
             view=play_view(json.loads(session["missions"])))
         await self.notify_ops(f"<@{tester['user_id']}> さんがワールドに入りました（{format_duration(seconds)}）")
+        await self.show_checklist(tester, interaction.channel)
 
     async def on_mission(self, interaction, tester, session, args) -> None:
         if not args or args[0] not in MISSIONS:
             return
         missions = self.store.toggle_mission(session["id"], args[0])
         await interaction.response.edit_message(view=play_view(missions))
+        await self.show_checklist(tester, interaction.channel, move=False)
 
     async def on_perf_button(self, interaction, tester, session, args) -> None:
         await interaction.response.send_modal(PerfModal(self, self.worlds()))
@@ -1087,6 +1288,9 @@ class TesterBot(discord.Client):
         fps_text = "・".join(f"{w} {shown(v)}" for w, v in fps.items())
         await self.reply(interaction, f"記録しました（FPS {fps_text} ／ Ping {shown(ping, 'ms')}）。"
                                       "ありがとうございます！")
+        tester = self.store.tester(session["user_id"])
+        if tester:
+            await self.show_checklist(tester, interaction.channel)
 
     async def on_help(self, interaction, tester, session, args) -> None:
         step = "つなぐところ" if session["status"] == "connecting" else "遊んでいる途中"
@@ -1132,8 +1336,11 @@ class TesterBot(discord.Client):
         except ValueError:
             await self.reply(interaction, "その答えは受け付けられませんでした。")
             return
-        text, view = survey_message(json.loads(self.store.session(session["id"])["answers"]))
+        answers = json.loads(self.store.session(session["id"])["answers"])
+        text, view = survey_message(answers)
         await interaction.response.edit_message(content=text, view=view)
+        if TesterStore.next_question(answers) is None and session["connected"]:
+            await self.show_checklist(tester, interaction.channel)  # アンケートが終わった。送信ボタンを出す
 
     async def on_comment_button(self, interaction, tester, session, args) -> None:
         if session["status"] != "survey":
@@ -1146,8 +1353,17 @@ class TesterBot(discord.Client):
         if session is None or session["status"] != "survey":
             await self.reply(interaction, "このテストはもう終わっています。")
             return
-        self.store.complete(session["id"], self.clock(), stuck=modal.stuck.value, comment=modal.comment.value)
         tester = self.store.tester(session["user_id"])
+        if session["connected"]:
+            # つながったテストは、チェックリストの「送信」で終える。ここでは記録だけ
+            self.store.save_comment(session["id"], stuck=modal.stuck.value, comment=modal.comment.value)
+            await interaction.response.send_message("ありがとうございます！ 記録しました。"
+                                                    "最後に、チェックリストの「送信してテストを終える」を押してください。",
+                                                    ephemeral=True)
+            if tester:
+                await self.show_checklist(tester, interaction.channel)
+            return
+        self.store.complete(session["id"], self.clock(), stuck=modal.stuck.value, comment=modal.comment.value)
         await interaction.response.send_message(self.thanks_text(session["id"], tester), view=self.again_view())
         await self.report_done(session["id"])
 
@@ -1216,6 +1432,7 @@ class TesterBot(discord.Client):
         while not self.is_closed():
             try:
                 await self.send_booking_notices()
+                await self.send_lender_notices()
             except Exception:  # noqa: BLE001 - 次の回にやり直す
                 log.exception("予約のお知らせを送れませんでした")
             await asyncio.sleep(BOOKING_CHECK_SECONDS)
@@ -1229,7 +1446,7 @@ class TesterBot(discord.Client):
         for kind, b in booking_notice.due_notices(bookings, now, self.store.notice_sent):
             if kind == "soon" and self.store.notice_sent(b["id"], "soon"):
                 continue  # 予約と同時に「すぐ始められます」を送った
-            tester = self.store.tester_by_meta(b["meta"])
+            tester = self.tester_for(b)
             thread = await self._existing_thread(tester) if tester else None
             when = booking_notice.when_text(b["start"], b["end"])
             who = booking_notice.who(b) + (f" <@{tester['user_id']}>" if tester else "")
@@ -1239,16 +1456,26 @@ class TesterBot(discord.Client):
                                       f"→ {b['host']} の Virtual Desktop Streamer に `{b['meta']}` が入っているか確かめてください")
                 if tester:
                     self.store.mark_booked(tester["user_id"], now)
-                if thread and b["start"] <= now + dt.timedelta(minutes=booking_notice.SOON_MINUTES):
-                    # 「今すぐ入る」や、まもなく始まる予約: 待たずにそのまま始めてもらう
+                starts_now = b["start"] <= now + dt.timedelta(minutes=booking_notice.SOON_MINUTES)
+                if starts_now and thread:  # 本人には「すぐ始められます」と書くので、「まもなく」は送らない
                     self.store.mark_notice(b["id"], "soon", now)
-                    await thread.send(
-                        f"<@{tester['user_id']}> 予約を受け付けました: **{when}**\n"
-                        "すぐに始められます。「テストを始める」を押して、Quest で Virtual Desktop を開いてください。",
-                        view=make_view(button("▶ テストを始める", "gs:start", discord.ButtonStyle.primary)))
-                elif thread:
-                    await thread.send(f"<@{tester['user_id']}> 予約を受け付けました: **{when}**\n"
-                                      f"開始 {booking_notice.SOON_MINUTES} 分前に、ここでお知らせします。")
+                # 本人が先に「予約した」を押していれば、チェックリストはもう出ている
+                if thread and self.store.get_setting(f"checklist_booking:{tester['user_id']}") != str(b["id"]):
+                    if starts_now:  # 「今すぐ入る」や、まもなく始まる予約: 待たずにそのまま始めてもらう
+                        await thread.send(f"<@{tester['user_id']}> 予約を受け付けました: **{when}**\n"
+                                          "すぐに始められます。下のチェックリストの「テストを始める」を押して、"
+                                          "Quest で Virtual Desktop を開いてください。")
+                    else:
+                        await thread.send(f"<@{tester['user_id']}> 予約を受け付けました: **{when}**\n"
+                                          f"開始 {booking_notice.SOON_MINUTES} 分前に、ここでお知らせします。"
+                                          "当日は下のチェックリストに沿って進めてください。")
+                    await self.begin_checklist(tester, b, thread)
+                lender = self.lender_for(b)
+                lender_thread = await self._existing_thread(lender) if lender else None
+                if lender_thread and (not tester or lender["user_id"] != tester["user_id"]):
+                    await lender_thread.send(
+                        f"<@{lender['user_id']}> あなたの PC「{b['host']}」に予約が入りました: **{when}**\n"
+                        "時間になると Geaspec アプリが自動で準備します。PC の電源を入れて、アプリを動かしたままにしてください。")
             elif kind == "soon":
                 lines = [f"{booking_notice.SOON_MINUTES} 分後に予約があります: **{when}**（{b['host']}）{who}{where}",
                          f"確認: {b['host']} の電源が入っている／Geaspec アプリが動いている／{REMOTE_SETTING}にチェック"
@@ -1299,6 +1526,7 @@ class TesterBot(discord.Client):
         session = self.store.open_session(message.channel.id) or self.store.latest_session(message.channel.id)
         if session is None or session["user_id"] != message.author.id:
             return
+        had_photo = bool(json.loads(self.store.session(session["id"])["screenshots"]))
         saved = 0
         for att in message.attachments:
             if (att.content_type or "").split(";")[0] not in IMAGE_TYPES:
@@ -1316,6 +1544,9 @@ class TesterBot(discord.Client):
                 await message.add_reaction("📸")
             except discord.HTTPException:
                 pass
+            tester = self.store.tester(session["user_id"])
+            if not had_photo and session["status"] != "done" and tester:
+                await self.show_checklist(tester, message.channel)  # 「4. 写真」に ✅ を付ける
 
 
     async def save_note(self, message: discord.Message) -> None:

@@ -49,6 +49,17 @@
   </div>
   {% endif %}
 
+  {% if discord_url and booking.status in live_states and booking.slot.play_end_at > now %}
+  <div class="card status-card discord-back" id="discord">
+    <div class="ic" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></div>
+    <div>
+      <h2>予約できました。Discord に戻ってください</h2>
+      <p>あなたのスレッドで<strong>「予約した」</strong>を押すと、テストのチェックリストが出ます。テストの続きは、すべてスレッドで進みます。</p>
+      <p><a class="btn lg" href="{{ discord_url }}" target="_blank" rel="noopener">Discord のスレッドに戻る</a></p>
+    </div>
+  </div>
+  {% endif %}
+
   {% if booking.status == "pending_payment" %}
     {% if paid %}
       <div class="flash info">お支払いを確認しています。数秒後にこのページを再読み込みしてください。</div>

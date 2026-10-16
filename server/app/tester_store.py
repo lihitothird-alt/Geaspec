@@ -438,6 +438,10 @@ class TesterStore:
     def next_question(answers: dict) -> str | None:
         return next((q["key"] for q in TesterStore.asked_questions(answers) if q["key"] not in answers), None)
 
+    def save_comment(self, session_id: int, *, stuck: str = "", comment: str = "") -> None:
+        """ひとことだけ記録する (テストはまだ終えない。最後に「送信」で終える)。"""
+        self._run("UPDATE sessions SET stuck = ?, comment = ? WHERE id = ?", (stuck.strip(), comment.strip(), session_id))
+
     def complete(self, session_id: int, now: dt.datetime, *, stuck: str = "", comment: str = "") -> None:
         self._run("UPDATE sessions SET stuck = ?, comment = ?, status = 'done', completed_at = ? WHERE id = ?",
                   (stuck.strip(), comment.strip(), _iso(now), session_id))

@@ -24,6 +24,8 @@ class User(Base):
     signup_ref: Mapped[str] = mapped_column(String(64), default="")
     # ほかの人に見せる名前 (フォロー・評価・貸し手ページ)。メールアドレスは見せない
     nickname: Mapped[str] = mapped_column(String(32), default="")
+    # Discord のテスター用スレッド (「サーバー番号/スレッド番号」)。予約のあと、そこへ戻るボタンを出す
+    discord_thread: Mapped[str] = mapped_column(String(64), default="")
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
 
     @property

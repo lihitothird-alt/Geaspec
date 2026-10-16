@@ -294,6 +294,12 @@ def create_app(
         request.session["site_ok"] = True
         if META_USERNAME_RE.match(data["meta"]):
             request.session["invite_meta"] = data["meta"]
+        if data["thread"]:
+            request.session["discord_thread"] = data["thread"]
+            user = current_user(request, db)
+            if user and user.discord_thread != data["thread"]:
+                user.discord_thread = data["thread"]
+                db.commit()
         if next:
             return redirect(safe_next(next))
         return redirect("/slots" if current_user(request, db) else "/signup")
@@ -338,7 +344,8 @@ def create_app(
         if error:
             return render(request, db, "signup.html", status_code=400, error=error, email=email)
         user = User(email=email, password_hash=hash_password(password), signup_ref=request.session.get("ref", ""),
-                    meta_username=request.session.get("invite_meta", ""))
+                    meta_username=request.session.get("invite_meta", ""),
+                    discord_thread=request.session.get("discord_thread", ""))
         db.add(user)
         try:
             db.commit()
@@ -373,13 +380,17 @@ def create_app(
                 error="メールアドレスかパスワードが違います", next=next, email=email,
             )
         site_ok, invite_meta = request.session.get("site_ok"), request.session.get("invite_meta")
+        thread = request.session.get("discord_thread", "")
         request.session.clear()
         request.session["uid"] = user.id
         if site_ok:
             request.session["site_ok"] = True
         if invite_meta and not user.meta_username:
             user.meta_username = invite_meta
-            db.commit()
+        if thread:
+            request.session["discord_thread"] = thread
+            user.discord_thread = thread
+        db.commit()
         return redirect(safe_next(next, "/slots"))
 
     @app.post("/logout")
@@ -556,6 +567,8 @@ def create_app(
             # 写真のダウンロードは借り手本人だけ (運営にも見せない)
             screenshots_ready=booking.user_id == user.id
             and services.screenshots_available(booking, media_root, clock.utcnow()),
+            discord_url=invite.thread_url(user.discord_thread or request.session.get("discord_thread", ""))
+            if booking.user_id == user.id else "",
         )
 
     @app.post("/bookings/{booking_id}/review")

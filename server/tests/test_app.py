@@ -966,6 +966,39 @@ def test_invite_link_lets_testers_in_and_carries_the_meta_username(tmp_path, now
     assert r.headers["location"] == "/feedback?t=3"
 
 
+def test_booking_page_sends_testers_back_to_their_discord_thread(tmp_path, now):
+    """予約できたら、予約ページから Discord の自分のスレッドに戻って「予約した」を押してもらう。"""
+    from app import invite
+
+    app, _ = make_app(tmp_path, invite_only=True, free_mode=True)
+    admin = TestClient(app)
+    admin.get(f"/join?t={invite.make_token('test', meta='', discord_id=9, now=clock_now(now))}")
+    admin_setup(admin)
+
+    tester = TestClient(app)
+    token = invite.make_token("test", meta="hikari_quest", discord_id=1, now=clock_now(now), thread="555/777")
+    tester.get(f"/join?t={token}")
+    tester.post("/signup", data={"email": "hikari@example.com", "password": "password123", "agree": "1"})
+    user = next(u for u in db(app).query(User).all() if u.email == "hikari@example.com")
+    assert user.discord_thread == "555/777"
+    tester.post("/slots/1/book")
+    page = tester.get("/bookings/1").text
+    assert "https://discord.com/channels/555/777" in page and "「予約した」" in page
+
+    # 別のブラウザでログインし直しても、アカウントに残っているので戻れる
+    phone = TestClient(app)
+    phone.get(f"/join?t={invite.make_token('test', meta='hikari_quest', discord_id=1, now=clock_now(now))}")
+    phone.post("/login", data={"email": "hikari@example.com", "password": "password123"})
+    assert "https://discord.com/channels/555/777" in phone.get("/bookings/1").text
+
+    # Discord から来ていない人には出さない
+    plain = TestClient(app)
+    plain.get(f"/join?t={invite.make_token('test', meta='q2', discord_id=2, now=clock_now(now))}")
+    plain.post("/signup", data={"email": "q2@example.com", "password": "password123", "agree": "1"})
+    plain.post("/slots/2/book")
+    assert "discord.com/channels" not in plain.get("/bookings/2").text
+
+
 def clock_now(now):
     return now["t"].replace(tzinfo=dt.timezone.utc)
 

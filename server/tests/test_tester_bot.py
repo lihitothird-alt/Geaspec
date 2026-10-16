@@ -315,9 +315,10 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         assert "Virtual Desktop を入れる" not in ready_text  # VD を持っている人には出さない
         assert "https://lg.example.ts.net" in ready_text and "`aikotoba`" in ready_text
         assert "平日は19時以降、土日は終日" in ready_text
-        assert custom_ids(thread.sent[-1][1]["view"]) == ["gs:link", "gs:bookhelp", "gs:start"]
+        assert custom_ids(thread.sent[-1][1]["view"]) == ["gs:link", "gs:booked", "gs:bookhelp"]
+        assert "戻って「予約した」を押す" in ready_text
 
-        # 予約で迷った → 予約できた (準備から予約までの時間を記録)
+        # 予約で迷った → 予約した (準備から予約までの時間を記録)。押すとチェックリストが出る
         await press(tester, thread.id, "gs:bookhelp")
         now[0] = at(0.5)
         await press(tester, thread.id, "gs:booked")
@@ -325,6 +326,9 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         t = store.tester(1)
         assert t["booking_help"] == 1 and t["booked_at"] is not None
         assert sum("予約できました" in c for c, _ in ops_log) == 1
+        checklist, kw = thread.sent[-1]
+        assert "テストのチェックリスト" in checklist and "✅ 1. 予約する" in checklist and "⬜ 2." in checklist
+        assert custom_ids(kw["view"]) == ["gs:start"]
 
         # 準備のあとで Meta ユーザー名を直すと、VD も直すよう運営に知らせる
         modal = (await press(tester, 1, "gs:as:borrow", channel=panel)).log[0][1]
@@ -340,16 +344,26 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         i = await press(FakeUser(2), thread.id, "gs:start")
         assert "テスターだけ" in i.log[0][1]
 
-        # 開始 → 困った → 入れた
+        # 開始 → 困った → 入れた。チェックリストは進むたびに、いちばん下に出し直す
         now[0] = at(1)
         i = await press(tester, thread.id, "gs:start")
         assert custom_ids(i.log[0][2]["view"]) == ["gs:entered", "gs:help", "gs:giveup"]
+        assert "「LG」を選ぶ" in i.log[0][1]  # サイトにつないでいないときは、設定の PC 名
+        assert "✅ 2." in thread.sent[-1][0] and "⬜ 3." in thread.sent[-1][0]
         now[0] = at(3)
         await press(tester, thread.id, "gs:help")
         now[0] = at(4.5)
         i = await press(tester, thread.id, "gs:entered")
         assert "3分30秒" in i.log[0][1]
         assert "gs:done" in custom_ids(i.log[1][2]["view"])
+        assert "✅ 3." in thread.sent[-1][0] and custom_ids(thread.sent[-1][1]["view"]) == ["gs:perf"]
+
+        # 写真が撮れなかったので数字で入れる → 「4. 写真」に ✅
+        i = await press(tester, thread.id, "gs:perf")
+        perf = i.log[0][1]
+        perf.fps_inputs, perf.ping = [Field("72"), Field("")], Field("40")
+        await bot.on_perf(FakeInteraction(tester, thread.id), perf)
+        assert "✅ 4." in thread.sent[-1][0] and "送信してテストを終える」ボタンが出ます" in thread.sent[-1][0]
 
         # お願いのチェック。FPS と Ping は数字を入れずに、写真をスレッドに貼ってもらう
         i = await press(tester, thread.id, "gs:m:heavy")
@@ -370,23 +384,31 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
                 assert f"gs:a:{q['key']}:{q['options'][-1][0]}" in custom_ids(view)
                 i = await press(tester, thread.id, f"gs:a:{q['key']}:{q['options'][-1][0]}")
             view = i.log[0][2]["view"]
-        assert custom_ids(view) == ["gs:comment", "gs:skip"]
+        assert custom_ids(view) == ["gs:comment"]
+        # アンケートが終わると、チェックリストに「送信」が出る
+        assert "✅ 6." in thread.sent[-1][0] and custom_ids(thread.sent[-1][1]["view"]) == ["gs:submit"]
 
-        # ひとこと → 完了
+        # ひとこと (任意) は記録だけで、まだ終わらない
         i = await press(tester, thread.id, "gs:comment")
         comment = i.log[0][1]
         comment.stuck, comment.comment = Field("一覧で迷った"), Field("きれいだった")
-        done = FakeInteraction(tester, thread.id)
-        await bot.on_comment(done, comment)
-        assert "ありがとうございました" in done.log[0][1]
-        assert "/feedback" not in done.log[0][1] and "写真" in done.log[0][1]  # アンケートは Discord だけで終わる
-        assert custom_ids(done.log[0][2]["view"]) == ["gs:start"]
+        noted = FakeInteraction(tester, thread.id)
+        await bot.on_comment(noted, comment)
+        assert "送信してテストを終える" in noted.log[0][1] and store.latest_session(thread.id)["status"] == "survey"
+        assert not any("テストが完了" in c for c, _ in ops_log)
+
+        # 送信 → 運営に届いて完了
+        done = await press(tester, thread.id, "gs:submit")
+        assert "送信しました。テストは完了です" in done.log[0][1] and custom_ids(done.log[0][2]["view"]) == []
+        assert "ありがとうございました" in done.log[1][1]
+        assert "/feedback" not in done.log[1][1] and "写真" in done.log[1][1]  # アンケートは Discord だけで終わる
+        assert custom_ids(done.log[1][2]["view"]) == ["gs:start"]
 
         s = store.latest_session(thread.id)
         assert s["status"] == "done" and s["help_count"] == 1
         assert json.loads(s["missions"]) == {"heavy": True}
         assert json.loads(s["answers"])["price"] == "1001"
-        assert s["stuck"] == "一覧で迷った"
+        assert s["stuck"] == "一覧で迷った" and s["comment"] == "きれいだった" and s["ping_ms"] == 40
         assert any("テストが完了" in c for c, _ in ops_log)
 
         # 終わったあとに古いボタンを押しても記録は変わらない
@@ -603,14 +625,15 @@ def test_group_c_gets_lender_guide(tmp_path, monkeypatch):
         store.set_thread(3, 30)
         store.set_setting("hours", "土日だけ")
         assert await bot.send_ready_now(store.tester(3)) is True
-        (ready, ready_kw), (text, kw), (wipe, wipe_kw) = thread.sent[-3], thread.sent[-2], thread.sent[-1]
-        assert "データが消えているか" in wipe and custom_ids(wipe_kw["view"]) == ["gs:wipe:ok", "gs:wipe:left"]
+        (ready, ready_kw), (text, kw) = thread.sent[-2], thread.sent[-1]
         assert "テストでやること（一覧）" in thread.sent[0][0]
         assert "次にやること: 予約する" in ready and "土日だけ" in ready
         assert "PC を貸すテストの手順" in text and "GeaspecAgent-Setup-" in text and "詳細情報" in text
+        # データが消えたかの確認は、貸し終わったときに届く (申し込んだときには、まだ出さない)
+        assert "データが消えているか" not in text and "貸し終わるたびに" in text
         assert custom_ids(kw["view"]) == ["gs:lenderapp", "gs:link"]
         await bot.send_extras(thread, store.tester(3))  # 2 回は送らない
-        assert thread.sent[-1][0] == wipe and len(thread.sent) == 4
+        assert thread.sent[-1][0] == text and len(thread.sent) == 3
 
         # 貸したあとにデータが消えたかを確かめて押す。残っていたら運営を呼ぶ
         i = FakeInteraction(FakeUser(3), 30, "gs:wipe:ok")
@@ -791,7 +814,8 @@ def test_booking_notices(tmp_path, monkeypatch):
         assert await bot.send_booking_notices() == 2
         assert sum("予約が入りました" in c for c in ops_log) == 2
         assert "10/19（月）23:00〜" in ops_log[0] and "<@1>" in ops_log[0] and "stranger" in ops_log[1]
-        assert "予約を受け付けました" in thread.sent[-1][0] and store.tester(1)["booked_at"]
+        assert "予約を受け付けました" in thread.sent[-2][0] and store.tester(1)["booked_at"]
+        assert "テストのチェックリスト" in thread.sent[-1][0] and "予約: **10/19（月）23:00〜" in thread.sent[-1][0]
         assert await bot.send_booking_notices() == 0  # 同じお知らせは 2 回送らない
 
         # 開始 15 分前。PC のアプリから 1 時間連絡がないので、運営に注意を出す
@@ -834,7 +858,11 @@ def test_invite_token_expires_and_rejects_tampering():
     from app import invite
 
     token = invite.make_token("s3cret", meta="hikari", discord_id=7, now=T0)
-    assert invite.read_token("s3cret", token, T0 + dt.timedelta(days=13)) == {"meta": "hikari", "discord_id": 7}
+    assert invite.read_token("s3cret", token, T0 + dt.timedelta(days=13)) == {"meta": "hikari", "discord_id": 7, "thread": ""}
+    with_thread = invite.make_token("s3cret", meta="hikari", discord_id=7, now=T0, thread="111/222")
+    assert invite.read_token("s3cret", with_thread, T0)["thread"] == "111/222"
+    assert invite.thread_url("111/222") == "https://discord.com/channels/111/222"
+    assert invite.thread_url("javascript:alert(1)") == "" and invite.thread_url("") == ""
     assert invite.read_token("s3cret", token, T0 + dt.timedelta(days=15)) is None
     assert invite.read_token("other", token, T0) is None
     body, sig = token.rsplit(".", 1)
@@ -854,9 +882,13 @@ def test_ready_message_gives_a_personal_link_instead_of_a_password(tmp_path, mon
         await bot.send_ready(thread, store.tester(1))
         text, kw = thread.sent[-1]
         assert "合言葉" not in text and "https://x/join?t=" in text
-        assert custom_ids(kw["view"]) == ["gs:link", "gs:bookhelp", "gs:start"]
+        assert custom_ids(kw["view"]) == ["gs:link", "gs:booked", "gs:bookhelp"]
         token = text.split("/join?t=")[1].split()[0]
         assert invite.read_token("s3cret", token, T0)["meta"] == "meta1"
+        assert invite.read_token("s3cret", token, T0)["thread"] == ""  # サーバー番号がまだ分からない
+        store.set_setting("guild_id", "555")
+        token = bot.site_link(store.tester(1)).split("/join?t=")[1]
+        assert invite.read_token("s3cret", token, T0)["thread"] == "555/10"  # サイトから、このスレッドに戻れる
 
         i = FakeInteraction(FakeUser(1), 10, "gs:link")
         await bot.on_interaction(i)
@@ -948,8 +980,7 @@ def test_lenders_get_setup_steps_instead_of_booking(tmp_path, monkeypatch):
         texts = [t for t, _ in thread.sent]
         assert store.tester(7)["grp"] == "C" and store.tester(7)["status"] == "ready"
         assert not any("次にやること: 予約する" in t for t in texts)  # 借りる人向けの案内は出さない
-        steps = texts[-2]
-        assert "データが消えているか" in texts[-1]
+        steps = texts[-1]
         assert "PC を貸すテストの手順" in steps and "Allow remote connections" in steps
         assert f"/releases/download/agent-v{tb.version.VERSION}/GeaspecAgent-Setup-{tb.version.VERSION}.exe" in steps
         assert "貸せる時間" in steps and "PC を貸す" in ops_log[-1]
@@ -1102,8 +1133,8 @@ def test_booking_that_starts_now_says_start_right_away(tmp_path, monkeypatch):
         make_site_db(site, [("meta1", at(-20), "confirmed")], last_seen=at(0))  # 20 分前に始まった枠に「今すぐ入る」
         bot.site_db = site
         assert await bot.send_booking_notices() == 1
-        assert len(thread.sent) == 1 and "すぐに始められます" in thread.sent[0][0]
-        assert custom_ids(thread.sent[0][1]["view"]) == ["gs:start"]
+        assert len(thread.sent) == 2 and "すぐに始められます" in thread.sent[0][0]
+        assert custom_ids(thread.sent[1][1]["view"]) == ["gs:start"]  # チェックリストの「テストを始める」
         assert await bot.send_booking_notices() == 0
         store.close()
 
@@ -1115,3 +1146,149 @@ def test_long_booking_shows_the_end_date():
     start = dt.datetime(2026, 10, 10, 4, tzinfo=dt.timezone.utc)
     assert booking_notice.when_text(start, start + dt.timedelta(hours=1)) == "10/10（土）13:00〜14:00"
     assert booking_notice.when_text(start, start + dt.timedelta(days=2)) == "10/10（土）13:00〜10/12（月）13:00"
+
+
+# ---- 予約した → チェックリスト、貸す人へのお知らせ ----
+
+def make_lending_db(path, *, borrower_thread="", owner_thread="", status="confirmed", start=None, approved=True):
+    """貸す人の PC (コンピューター名 GAMING-PC) に、借りる人が 1 件予約したサイトのデータベース。"""
+    from sqlalchemy.orm import Session
+
+    from app.db import Base, make_engine
+    from app.models import Booking, Host, Slot, User
+
+    engine = make_engine(f"sqlite:///{path}")
+    Base.metadata.create_all(engine)
+    naive = lambda t: t.astimezone(dt.timezone.utc).replace(tzinfo=None)  # noqa: E731
+    start = start or at(120)
+    with Session(engine) as db:
+        owner = User(email="lender@example.com", password_hash="x", discord_thread=owner_thread)
+        borrower = User(email="b@example.com", password_hash="x", meta_username="other_name", discord_thread=borrower_thread)
+        db.add_all([owner, borrower])
+        db.flush()
+        host = Host(name="GAMING-PC", token_hash="h", owner_id=owner.id, active=approved, pending=not approved,
+                    last_seen_at=naive(at(0)))
+        db.add(host)
+        db.flush()
+        slot = Slot(host_id=host.id, start_at=naive(start), end_at=naive(start + dt.timedelta(hours=1)), price_yen=0)
+        db.add(slot)
+        db.flush()
+        booking = Booking(slot_id=slot.id, user_id=borrower.id, status=status)
+        db.add(booking)
+        db.commit()
+        ids = (host.id, booking.id)
+    engine.dispose()
+    return ids
+
+
+def test_booked_button_checks_the_site_and_shows_the_booked_pc(tmp_path, monkeypatch):
+    async def scenario():
+        now = [at(0)]
+        thread = FakeThread(10)
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, now, {10: thread}, ops_log)
+        apply(store, 1, thread_id=10)
+        bot.site_db = tmp_path / "geaspec.db"
+        tester = FakeUser(1)
+
+        # まだ予約していないのに押した → チェックリストは出さない
+        make_lending_db(bot.site_db, borrower_thread="555/999")  # 別の人の予約
+        i = FakeInteraction(tester, 10, "gs:booked")
+        await bot.on_interaction(i)
+        assert "予約が見つかりませんでした" in i.log[0][1] and thread.sent == [] and store.tester(1)["booked_at"] is None
+
+        # サイトに残したスレッドで、本人の予約が見つかる (Meta ユーザー名が申し込みと違っていても)
+        bot.site_db.unlink()
+        make_lending_db(bot.site_db, borrower_thread="555/10")
+        i = FakeInteraction(tester, 10, "gs:booked")
+        await bot.on_interaction(i)
+        checklist = thread.sent[-1][0]
+        assert "下のチェックリスト" in i.log[0][1]
+        assert "予約: **10/19（月）23:00〜10/20（火）00:00** ／ PC「GAMING-PC」" in checklist
+        # 自動のお知らせは、チェックリストを出し直さない (本人がもう押した)
+        count = len(thread.sent)
+        assert await bot.send_booking_notices() == 1
+        assert len(thread.sent) == count and "予約が入りました" in ops_log[-1]
+
+        # 当日: Virtual Desktop で選ぶ PC の名前は、予約した PC
+        now[0] = at(115)
+        i = FakeInteraction(tester, 10, "gs:start")
+        await bot.on_interaction(i)
+        assert "「GAMING-PC」を選ぶ" in i.log[0][1]
+
+        # 送信は、そろうまで押せない
+        i = FakeInteraction(tester, 10, "gs:submit")
+        await bot.on_interaction(i)
+        assert "まだ終わっていない項目" in i.log[0][1] and "3. VRChat にログイン" in i.log[0][1]
+        assert store.latest_session(10)["status"] == "connecting"
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_next_booking_starts_a_fresh_checklist(tmp_path, monkeypatch):
+    async def scenario():
+        now = [at(0)]
+        thread = FakeThread(10)
+        store, bot = make_bot(tmp_path, monkeypatch, now, {10: thread})
+        apply(store, 1, thread_id=10)
+        run_session(store, 1)  # 1 回目は送信まで終わっている
+        now[0] = at(60 * 24)
+        await bot.begin_checklist(store.tester(1), None)
+        assert "✅ 1. 予約する" in thread.sent[-1][0] and "⬜ 2." in thread.sent[-1][0]
+        assert custom_ids(thread.sent[-1][1]["view"]) == ["gs:start"]
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_lenders_hear_about_approval_bookings_and_the_end_of_lending(tmp_path, monkeypatch):
+    async def scenario():
+        now = [at(0)]
+        thread = FakeThread(40)
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, now, {40: thread}, ops_log)
+        store.apply(4, "貸す人", vrchat="", meta="", gear="RTX 4070", region="関東", schedule="", now=T0)
+        store.set_group(4, "C")
+        store.set_thread(4, 40)
+        bot.site_db = tmp_path / "geaspec.db"
+        host_id, booking_id = make_lending_db(bot.site_db, owner_thread="555/40")
+
+        # 承認された → 貸す人のスレッドに、カレンダーで時間を決めるよう書く (1 回だけ)
+        assert await bot.send_lender_notices() == 1
+        assert "「GAMING-PC」が承認されました" in thread.sent[-1][0] and "カレンダー" in thread.sent[-1][0]
+        assert await bot.send_lender_notices() == 0
+
+        # 予約が入った → 貸す人にも知らせる
+        await bot.send_booking_notices()
+        assert "あなたの PC「GAMING-PC」に予約が入りました" in thread.sent[-1][0]
+
+        # 貸し終わった → データが消えたかの確認と、はじめてなら貸す人のアンケート
+        set_status(bot.site_db, booking_id, "completed")
+        now[0] = at(200)
+        assert await bot.send_lender_notices() == 1
+        (done, done_kw), (survey, survey_kw) = thread.sent[-2], thread.sent[-1]
+        assert "貸し出しが終わりました" in done and "データが消えているか" in done
+        assert custom_ids(done_kw["view"]) == ["gs:wipe:ok", "gs:wipe:left"]
+        assert "貸した人のアンケート 1 / 6" in survey
+        assert await bot.send_lender_notices() == 0
+        # 確認ボタンを押しても、アンケートは 2 回送らない
+        await bot.on_interaction(FakeInteraction(FakeUser(4), 40, "gs:wipe:ok"))
+        assert thread.sent[-1][0] == survey
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_unapproved_pc_is_not_announced(tmp_path, monkeypatch):
+    async def scenario():
+        thread = FakeThread(40)
+        store, bot = make_bot(tmp_path, monkeypatch, [at(0)], {40: thread})
+        store.apply(4, "貸す人", vrchat="", meta="", gear="", region="", schedule="", now=T0)
+        store.set_thread(4, 40)
+        bot.site_db = tmp_path / "geaspec.db"
+        make_lending_db(bot.site_db, owner_thread="555/40", approved=False)
+        assert await bot.send_lender_notices() == 0 and thread.sent == []
+        store.close()
+
+    asyncio.run(scenario())
