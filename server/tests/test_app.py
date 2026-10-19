@@ -1214,3 +1214,13 @@ def test_started_slot_price_is_only_the_time_left(tmp_path, now):
     signup(user, "user@example.com")
     user.post("/slots/1/book", follow_redirects=False)
     assert stripe.amounts == [300]
+
+
+def test_slot_list_marks_slots_that_can_run_on(setup, now):
+    app, vpn, user, agent = setup
+    add_hours(agent, "2026-10-10T05:00:00Z", "2026-10-10T06:00:00Z", "2026-10-10T08:00:00Z")
+    page = user.get("/slots").text
+    # 13:00〜16:00 は続けて空いている。続きのない 15:00 と、すき間のあとの 17:00 には出さない
+    assert "連続可能 最大3時間（〜16:00）" in page
+    assert "連続可能 最大2時間（〜16:00）" in page
+    assert page.count("連続可能 最大") == 2

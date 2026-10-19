@@ -452,9 +452,15 @@ def create_app(
                       - (services.trial_discount_yen(s, settings.trial_minutes) if trial else 0))
             for s in items
         }
+        # 同じ PC で続けて空いている枠は「連続可能」と、何時までつなげられるかを出す
+        chain_ends = {}
+        for s in items:
+            chain = services.following_slots(db, s, now, settings.hold_minutes, settings.max_booking_hours)
+            if chain:
+                chain_ends[s.id] = chain[-1].end_at
         return render(
             request, db, "slots.html", slots=items, trial_eligible=trial, trial_prices=prices,
-            lenders=lenders, followed=followed, view=view, now=now,
+            lenders=lenders, followed=followed, view=view, now=now, chain_ends=chain_ends,
         )
 
     @app.get("/slots/{slot_id}/confirm", response_class=HTMLResponse)
