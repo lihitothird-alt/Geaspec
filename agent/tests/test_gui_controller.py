@@ -292,3 +292,27 @@ class CoverContentTest(unittest.TestCase):
         c = g.cover_content("cleaning", None, 3600, self.NOW, dots=2)
         self.assertEqual((c["mode"], c["big"]), ("cleaning", "データを片づけています.."))
         self.assertNotIn("countdown", c)
+
+
+class UrlProtocolTest(unittest.TestCase):
+    """説明ページの「アプリに戻る」(geaspec://open) で開くコマンド。"""
+
+    def test_prefers_pythonw_next_to_python(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            (folder / "python.exe").write_text("")
+            (folder / "pythonw.exe").write_text("")
+            command = g.url_protocol_command(str(folder / "python.exe"), r"C:\Geaspec\geaspec_gui.py")
+        self.assertEqual(command, f'"{folder / "pythonw.exe"}" "C:\\Geaspec\\geaspec_gui.py" "%1"')
+
+    def test_keeps_executable_without_pythonw(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "python.exe"
+            exe.write_text("")
+            command = g.url_protocol_command(str(exe), "geaspec_gui.py")
+        self.assertEqual(command, f'"{exe}" "geaspec_gui.py" "%1"')
+
+    def test_does_nothing_outside_windows(self):
+        with mock.patch.object(sys, "platform", "linux"):
+            g.register_url_protocol()
+            self.assertFalse(g.bring_existing_window_to_front())
