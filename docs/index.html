@@ -40,6 +40,10 @@ h2{margin:0 0 14px;font-size:20px;padding-bottom:10px;border-bottom:2px solid va
 .en p{margin:0 0 10px}
 .contact{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px}
 .contact a{font-weight:700;font-size:16px;word-break:break-all}
+.links{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}
+.link{display:flex;flex-direction:column;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 18px;text-decoration:none;font-weight:700;font-size:16px}
+.link span{font-weight:400;font-size:13px;color:var(--muted)}
+.link:hover{border-color:var(--ink)}
 footer{border-top:1px solid var(--line);margin-top:28px;padding:20px 0 40px;font-size:13px;color:var(--muted)}
 footer .wrap{display:flex;flex-wrap:wrap;gap:6px 20px;justify-content:space-between}
 </style>
@@ -102,13 +106,17 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:6px 20px;justify-content:space-betw
   <section>
     <h2>お問い合わせ / Contact</h2>
     <div class="contact"><span>メール / Email</span><a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a></div>
+    <div class="links">
+      <a class="link" href="https://discord.gg/WcXmPdTBNA" rel="noopener">Discord<span>コミュニティに参加する</span></a>
+      <a class="link" href="https://x.com/licht_vr" rel="noopener">X<span>@licht_vr</span></a>
+    </div>
   </section>
 </main>
 
 <footer>
   <div class="wrap">
     <span>© 2026 Geaspec</span>
-    <a href="https://github.com/lihitothird-alt/geaspec">ソースコード（GitHub）</a>
+    <span style="display:flex;flex-wrap:wrap;gap:6px 18px"><a href="https://discord.gg/WcXmPdTBNA" rel="noopener">Discord</a><a href="https://x.com/licht_vr" rel="noopener">X</a><a href="https://github.com/lihitothird-alt/geaspec">ソースコード（GitHub）</a></span>
   </div>
 </footer>
 </body>
