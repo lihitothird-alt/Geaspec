@@ -41,7 +41,7 @@
       {% endif %}
     </div>
   {% else %}
-    <p class="muted small slots-hint">同じ PC で続けて空いている時間は、予約の確認画面で「何時まで」をえらぶと、まとめて予約できます。始まっている枠も、残りが 20分以上あれば「今すぐ入る」で使えます。</p>
+    <p class="muted small slots-hint">「連続可能」の枠は、同じ PC で続けて空いています。予約の確認画面で「何時まで」をえらぶと、まとめて予約できます。始まっている枠も、残りが 20分以上あれば「今すぐ入る」で使えます。</p>
     {% set groups = [] %}
     {% set ns = namespace(day=None) %}
     {% for s in slots %}
@@ -72,6 +72,10 @@
               <span class="num">{{ s.start_at|jst("%H:%M") }}〜{{ s.end_at|jst("%H:%M") }}</span>
               <span class="chip">{{ s.duration_minutes|minutes_text }}</span>
               {% endif %}
+              {% if s.id in chain_ends %}
+              {# 始まっている枠は「あと○分」と同じく、終わりの片付けの時間を引いて今から数える #}
+              {% set chain_span = (chain_ends[s.id] + (s.play_end_at - s.end_at) - now) if now_slot else (chain_ends[s.id] - s.start_at) %}
+              <span class="chip chain">連続可能 最大{{ (chain_span.total_seconds() // 60)|int|minutes_text }}（〜{{ chain_ends[s.id]|jst("%H:%M") }}）</span>{% endif %}
             </div>
             <div class="slot-meta"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>{{ s.host.name }}</div>
             {% if s.host.spec_text %}<div class="slot-meta spec-line">{{ s.host.spec_text }}</div>{% endif %}

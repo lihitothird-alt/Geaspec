@@ -1416,18 +1416,88 @@ def acquire_single_instance() -> bool:
     return ctypes.windll.kernel32.GetLastError() != 183  # ERROR_ALREADY_EXISTS
 
 
+URL_SCHEME_KEY = r"Software\Classes\geaspec"
+
+
+def url_protocol_command(executable: str, script: str) -> str:
+    """geaspec://open で開くときのコマンド。黒い窓が出ないよう、あれば pythonw.exe を使う。"""
+    exe = Path(executable)
+    windowed = exe.with_name("pythonw.exe")
+    if exe.name.lower() == "python.exe" and windowed.exists():
+        exe = windowed
+    return f'"{exe}" "{script}" "%1"'
+
+
+def register_url_protocol() -> None:
+    """説明ページの「アプリに戻る」(geaspec://open) で開けるようにする。
+
+    インストーラーも登録するが、zip で入れた人や古い版から上げた人のために、起動するたびに今の場所で登録し直す。
+    """
+    if sys.platform != "win32":
+        return
+    import winreg
+
+    command = url_protocol_command(sys.executable, str(Path(__file__).resolve()))
+    try:
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, URL_SCHEME_KEY) as key:
+            winreg.SetValueEx(key, "", 0, winreg.REG_SZ, "URL:Geaspec")
+            winreg.SetValueEx(key, "URL Protocol", 0, winreg.REG_SZ, "")
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, URL_SCHEME_KEY + r"\shell\open\command") as key:
+            winreg.SetValueEx(key, "", 0, winreg.REG_SZ, command)
+    except OSError as exc:
+        h.log.warning("geaspec:// の登録に失敗しました: %s", exc)
+
+
+def find_agent_window() -> int:
+    """開いている Agent のウィンドウを探す。版が違っても見つかるよう、タイトルの頭で探す。"""
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    hwnd = user32.FindWindowW(None, WINDOW_TITLE)
+    if hwnd:
+        return hwnd
+    found: list[int] = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def visit(handle, _lparam):
+        buffer = ctypes.create_unicode_buffer(256)
+        user32.GetWindowTextW(handle, buffer, 256)
+        if buffer.value.startswith("Geaspec Agent ") and user32.IsWindowVisible(handle):
+            found.append(handle)
+            return False
+        return True
+
+    user32.EnumWindows(visit, 0)
+    return found[0] if found else 0
+
+
 def bring_existing_window_to_front() -> bool:
-    """もう開いているウィンドウを前に出す。説明ページの「アプリに戻る」(geaspec://open) から開かれたときに使う。"""
+    """もう開いているウィンドウを前に出す。説明ページの「アプリに戻る」(geaspec://open) から開かれたときに使う。
+
+    Windows はほかのアプリが勝手に前へ出るのを止めるので、いま前にあるウィンドウの入力に一時的に相乗りしてから前に出す。
+    """
     if sys.platform != "win32":
         return False
     import ctypes
 
     user32 = ctypes.windll.user32
-    hwnd = user32.FindWindowW(None, WINDOW_TITLE)
+    kernel32 = ctypes.windll.kernel32
+    hwnd = find_agent_window()
     if not hwnd:
         return False
-    user32.ShowWindow(hwnd, 9)  # SW_RESTORE: 最小化されていても元に戻す
-    user32.SetForegroundWindow(hwnd)
+    user32.ShowWindow(hwnd, 9 if user32.IsIconic(hwnd) else 5)  # SW_RESTORE / SW_SHOW
+    current = kernel32.GetCurrentThreadId()
+    foreground = user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), None)
+    attached = bool(foreground) and foreground != current and bool(user32.AttachThreadInput(foreground, current, True))
+    try:
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
+    finally:
+        if attached:
+            user32.AttachThreadInput(foreground, current, False)
+    if user32.GetForegroundWindow() != hwnd:
+        user32.FlashWindow(hwnd, True)  # それでも前に出せなければ、タスクバーで光らせて知らせる
     return True
 
 
@@ -1451,6 +1521,7 @@ def main() -> int:
             pass
     controller = AgentController()
     h.setup_logging(controller.home, dry_run=False)
+    register_url_protocol()
     log_queue: "queue.Queue[str]" = queue.Queue()
     h.log.addHandler(QueueLogHandler(log_queue))
     h.log.info("Geaspec Agent %s を起動しました", h.AGENT_VERSION)
