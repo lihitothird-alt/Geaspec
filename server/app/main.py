@@ -247,7 +247,7 @@ def create_app(
         manifest = {
             "name": name,
             "short_name": name,
-            "description": "Quest ひとつで PC 版 VRChat を予約",
+            "description": "VR ヘッドセットひとつで PC 版 VRChat を予約",
             "lang": "ja",
             "id": "/",
             "start_url": "/bookings?source=app",

@@ -3,9 +3,9 @@
 <section class="hero" aria-labelledby="hero-title">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Quest 単体勢のための PCVR シェア</p>
+      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>VR ヘッドセット単体勢のための PCVR シェア</p>
       <h1 id="hero-title"><span class="ln">ゲーミングPCが</span><span class="ln">なくても、</span><br><span class="ln"><mark class="hl">PC版VRChat</mark>を。</span></h1>
-      <p class="lead">Quest ひとつで、ハイスペックなゲーミングPCに Virtual Desktop でインターネット越しに接続。PC 版のアバターやワールドを、<span class="nowrap">遊びたい時間だけ。</span></p>
+      <p class="lead">VR ヘッドセット（Quest など）ひとつで、ハイスペックなゲーミングPCに Virtual Desktop でインターネット越しに接続。PC 版のアバターやワールドを、<span class="nowrap">遊びたい時間だけ。</span></p>
       <div class="cta-row">
         <a class="btn lg" href="/slots">空き枠を見る{% if slot_count %}（{{ slot_count }} 件）{% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         {% if free_mode %}<p class="price-tag trial">実験中につき <span class="num">無料</span></p>
@@ -25,8 +25,8 @@
       <span class="spark s2" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span>
       <figure class="hud">
         <div class="hud-bar" aria-hidden="true"><span class="hud-dots"><span></span><span></span><span></span></span><span>SESSION SPEC</span></div>
-        <div class="hud-link" role="img" aria-label="あなたの Quest から、インターネット越しにハイスペックPCに接続するイメージ">
-          <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>あなたの<br>Quest</div>
+        <div class="hud-link" role="img" aria-label="あなたの VR ヘッドセットから、インターネット越しにハイスペックPCに接続するイメージ">
+          <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>あなたの<br>ヘッドセット</div>
           <div class="wire"><span class="tag"><svg class="i"><use href="#i-globe"/></svg>ネット</span></div>
           <div class="node pc"><span class="node-ic"><svg class="i"><use href="#i-pc"/></svg></span>ハイスペック<br>PC</div>
         </div>
@@ -141,7 +141,7 @@
 
 <section class="band-cta" aria-labelledby="cta-title">
   <div class="wrap">
-    <h2 id="cta-title">Quest ひとつで、PC版の世界へ。</h2>
+    <h2 id="cta-title">ヘッドセットひとつで、PC版の世界へ。</h2>
     <p>{% if free_mode %}実験中のため無料です。{% elif min_price %}1枠 {{ min_price|yen }}から。{% endif %}予約は空き枠を選ぶだけ。</p>
     <a class="btn lg sun" href="/slots">空き枠を見る{% if slot_count %}（{{ slot_count }} 件）{% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
   </div>
