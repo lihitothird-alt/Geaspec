@@ -76,7 +76,7 @@ def create_app(
     (media_root / "screenshots").mkdir(parents=True, exist_ok=True)
     @app.middleware("http")
     async def private_site(request: Request, call_next):
-        """検索エンジンに載せない。合言葉か招待リンクを使う設定なら、招待した人だけに見せる。"""
+        """検索エンジンに載せない。合言葉か招待リンクを使う設定なら、招待した人だけに見せる (ふだんは公開)。"""
         path = request.url.path
         if (settings.site_password or settings.invite_only) and not path.startswith(SITE_GATE_OPEN_PREFIXES):
             if not request.session.get("site_ok"):
@@ -282,8 +282,13 @@ def create_app(
         # オープンリダイレクト防止: サイト内のパスだけ許可
         return next if next.startswith("/") and not next.startswith("//") else default
 
+    def site_gated() -> bool:
+        return bool(settings.site_password or settings.invite_only)
+
     @app.get("/site-login", response_class=HTMLResponse)
     def site_login_form(request: Request, next: str = "/", db: Session = Depends(get_db)):
+        if not site_gated():  # 公開しているサイトでは、入口はない (古いリンクから来ても、そのまま進める)
+            return redirect(safe_next(next))
         return render(request, db, "site_login.html", next=safe_next(next))
 
     @app.get("/join")
@@ -291,7 +296,12 @@ def create_app(
         """Discord のボットが渡した本人専用リンク。開いた人はサイトに入れて、Meta ユーザー名も引き継ぐ。"""
         data = invite.read_token(settings.secret_key, t, clock.utcnow().replace(tzinfo=dt.timezone.utc))
         if data is None:
-            return render(request, db, "site_login.html", status_code=400, next="/", expired=True)
+            if site_gated():
+                return render(request, db, "site_login.html", status_code=400, next="/", expired=True)
+            # 公開しているサイトなら、期限切れのリンクでもそのまま入れる (Meta ユーザー名とスレッドは引き継がない)
+            flash(request, "リンクの期限が切れていたので、Discord のスレッドとはつながっていません。"
+                           "スレッドの「サイトを開く」で新しいリンクを受け取れます", "error")
+            return redirect("/slots" if current_user(request, db) else "/signup")
         request.session["site_ok"] = True
         if META_USERNAME_RE.match(data["meta"]):
             request.session["invite_meta"] = data["meta"]

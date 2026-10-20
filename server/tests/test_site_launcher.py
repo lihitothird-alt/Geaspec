@@ -9,7 +9,7 @@ import site_launcher as s  # noqa: E402
 def test_first_settings_are_asked_once():
     answers = iter(["not-an-email", "owner@example.com", "himitsu", "geaspec@gmail.com", "abcd efgh ijkl mnop",
                     " bot-token "])
-    config = s.ask_first_settings({}, input_fn=lambda prompt: next(answers))
+    config = s.ask_first_settings({"public": False}, input_fn=lambda prompt: next(answers))
     assert config["admin_email"] == "owner@example.com"
     assert config["site_password"] == "himitsu"
     assert config["mail_user"] == "geaspec@gmail.com"
@@ -59,15 +59,20 @@ def test_discord_bot_starts_only_with_a_token(tmp_path, monkeypatch):
 
     started = []
     monkeypatch.setattr(bot, "start_tester_bot", lambda *args, **kw: started.append((args, kw)))
+    closed = {"discord_token": "t", "site_password": "himitsu", "public": False}
+    assert s.start_discord_bot(closed, "", tmp_path) is True
+    # 公開しているサイトでは、古い合言葉をテスターに伝えない
     assert s.start_discord_bot({"discord_token": "t", "site_password": "himitsu"}, "", tmp_path) is True
-    assert started == [(("t", tmp_path, "http://localhost:8000", "himitsu"),
-                        {"site_api": "http://127.0.0.1:8000", "api_secret": ""})]
+    api = {"site_api": "http://127.0.0.1:8000", "api_secret": ""}
+    assert started == [(("t", tmp_path, "http://localhost:8000", "himitsu"), api),
+                       (("t", tmp_path, "http://localhost:8000", ""), api)]
 
 
 def test_with_a_discord_bot_the_site_uses_personal_links_instead_of_a_password(tmp_path, monkeypatch):
     import app.tester_bot as bot
 
-    config = {"discord_token": "t", "secret_key": "k", "admin_email": "a@example.com", "site_password": "himitsu"}
+    config = {"discord_token": "t", "secret_key": "k", "admin_email": "a@example.com", "site_password": "himitsu",
+              "public": False}
     env = s.site_environment(config, "", tmp_path)
     assert env["INVITE_ONLY"] == "1" and env["SITE_PASSWORD"] == ""
     started = []
@@ -80,10 +85,41 @@ def test_with_a_discord_bot_the_site_uses_personal_links_instead_of_a_password(t
     back = s.site_environment({**config, "invite_only": False}, "", tmp_path)
     assert back["INVITE_ONLY"] == "0" and back["SITE_PASSWORD"] == "himitsu"
     # ボットがないときは、合言葉を聞く
-    asked = s.ask_first_settings({"admin_email": "a@example.com", "mail_user": ""}, input_fn=lambda _: "pw")
+    asked = s.ask_first_settings({"admin_email": "a@example.com", "mail_user": "", "public": False},
+                                 input_fn=lambda _: "pw")
     assert asked["site_password"] == "pw"
     assert "site_password" not in s.ask_first_settings(
         {"admin_email": "a@example.com", "mail_user": "", "discord_token": "t"}, input_fn=lambda _: "")
+
+
+def test_site_is_public_by_default_even_with_a_discord_bot(tmp_path, monkeypatch):
+    import app.tester_bot as bot
+
+    config = {"discord_token": "t", "secret_key": "k", "admin_email": "a@example.com", "site_password": "himitsu"}
+    env = s.site_environment(config, "", tmp_path)
+    assert env["INVITE_ONLY"] == "0" and env["SITE_PASSWORD"] == ""
+    # ボットは、Meta ユーザー名とスレッドを引き継ぐ本人専用リンクを、これまでどおり渡す
+    started = []
+    monkeypatch.setattr(bot, "start_tester_bot", lambda *args, **kw: started.append((args, kw)))
+    s.start_discord_bot(config, "", tmp_path)
+    assert started[0][1]["invite_secret"] == "k"
+    # はじめての設定で、合言葉は聞かない
+    assert "site_password" not in s.ask_first_settings({"admin_email": "a@example.com", "mail_user": ""},
+                                                       input_fn=lambda _: "")
+
+
+def test_setup_only_saves_the_settings_and_does_not_start(tmp_path, monkeypatch):
+    """クラウドのサーバーに入れるときは、設定だけ聞いて終わる (起動はサーバーが自動で行う)。"""
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setattr(sys, "argv", ["site_launcher.py", "--setup"])
+    monkeypatch.setattr(s, "port_in_use", lambda port: False)
+    answers = iter(["owner@example.com", "", ""])
+    ask = s.ask_first_settings
+    monkeypatch.setattr(s, "ask_first_settings", lambda config: ask(config, input_fn=lambda prompt: next(answers)))
+    monkeypatch.setattr(s, "start_discord_bot", lambda *a, **kw: (_ for _ in ()).throw(AssertionError("started")))
+    assert s.main() == 0
+    assert '"admin_email": "owner@example.com"' in (tmp_path / "GeaspecSite" / "site_config.json").read_text(
+        encoding="utf-8")
 
 
 def test_port_in_use_detects_an_old_window():
