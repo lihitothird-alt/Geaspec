@@ -198,7 +198,8 @@ def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = 
             print("サイトを起動できませんでした。この画面の写真を運営に送ってください。")
             return
         print("サイトが起動しました。")
-    webbrowser.open(f"http://localhost:{PORT}")
+    if sys.platform != "linux":  # Linux はクラウドのサーバー (画面がない) で動かすので、ブラウザは開かない
+        webbrowser.open(f"http://localhost:{PORT}")
     published = bool(tailscale and address) and start_funnel(tailscale)
     print()
     print("-" * 60)
@@ -255,6 +256,9 @@ def main() -> int:
     config_path = data / "site_config.json"
     config = ask_first_settings(load_config(config_path))
     config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+    if "--setup" in sys.argv[1:]:  # サーバーに入れるとき: 設定だけ聞いて終わる (あとは自動で起動する)
+        print(f"設定を保存しました: {config_path}")
+        return 0
 
     address = ""
     tailscale = find_tailscale()

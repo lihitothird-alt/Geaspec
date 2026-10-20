@@ -108,6 +108,20 @@ def test_site_is_public_by_default_even_with_a_discord_bot(tmp_path, monkeypatch
                                                        input_fn=lambda _: "")
 
 
+def test_setup_only_saves_the_settings_and_does_not_start(tmp_path, monkeypatch):
+    """クラウドのサーバーに入れるときは、設定だけ聞いて終わる (起動はサーバーが自動で行う)。"""
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setattr(sys, "argv", ["site_launcher.py", "--setup"])
+    monkeypatch.setattr(s, "port_in_use", lambda port: False)
+    answers = iter(["owner@example.com", "", ""])
+    ask = s.ask_first_settings
+    monkeypatch.setattr(s, "ask_first_settings", lambda config: ask(config, input_fn=lambda prompt: next(answers)))
+    monkeypatch.setattr(s, "start_discord_bot", lambda *a, **kw: (_ for _ in ()).throw(AssertionError("started")))
+    assert s.main() == 0
+    assert '"admin_email": "owner@example.com"' in (tmp_path / "GeaspecSite" / "site_config.json").read_text(
+        encoding="utf-8")
+
+
 def test_port_in_use_detects_an_old_window():
     import socket
 

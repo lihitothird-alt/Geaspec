@@ -77,7 +77,7 @@
 
 ## 予約サイトを自分の PC で公開する
 
-お金をかけずに始めるため、予約サイトは運営の Windows PC で動かし、Tailscale の「Funnel」という機能でインターネットに公開します。**その PC がついている間だけ**サイトが見られます。
+お金をかけずに始めるため、予約サイトは運営の Windows PC で動かし、Tailscale の「Funnel」という機能でインターネットに公開します。**その PC がついている間だけ**サイトが見られます（24 時間動かすなら、次の「クラウドのサーバーで動かす」へ）。
 
 1. その PC に Tailscale を入れて、ログインしておきます（予約サイトをインターネットに公開するためだけに使います）。
 2. [Releases](../../releases) から `GeaspecSite-x.y.z.zip` をダウンロードして、好きな場所に展開します。
@@ -92,6 +92,31 @@
 - 予約やアカウントのデータは `%LocalAppData%\GeaspecSite` に保存されます。新しい版の zip に入れ替えても消えません。
 - お知らせメールは、Gmail の「アプリ パスワード」で送ります。作り方: Google アカウントで 2 段階認証をオンにし、https://myaccount.google.com/apppasswords で名前に Geaspec と入れて「作成」を押し、出てきた 16 文字を黒い画面に入れます。送るのは「予約が確定した（借り手）」「新しい予約が入った（貸し手）」「PC が確認待ち（運営）」「PC を承認した（貸し手）」「利用が終わった（借り手）」の 5 つです。管理画面の「テストメールを送る」で届くか確かめられます。設定し直すときは `site_config.json` の `mail_user` と `mail_password` を消して起動し直します。
 - 貸し手のアプリには、`agent/server_url.txt` に書いたサイトのアドレスが組み込まれます。貸し手はアドレスを入れずにログインするだけです。アドレスが変わったら、このファイルを書き換えて新しい版を出します。
+
+## 予約サイトをクラウドのサーバーで動かす（PC を消しても止まらない）
+
+運営の PC を消すとサイトも止まるので、Google Cloud の無料のサーバー（e2-micro）に引っ越して 24 時間動かせます。Tailscale Funnel をそのまま使うので、ドメインはいりません。
+
+1. **サーバーを作る**: [Google Cloud のコンソール](https://console.cloud.google.com/)でアカウントを作り、お支払い情報を登録します（無料枠のあいだは請求されません）。Compute Engine →「VM インスタンス」→「インスタンスを作成」で、次のようにします。ほかは最初のままで大丈夫です。
+   - 名前: `geaspec`
+   - リージョン: `us-west1`・`us-central1`・`us-east1` のどれか（無料になるのはこの 3 つだけ）
+   - マシンタイプ: `e2-micro`
+   - ブートディスク:「変更」→ `Ubuntu 24.04 LTS`（x86/64）、ディスクの種類は**標準永続ディスク**、サイズ 30 GB
+   - ファイアウォールの HTTP・HTTPS: チェックしない（Tailscale を使うので開けなくてよい）
+2. **いまの PC のデータを zip にする**: いまの PC の黒い画面（GeaspecSite）を閉じます。エクスプローラーのアドレス欄に `%LocalAppData%` と入れ、`GeaspecSite` フォルダを右クリック →「圧縮先」→「ZIP ファイル」で `GeaspecSite.zip` を作ります。中には Discord ボットのトークンなどが入っているので、ほかの人には渡さないでください。
+3. **アドレスを引き継ぐ準備**: [Tailscale の管理画面](https://login.tailscale.com/admin/machines)で、いまの PC（`lg`）の「…」→「Edit machine name」で名前を `lg-pc` などに変えます（「Auto-generate from OS hostname」はオフ）。貸し手のアプリは `https://lg.〜.ts.net` につなぐので、サーバーにこの名前を譲ります。
+4. **サーバーに入れる**: VM インスタンスの一覧で「SSH」を押すと、ブラウザに黒い画面が開きます。右上の「ファイルをアップロード」で `GeaspecSite.zip` を送り、次の 2 行を貼り付けて Enter を押します。
+   ```
+   curl -fsSLO https://raw.githubusercontent.com/lihitothird-alt/Geaspec/main/server/deploy/setup-linux.sh
+   bash setup-linux.sh lg
+   ```
+   途中で Tailscale のリンクが出たら、ブラウザで開いていつものアカウントでログインします。最後に「できました」と出れば完了です。
+5. いまの PC の `GeaspecSite.cmd` は、もう起動しないでください（Discord ボットが 2 つ動いてしまいます）。
+
+- 新しい版が出たら、SSH の画面で同じ 2 行をもう一度貼るだけで入れ替わります。データは `~/GeaspecSite` に残ります。
+- 動いているかは `systemctl status geaspec-site`、記録は `journalctl -u geaspec-site -n 50` で見られます。
+- 無料トライアル（90 日）が終わるときに「アップグレード」を押して有料アカウントにしないと、サーバーが止まります。無料枠の中で使っていれば、アップグレードしても請求は 0 円です。念のため「お支払い」→「予算とアラート」で、少ない金額（100 円など）のアラートを作っておくと安心です。
+- 無料枠の通信（外へ送る分）は月 1 GB までです。テストの規模なら足ります。
 
 ## 貸し手の登録
 
