@@ -948,7 +948,7 @@ def test_free_mode_never_takes_money(tmp_path, now):
     signup(user, "user@example.com")
 
     home = user.get("/").text
-    assert "コミュニティ限定の実験" in home and "500円" not in home and "初回" not in home
+    assert "実験段階" in home and "コミュニティ限定" not in home and "500円" not in home and "初回" not in home
     slots = user.get("/slots").text
     assert "無料" in slots and "500円" not in slots
     page = user.get("/slots/1/confirm").text
@@ -1042,6 +1042,33 @@ def test_booking_page_sends_testers_back_to_their_discord_thread(tmp_path, now):
     plain.post("/signup", data={"email": "q2@example.com", "password": "password123", "agree": "1"})
     plain.post("/slots/2/book")
     assert "discord.com/channels" not in plain.get("/bookings/2").text
+
+
+def test_public_site_opens_for_anyone_and_still_takes_discord_links(tmp_path, now):
+    """公開しているサイトは、リンクがなくても開ける。Discord のリンクから来た人は、これまでどおり引き継ぐ。"""
+    from app import invite
+
+    app, _ = make_app(tmp_path, free_mode=True)
+    admin = TestClient(app)
+    admin_setup(admin)
+
+    stranger = TestClient(app)
+    assert stranger.get("/slots", follow_redirects=False).status_code == 200
+    r = stranger.get("/site-login?next=/slots", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/slots"
+    # 期限切れのリンクでも、行き止まりにしない
+    r = stranger.get("/join?t=broken.token", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/signup"
+    assert "期限が切れていた" in stranger.get("/signup").text
+
+    tester = TestClient(app)
+    token = invite.make_token("test", meta="hikari_quest", discord_id=1, now=clock_now(now), thread="555/777")
+    tester.get(f"/join?t={token}")
+    tester.post("/signup", data={"email": "hikari@example.com", "password": "password123", "agree": "1"})
+    user = next(u for u in db(app).query(User).all() if u.email == "hikari@example.com")
+    assert user.meta_username == "hikari_quest" and user.discord_thread == "555/777"
+    tester.post("/slots/1/book")
+    assert "https://discord.com/channels/555/777" in tester.get("/bookings/1").text
 
 
 def clock_now(now):

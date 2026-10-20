@@ -4,14 +4,18 @@
 <section class="wrap narrow section tight legal">
   <h1>{{ title }}</h1>
   {% if free_mode and page in ("terms", "privacy") %}
-  <p class="muted">実験期間中の内容です（2026年10月13日）。内容を変えるときは、このページと Discord でお知らせします。</p>
+  <p class="muted">実験期間中の内容です（{{ "2026年10月13日" if settings.invite_only or settings.site_password else "2026年10月20日" }}）。内容を変えるときは、このページと Discord でお知らせします。</p>
   {% if page == "terms" %}
   <h2>1. この取り組みについて</h2>
-  <p>{{ settings.service_name }} は、いま<strong>コミュニティ限定の実験段階</strong>です。実験のあいだは、お金もうけをしません。</p>
+  <p>{{ settings.service_name }} は、いま<strong>{{ "コミュニティ限定の" if settings.invite_only or settings.site_password else "" }}実験段階</strong>です。実験のあいだは、お金もうけをしません。</p>
   <ul>
     <li>実験のあいだ、利用はすべて無料です。運営も貸し手も、利用する人からお金を受け取りません。</li>
     <li>正式にリリースするときは、有料のサービスにする予定です。有料にする前に、このページと Discord でお知らせし、そのときの規約に同意してもらってから使ってもらいます。</li>
+    {% if settings.invite_only or settings.site_password %}
     <li>Discord のコミュニティから招待した人（ボットから本人専用のリンクを受け取った人）だけが使えます。</li>
+    {% else %}
+    <li>テストの進め方の案内と、困ったときのサポートは、{{ settings.service_name }} の Discord サーバーで行います。</li>
+    {% endif %}
     <li>実験のため、予告なく内容を変えたり、終了したりすることがあります。</li>
     <li>このサービスのプログラムは、オープンソース（AGPL-3.0）として公開します。</li>
   </ul>
