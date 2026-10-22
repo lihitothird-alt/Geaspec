@@ -13,7 +13,7 @@ import json
 
 from . import booking_notice
 from .models import Booking, BookingStatus, User
-from .tester_store import MISSIONS, TesterStore, format_duration
+from .tester_store import CORE_QUESTION_KEYS, MISSIONS, QUESTIONS, TesterStore, format_duration
 
 # 開始の何分前から「テストを始める」を押せるか (Virtual Desktop を開いて待ってもらう)
 START_EARLY_MINUTES = 10
@@ -68,7 +68,7 @@ def state(session: dict | None) -> dict:
         "status": session["status"],
         "entered": bool(session["entered_at"]),
         "photo": bool(photos or fps or session["ping_ms"] is not None),
-        "survey": TesterStore.next_question(answers) is None,
+        "survey": all(key in answers for key in CORE_QUESTION_KEYS),
         "done": session["status"] == "done",
         "connected": session["connected"],
         "missions": json.loads(session["missions"]),
@@ -110,20 +110,30 @@ def parse_performance(form: dict[str, list[str]], worlds: list[str]) -> tuple[di
     return fps, ping
 
 
-def asked_questions(own_pc: str | None) -> list[dict]:
-    """アンケートの質問。VR ができる PC を持っている人には、PC を買うことの質問をしない。"""
-    return TesterStore.asked_questions({"own_pc": own_pc} if own_pc else {})
+def core_questions() -> list[dict]:
+    """かならず答えてもらう質問 (1分ほど)。"""
+    by_key = {q["key"]: q for q in QUESTIONS}
+    return [by_key[key] for key in CORE_QUESTION_KEYS]
+
+
+def extra_questions() -> list[dict]:
+    """時間があれば答えてもらう質問。"""
+    return [q for q in QUESTIONS if q["key"] not in CORE_QUESTION_KEYS]
 
 
 def parse_survey(form: dict[str, list[str]]) -> dict:
-    """アンケートの答えを確かめる。{質問のキー: 値 (いくつでもえらべる質問はリスト)}。"""
-    own_pc = (form.get("own_pc") or [""])[0] or None
+    """アンケートの答えを確かめる。{質問のキー: 値 (いくつでもえらべる質問はリスト)}。
+
+    かならず答える質問がそろっていなければ断る。時間があれば答える質問は、答えたものだけ記録する。
+    """
     answers: dict = {}
-    for q in asked_questions(own_pc):
+    for q in core_questions() + extra_questions():
         allowed = {v for v, _ in q["options"]}
         values = [v for v in form.get(q["key"], []) if v]
         if not values:
-            raise WebTestError(f"「{q['text']}」に答えてください")
+            if q["key"] in CORE_QUESTION_KEYS:
+                raise WebTestError(f"「{q['text']}」に答えてください")
+            continue
         if any(v not in allowed for v in values) or (len(values) > 1 and not q.get("multi")):
             raise WebTestError(f"「{q['text']}」の答えを確かめてください")
         answers[q["key"]] = values if q.get("multi") else values[0]

@@ -296,7 +296,7 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         assert "https://lg.example.ts.net/guide" in prep and "#" not in prep  # ページのいちばん上から開く
         # 申し込んだらすぐ、いちばん下に「次にやること: 予約する」が届く (運営も、2つの答えも待たない)
         assert store.tester(1)["status"] == "ready" and len(thread.sent) == 4
-        assert "テストでやること（一覧）" in thread.sent[-2][0] and "自撮り" in thread.sent[-2][0]
+        assert "テストでやること（一覧）" in thread.sent[-2][0] and "やることは 3つだけ" in thread.sent[-2][0]
         assert "次にやること: 予約する" in thread.sent[-1][0]
         assert any("hikari_meta" in c for c, _ in ops_log)
         sent_before = len(thread.sent)
@@ -581,7 +581,8 @@ def make_bot(tmp_path, monkeypatch, now, threads=None, ops_log=None):
     return store, bot
 
 
-def test_followup_three_days_later(tmp_path, monkeypatch):
+def test_followup_buttons_from_older_messages_still_work(tmp_path, monkeypatch):
+    """3 日後の質問はもう送らない。前の版で届いたメッセージのボタンは、押せば記録する。"""
     async def scenario():
         now = [at(0)]
         thread = FakeThread(10)
@@ -589,15 +590,8 @@ def test_followup_three_days_later(tmp_path, monkeypatch):
         store, bot = make_bot(tmp_path, monkeypatch, now, {10: thread}, ops_log)
         apply(store, 1, thread_id=10)
         first = run_session(store, 1)
-        second = run_session(store, 1)  # 同じ人が 2 回テストしても、聞くのは最新の 1 回だけ
-
-        now[0] = at(56) + dt.timedelta(days=2)
-        assert await bot.send_followups() == 0
-        now[0] = at(56) + dt.timedelta(days=3)
-        assert await bot.send_followups() == 1
-        assert await bot.send_followups() == 0  # 2 回は送らない
-        text, kw = thread.sent[-1]
-        assert "3日たちました" in text and custom_ids(kw["view"])[0] == "gs:f:again_3d:yes"
+        second = run_session(store, 1)
+        assert not hasattr(bot, "send_followups")
 
         tester = FakeUser(1)
         for cid in ("gs:f:again_3d:maybe", "gs:f:told:yes", "gs:f:photos_3d:got", "gs:f:price_3d:800"):

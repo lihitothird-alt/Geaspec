@@ -86,9 +86,10 @@ QUESTIONS: list[dict] = [
                  ("friends", "友達と遊ぶとき"), ("other", "その他")]},
 ]
 QUESTION_KEYS = [q["key"] for q in QUESTIONS]
+# 予約ページのアンケートで、かならず答えてもらう質問 (1分ほど)。ほかは「時間があれば」
+CORE_QUESTION_KEYS = ("quality", "stutter", "ease", "again", "price")
 
-# 3 日後にスレッドで聞く質問。体験した直後の気分が落ち着いてからの本音を取る
-FOLLOWUP_DAYS = 3
+# 前の版で、テストの 3 日後にスレッドで聞いていた質問 (いまは聞かない。前の答えの集計と CSV のために残す)
 FOLLOWUPS: list[dict] = [
     {"key": "again_3d", "text": "少し時間がたって、また使いたいと思いますか？",
      "options": [("yes", "ぜひ"), ("maybe", "たぶん"), ("rather_not", "あまり"), ("no", "使わない")]},
@@ -496,22 +497,6 @@ class TesterStore:
     def complete(self, session_id: int, now: dt.datetime, *, stuck: str = "", comment: str = "") -> None:
         self._run("UPDATE sessions SET stuck = ?, comment = ?, status = 'done', completed_at = ? WHERE id = ?",
                   (stuck.strip(), comment.strip(), _iso(now), session_id))
-
-    def followups_due(self, now: dt.datetime) -> list[dict]:
-        """アンケートまで終わって 3 日たち、まだ 3 日後の質問を送っていないテスト。テスターごとに最新の 1 回だけ。"""
-        limit = _iso(now - dt.timedelta(days=FOLLOWUP_DAYS))
-        rows = self._all("SELECT * FROM sessions WHERE status = 'done' AND followup_sent_at IS NULL "
-                         "AND completed_at IS NOT NULL AND completed_at <= ? ORDER BY id", (limit,))
-        latest = {}
-        for r in rows:
-            latest[r["user_id"]] = r
-        return list(latest.values())
-
-    def mark_followup_sent(self, session_id: int, now: dt.datetime) -> None:
-        # 同じテスターの前の回にも、もう送らない
-        s = self.session(session_id)
-        self._run("UPDATE sessions SET followup_sent_at = ? WHERE user_id = ? AND id <= ? AND followup_sent_at IS NULL",
-                  (_iso(now), s["user_id"], session_id))
 
     def answer_followup(self, session_id: int, key: str, value: str) -> str | None:
         """3 日後の質問に答える。次の質問のキー (最後なら None) を返す。"""

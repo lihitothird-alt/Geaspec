@@ -1072,14 +1072,11 @@ def test_public_site_opens_for_anyone_and_still_takes_discord_links(tmp_path, no
     assert "https://discord.com/channels/555/777" in tester.get("/bookings/1").text
 
 
-def survey_answers(own_pc="none"):
-    """アンケートの答え (どの質問も最初の選択肢。own_pc だけ指定)。"""
+def core_answers():
+    """かならず答える質問の答え (どれも最初の選択肢)。"""
     from app import web_test
 
-    data = {}
-    for q in web_test.asked_questions(own_pc):
-        data[q["key"]] = own_pc if q["key"] == "own_pc" else q["options"][0][0]
-    return data
+    return {q["key"]: q["options"][0][0] for q in web_test.core_questions()}
 
 
 def test_testers_run_the_whole_test_on_the_booking_page(tmp_path, now):
@@ -1115,12 +1112,12 @@ def test_testers_run_the_whole_test_on_the_booking_page(tmp_path, now):
     assert s["help_count"] == 1 and s["status"] == "playing"
     assert "入るまで 3分00秒" in user.get("/bookings/1").text
 
-    # FPS・Ping と写真、やってみてほしいこと
+    # （できたら）FPS・Ping と写真、やってみてほしいこと
     png = b"\x89PNG\r\n\x1a\n" + b"0" * 100
-    r = user.post("/bookings/1/test/perf", data={"fps_0": "72", "fps_1": "", "ping": "40"},
+    r = user.post("/bookings/1/test/perf",
+                  data={"fps_0": "72", "fps_1": "", "ping": "40", "mission_form": "1", "mission": ["heavy", "photo"]},
                   files=[("photos", ("shot.png", png, "image/png")), ("photos", ("note.txt", b"x", "text/plain"))])
     assert r.status_code == 200
-    user.post("/bookings/1/test/missions", data={"mission": ["heavy", "photo"]})
     s = store.session_for_booking(1)
     assert TesterStore.world_fps(s) == {"日本語話者向け集会場": 72} and s["ping_ms"] == 40
     assert json.loads(s["missions"]) == {"heavy": True, "crowd": False, "photo": True}
@@ -1132,19 +1129,21 @@ def test_testers_run_the_whole_test_on_the_booking_page(tmp_path, now):
     assert TesterStore.world_fps(store.session_for_booking(1)) == {"日本語話者向け集会場": 72, "Japan Shrine": 45}
     assert "数字を確かめて" in user.post("/bookings/1/test/perf", data={"fps_0": "999"}).text
 
-    # 遊び終わった → アンケート。答えていない質問があると送れない
+    # 遊び終わった → 短いアンケート (5問)。ほかの質問は「時間があれば」
     user.post("/bookings/1/test/done")
     page = user.get("/bookings/1").text
-    assert "アンケートを送る" in page and "答えなくて大丈夫" in page
-    answers = survey_answers("vr")  # VR ができる PC を持っている人には、PC を買う質問をしない
-    assert "pc_effect" not in answers
+    assert "送ってテストを終える" in page and "時間があれば、こちらも" in page
+    answers = core_answers()
+    assert len(answers) == 5
     r = user.post("/bookings/1/test/survey", data={**answers, "again": ""})
     assert "また使いたいですか？" in r.text and store.session_for_booking(1)["status"] == "survey"
     user.post("/bookings/1/test/survey", data={**answers, "when": ["event", "photo"], "comment": "楽しかった"})
     s = store.session_for_booking(1)
     assert s["status"] == "done" and s["comment"] == "楽しかった"
-    assert json.loads(s["answers"])["when"] == ["event", "photo"]
+    assert json.loads(s["answers"]) == {**answers, "when": ["event", "photo"]}
     assert "テストは完了です" in user.get("/bookings/1").text
+
+    assert "3日後" not in user.get("/bookings/1").text
 
     # 運営へのお知らせ (ボットが運営チャンネルに伝える)。名前やメールアドレスは書かない
     events = store.pending_web_events()
@@ -1190,6 +1189,26 @@ def test_booking_page_test_for_a_discord_tester_and_one_who_could_not_connect(tm
     assert s["status"] == "done" and s["connected"] == 0 and s["stuck"] == "VR の画面が真っ暗"
     events = store.pending_web_events()
     assert [e["kind"] for e in events] == ["start", "giveup", "done"] and "<#777>" in events[0]["text"]
+    store.close()
+
+
+def test_short_survey_finishes_the_test_without_photos(tmp_path, now):
+    """FPS や写真は「できたら」。入れなくても、短いアンケートだけでテストは終わる。"""
+    from app.tester_store import TesterStore
+
+    app, _ = make_app(tmp_path, free_mode=True, tester_db=str(tmp_path / "tester_bot.db"))
+    admin = TestClient(app)
+    admin_setup(admin)
+    user = TestClient(app)
+    signup(user, "hikari@example.com")
+    user.post("/slots/1/book")
+    now["t"] = NOW + dt.timedelta(minutes=55)
+    for step in ("start", "entered", "done"):
+        user.post(f"/bookings/1/test/{step}")
+    user.post("/bookings/1/test/survey", data=core_answers())
+    store = TesterStore(tmp_path / "tester_bot.db")
+    assert store.session_for_booking(1)["status"] == "done"
+    assert [e["kind"] for e in store.pending_web_events()][-1] == "done"
     store.close()
 
 

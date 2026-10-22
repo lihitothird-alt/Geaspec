@@ -45,7 +45,6 @@ DEFAULT_HOURS = "平日は19時以降、土日は終日"
 DEFAULT_AGENT_URL = "https://github.com/lihitothird-alt/Geaspec/releases/latest"
 # 貸す人の PC に入れる Virtual Desktop Streamer (無料)。借りる人は Quest の VD アプリだけでよい
 STREAMER_URL = "https://www.vrdesktop.net/"
-FOLLOWUP_CHECK_SECONDS = 30 * 60
 BOOKING_CHECK_SECONDS = 60
 # テスターは LG の家の外からつなぐので、VD Streamer でこれがオンになっていないとつながらない
 REMOTE_SETTING = "Virtual Desktop Streamer の「Allow remote connections」（外からの接続を許可）"
@@ -91,7 +90,7 @@ def panel_text(hours: str, site_url: str = "") -> str:
 2. あなた専用のスレッドができて、すぐに予約サイトのリンクと次にやることが届きます
 3. スレッドに届くあなた専用のリンクから、予約サイトで予約する
 4. 当日、予約ページの「テストのチェックリスト」で「テストを始める」を押して、Virtual Desktop でつなぐ
-5. FPS と Ping を記録して、アンケート（10分ほど）に答えたら完了
+5. 遊び終わったら、短いアンケート（1分ほど）に答えて完了
 
 **申し込む前に**
 ・Meta ユーザー名: スマホの Meta Horizon アプリでプロフィールを開くと見られます（表示名ではなく、ユーザー名のほう）。Virtual Desktop を持っている人は、VD で使っているものと同じです
@@ -133,15 +132,11 @@ def test_items_text(worlds: list[str]) -> str:
     """テスターに先に見せる「テストでやること」の一覧。"""
     names = "」「".join(worlds)
     return ("**テストでやること（一覧）**\n"
-            "テストは、予約サイトの予約ページにある「テストのチェックリスト」で進めます。\n"
+            "テストは、予約サイトの予約ページにある「テストのチェックリスト」で進めます。やることは 3つだけです。\n"
             "1. 開始 10分前から押せる「テストを始める」を押して、Quest の Virtual Desktop で貸し出しの PC につなぐ\n"
             "2. VRChat にメールアドレスとパスワードでログインして、ワールドに入ったら「ワールドに入れた」を押す\n"
-            f"3. FPS と Ping の表示をオンにして、「{names}」で 30秒ほど歩き回りながら、Quest のスクリーンショットを撮る"
-            "（予約ページから写真を送るか、見えた数字を入れる）\n"
-            "4. 重いワールドに行く・人の多いインスタンスに入る\n"
-            "5. VRChat のカメラで **自撮り** を 1枚撮る（終わったあと、あなたの手元にちゃんと届くかを確かめます）\n"
-            "6. 遊び終わったら「遊び終わった」を押して、アンケートに答える（そろうとテスト完了です）\n"
-            "7. 3日後にこのスレッドに届く 4つの質問に答える（写真を受け取れたかも聞きます）\n"
+            "3. 遊び終わったら「遊び終わった」を押して、短いアンケート（1分ほど）に答える。これで完了です\n"
+            f"（できたら）「{names}」で FPS と Ping を見て、数字か写真を予約ページから送ってもらえると助かります\n"
             "VRChat からのログアウトはいりません。終わると Geaspec が自動でログイン情報を消します")
 
 
@@ -407,7 +402,6 @@ class TesterBot(discord.Client):
 
     # 準備
     async def setup_hook(self) -> None:
-        self.loop.create_task(self.followup_loop())
         self.loop.create_task(self.booking_loop())
 
     def hours(self) -> str:
@@ -1435,7 +1429,7 @@ class TesterBot(discord.Client):
                 "時間になると自動で終わり、ログイン情報はパソコンから消えます。\n\n"
                 "FPS と Ping の写真がまだなら、このスレッドに貼ってください。\n\n"
                 "VRChat のカメラで撮った写真（自撮りなど）は、時間が終わると予約サイトの予約ページからダウンロードできます（7日間）。\n"
-                f"3日後にもう一度だけ、ここで4つ質問させてください。よければ 15分ほどお話も聞かせてください（運営から連絡します）。\n"
+                "よければ 15分ほどお話も聞かせてください（運営から連絡します）。\n"
                 + NOTES_HINT)
 
     @staticmethod
@@ -1459,28 +1453,6 @@ class TesterBot(discord.Client):
         if s["comment"]:
             lines.append(f"ひとこと: {s['comment']}")
         await self.notify_ops("\n".join(lines))
-
-    # 3 日後の質問
-    async def followup_loop(self) -> None:
-        await self.wait_until_ready()
-        while not self.is_closed():
-            try:
-                await self.send_followups()
-            except Exception:  # noqa: BLE001 - 次の回にやり直す
-                log.exception("3 日後の質問を送れませんでした")
-            await asyncio.sleep(FOLLOWUP_CHECK_SECONDS)
-
-    async def send_followups(self) -> int:
-        sent = 0
-        for s in self.store.followups_due(self.clock()):
-            tester = self.store.tester(s["user_id"])
-            thread = await self._existing_thread(tester) if tester else None
-            if thread is not None:
-                text, view = followup_message(s["user_id"], json.loads(s["answers"]))
-                await thread.send(text, view=view)
-                sent += 1
-            self.store.mark_followup_sent(s["id"], self.clock())
-        return sent
 
     # 予約のお知らせ (予約サイトのデータベースを 1 分ごとに見る)
     async def booking_loop(self) -> None:

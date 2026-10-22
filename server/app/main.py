@@ -609,7 +609,8 @@ def create_app(
             "can_start": web_test.can_start(booking, now),
             "start_from": booking.slot.start_at - dt.timedelta(minutes=web_test.START_EARLY_MINUTES),
             "worlds": store.worlds(),
-            "questions": web_test.asked_questions(None),
+            "core_questions": web_test.core_questions(),
+            "extra_questions": web_test.extra_questions(),
             "mission_labels": MISSIONS,
             "max_photos": web_test.MAX_PHOTOS,
         }
@@ -622,7 +623,7 @@ def create_app(
         """必要なものがそろったら、テストを終える (運営に結果が届く)。"""
         latest = app.state.tester_store.session(session["id"])
         st = web_test.state(latest)
-        if st["done"] or st["status"] != "survey" or not (st["photo"] and st["survey"]):
+        if st["done"] or st["status"] != "survey" or not st["survey"]:
             return
         app.state.tester_store.complete(session["id"], clock.utcnow(), stuck=latest["stuck"], comment=latest["comment"])
         test_event(booking, "done", "のテストが完了しました（予約ページから）", session=session)
@@ -677,9 +678,6 @@ def create_app(
                 store.finish_play(session["id"], now, connected=False)
                 test_event(booking, "giveup", "がつながりませんでした。連絡してあげてください", session=session,
                            urgent=True)
-        elif action == "missions":
-            store.set_missions(session["id"], web_test.missions_from(values))
-            flash(request, "記録しました")
         elif action == "perf":
             try:
                 fps, ping = web_test.parse_performance(values, store.worlds())
@@ -711,9 +709,10 @@ def create_app(
                 path.write_bytes(data)
                 store.add_screenshot(session["id"], str(path))
                 saved += 1
+            if "mission_form" in values:
+                store.set_missions(session["id"], web_test.missions_from(values))
             if fps or ping is not None or saved:
                 flash(request, "記録しました" + (f"（写真 {saved} 枚）" if saved else ""))
-            finish_test(booking, session)
         elif action == "done":
             if status == "playing":
                 store.finish_play(session["id"], now, connected=True)
@@ -730,10 +729,7 @@ def create_app(
             stuck = (values.get("stuck") or [""])[0][:1000]
             comment = (values.get("comment") or [""])[0][:1000]
             store.save_comment(session["id"], stuck=stuck, comment=comment)
-            session = store.session(session["id"])
-            if not web_test.state(session)["photo"]:
-                flash(request, "アンケートを記録しました。最後に、FPS と Ping の写真か数字を入れると完了です")
-            finish_test(booking, session)
+            finish_test(booking, store.session(session["id"]))
         elif action == "stuck":
             # つながらなかった人は、どこで止まったかだけ聞いて終わる
             if status == "survey" and not session["connected"]:

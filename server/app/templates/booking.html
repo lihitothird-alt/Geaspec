@@ -1,5 +1,15 @@
 {% extends "base.html" %}
 {% from "_social.html" import follow_button, review_form %}
+{% macro test_question(q, required) -%}
+  <fieldset class="fb-q">
+    <legend>{{ q.text }}</legend>
+    <div class="fb-chips">
+      {% for v, label in q.options %}
+      <label class="fb-pick"><input type="{{ 'checkbox' if q.multi else 'radio' }}" name="{{ q.key }}" value="{{ v }}"{% if required and not q.multi %} required{% endif %}><span>{{ label }}</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+{%- endmacro %}
 {% block title %}予約 #{{ booking.id }} | {{ settings.service_name }}{% endblock %}
 {% block content %}
 {% set live_states = ("confirmed", "active") %}
@@ -62,14 +72,13 @@
     <h2>テストのチェックリスト</h2>
     {% if test.done %}
     <p class="test-done"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>テストは完了です。ありがとうございました！</p>
-    <p class="sub">VRChat で撮った写真は、時間が終わるとこのページからダウンロードできます。写真や数字は、あとからでも足せます。</p>
+    <p class="sub">VRChat で撮った写真は、時間が終わるとこのページからダウンロードできます。</p>
     {% else %}
-    <p class="sub">上から順に進めてください。終わったところに ✅ が付きます。</p>
+    <p class="sub">やることは 3つだけです。終わったところに ✓ が付きます。</p>
     {% endif %}
     <ol class="checklist">
-      <li class="done"><b>予約する</b></li>
       <li class="{{ 'done' if test.started }}">
-        <b>開始の少し前に「テストを始める」を押して、Virtual Desktop でつなぐ</b>
+        <b>「テストを始める」を押して、Virtual Desktop でつなぐ</b>
         {% if not test.started %}
           {% if test.can_start %}
           <form method="post" action="{{ act }}start"><button class="btn lg">テストを始める</button></form>
@@ -90,54 +99,21 @@
         </div>
         {% elif test.entered %}<p class="sub">入るまで {{ test.enter_text }}</p>{% endif %}
       </li>
-      <li class="{{ 'done' if test.photo }}">
-        <b>FPS と Ping を記録する</b>
-        <p class="sub">VRChat のメニューの歯車 →いちばん下の「デバッグ」→「FPS と Ping の表示」をオン。「{{ test.worlds|join("」「") }}」で 30秒ほど歩き回りながら、見えた数字を入れるか、Quest のスクリーンショットを送ってください（<a href="/guide#fps">画像つきの説明</a>）。</p>
-        {% if test.started %}
-        <form method="post" action="{{ act }}perf" enctype="multipart/form-data" class="form test-perf">
-          {% for w in test.worlds %}
-          <label>{{ w }} の FPS<input type="number" name="fps_{{ loop.index0 }}" min="0" max="240" inputmode="numeric" value="{{ test.fps.get(w, '') }}"></label>
-          {% endfor %}
-          <label>Ping（ms）<input type="number" name="ping" min="0" max="2000" inputmode="numeric" value="{{ '' if test.ping is none else test.ping }}"></label>
-          <label>スクリーンショット（{{ test.max_photos }} 枚まで）<input type="file" name="photos" accept="image/png,image/jpeg,image/webp" multiple></label>
-          {% if test.photos %}<p class="sub">送った写真: {{ test.photos }} 枚</p>{% endif %}
-          <button class="btn small">記録する</button>
-        </form>
-        {% endif %}
-      </li>
-      <li class="{{ 'done' if test.missions.values()|select|list|length == test.mission_labels|length }}">
-        <b>（できたら）やってみてほしいこと</b>
-        {% if test.started %}
-        <form method="post" action="{{ act }}missions" class="test-missions">
-          {% for key, label in test.mission_labels.items() %}
-          <label class="fb-pick"><input type="checkbox" name="mission" value="{{ key }}"{% if test.missions.get(key) %} checked{% endif %}><span>{{ label }}</span></label>
-          {% endfor %}
-          <button class="btn small ghost">記録する</button>
-        </form>
-        {% endif %}
-      </li>
-      <li class="{{ 'done' if test.status in ('survey', 'done') and (test.survey or not test.connected) }}">
-        <b>遊び終わったら「遊び終わった」を押して、アンケートに答える</b>
+      <li class="{{ 'done' if test.done }}">
+        <b>遊び終わったら「遊び終わった」を押して、アンケートに答える（1分ほど）</b>
         {% if test.status == "playing" %}
           <form method="post" action="{{ act }}done"><button class="btn">遊び終わった</button></form>
           <p class="sub">時間まで遊んで大丈夫です。早く終わったら、上の「いま終わる」で PC を返せます。</p>
-        {% elif test.status == "survey" and test.connected and test.survey %}
-          <p class="sub">アンケートは記録しました。FPS と Ping の写真か数字を入れると、テストが完了します。</p>
         {% elif test.status == "survey" and test.connected %}
         <form method="post" action="{{ act }}survey" class="fb-form test-survey">
-          {% for q in test.questions %}
-          <fieldset class="fb-q">
-            <legend>{{ loop.index }}. {{ q.text }}{% if q.skip_if %}<span class="sub">（VR ができるパソコンを持っている人は、答えなくて大丈夫です）</span>{% endif %}</legend>
-            <div class="fb-chips">
-              {% for v, label in q.options %}
-              <label class="fb-pick"><input type="{{ 'checkbox' if q.multi else 'radio' }}" name="{{ q.key }}" value="{{ v }}"{% if not q.multi and not q.skip_if %} required{% endif %}><span>{{ label }}</span></label>
-              {% endfor %}
-            </div>
-          </fieldset>
-          {% endfor %}
-          <label>いちばん迷ったところ（任意）<textarea name="stuck" rows="2" maxlength="1000"></textarea></label>
-          <label>ひとこと感想（任意）<textarea name="comment" rows="2" maxlength="1000"></textarea></label>
-          <button class="btn lg">アンケートを送る</button>
+          {% for q in test.core_questions %}{{ test_question(q, true) }}{% endfor %}
+          <details class="test-more">
+            <summary>時間があれば、こちらも（任意）</summary>
+            {% for q in test.extra_questions %}{{ test_question(q, false) }}{% endfor %}
+            <label>いちばん迷ったところ<textarea name="stuck" rows="2" maxlength="1000"></textarea></label>
+            <label>ひとこと感想<textarea name="comment" rows="2" maxlength="1000"></textarea></label>
+          </details>
+          <button class="btn lg">送ってテストを終える</button>
         </form>
         {% elif test.status == "survey" %}
         <form method="post" action="{{ act }}stuck" class="form">
@@ -147,6 +123,27 @@
         {% endif %}
       </li>
     </ol>
+    {% if test.started and test.connected != 0 %}
+    <details class="test-more">
+      <summary>（できたら）FPS と Ping を記録する</summary>
+      <p class="sub">VRChat のメニューの歯車 →いちばん下の「デバッグ」→「FPS と Ping の表示」をオン。「{{ test.worlds|join("」「") }}」で 30秒ほど歩き回りながら、見えた数字を入れるか、Quest のスクリーンショットを送ってください（<a href="/guide#fps">画像つきの説明</a>）。</p>
+      <form method="post" action="{{ act }}perf" enctype="multipart/form-data" class="form test-perf">
+        <input type="hidden" name="mission_form" value="1">
+        {% for w in test.worlds %}
+        <label>{{ w }} の FPS<input type="number" name="fps_{{ loop.index0 }}" min="0" max="240" inputmode="numeric" value="{{ test.fps.get(w, '') }}"></label>
+        {% endfor %}
+        <label>Ping（ms）<input type="number" name="ping" min="0" max="2000" inputmode="numeric" value="{{ '' if test.ping is none else test.ping }}"></label>
+        <label>スクリーンショット（{{ test.max_photos }} 枚まで）<input type="file" name="photos" accept="image/png,image/jpeg,image/webp" multiple></label>
+        {% if test.photos %}<p class="sub">送った写真: {{ test.photos }} 枚</p>{% endif %}
+        <div class="test-missions">
+          {% for key, label in test.mission_labels.items() %}
+          <label class="fb-pick"><input type="checkbox" name="mission" value="{{ key }}"{% if test.missions.get(key) %} checked{% endif %}><span>{{ label }}</span></label>
+          {% endfor %}
+        </div>
+        <button class="btn small">記録する</button>
+      </form>
+    </details>
+    {% endif %}
     {% if not test.done %}
     <details class="test-help">
       <summary>困ったとき</summary>
