@@ -10,7 +10,7 @@
 
   <div class="panel" id="prepare">
     <div class="panel-head"><h2>貸す PC の準備</h2></div>
-    <p><strong>貸せる時間の登録は、PC に入れた Geaspec アプリのカレンダーからお願いします。</strong>このサイトからは登録できません。</p>
+    <p>貸す PC に Geaspec アプリと Virtual Desktop Streamer を入れておけば、貸せる時間はこのページで決められます。アプリは右下の小さなアイコンで動き続けます。</p>
     <p><a class="btn" href="https://www.vrdesktop.net/" target="_blank" rel="noopener">Virtual Desktop Streamer をダウンロード</a></p>
     <p class="muted small">公式サイトの「Download Streamer」ボタンから入れて、「Allow remote connections」にチェックを入れてください。くわしくは<a href="/guide?for=lend">貸す人の手順</a>へ。</p>
   </div>
@@ -22,6 +22,28 @@
     <p class="muted">貸し出し用の PC に Geaspec のアプリを入れて、このアカウントでログインすると、ここに表示されます。</p>
   </div>
   {% else %}
+
+  <div class="panel" id="schedule">
+    <div class="panel-head"><h2>貸し出す時間</h2></div>
+    <p class="muted small">マスを押すと「貸し出す」になります（なぞるとまとめて選べます）。もう一度押すと外せます。最後に「保存」を押してください。予約が入った時間は変えられません。</p>
+    {% for h in hosts %}
+    <div class="sched" data-host="{{ h.id }}">
+      {% if hosts|length > 1 %}<h3>{{ h.name }}{% if h.pending %} <span class="muted small">（運営の確認待ち）</span>{% endif %}</h3>
+      {% elif h.pending %}<p class="muted small">この PC は運営の確認待ちです。先に時間を決めておけます（確認が終わると予約を受け付けます）。</p>{% endif %}
+      <div class="sched-bar">
+        <button type="button" class="btn small ghost" data-week="-1" aria-label="前の週">‹ 前</button>
+        <strong class="sched-range" aria-live="polite"></strong>
+        <button type="button" class="btn small ghost" data-week="1" aria-label="次の週">次 ›</button>
+      </div>
+      <div class="sched-grid" aria-label="貸し出す時間のカレンダー"><p class="muted small">読み込んでいます…</p></div>
+      <p class="sched-legend small"><span class="sw s-open"></span>貸し出す <span class="sw s-booked"></span>予約あり <span class="sw s-holding"></span>支払い待ち <span class="sw s-past"></span>過ぎた時間</p>
+      <div class="sched-actions">
+        <button type="button" class="btn" data-save disabled>保存</button>
+        <span class="sched-msg small" role="status"></span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
 
   {% if not simple %}
   <div class="panel" id="people">
@@ -87,4 +109,95 @@
   </div>
   {% endif %}
 </section>
+{% if hosts %}
+<script>
+  // 貸し出す時間のカレンダー (アプリのカレンダーと同じ決まり)。時刻は日本時間で表示し、サイトとは UTC でやり取りする
+  (function () {
+    var HOUR = 3600e3, JST = 9 * HOUR, DAYS = 7;
+    function jstMidnight(ms) { var d = new Date(ms + JST); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - JST; }
+    function iso(ms) { return new Date(ms).toISOString().replace(".000Z", "Z"); }
+    function label(ms) { var d = new Date(ms + JST); return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + "（" + "日月火水木金土"[d.getUTCDay()] + "）"; }
+    document.querySelectorAll(".sched").forEach(function (box) {
+      var host = box.dataset.host, grid = box.querySelector(".sched-grid"), msg = box.querySelector(".sched-msg");
+      var save = box.querySelector("[data-save]"), range = box.querySelector(".sched-range");
+      var week = jstMidnight(Date.now()), data = null, now = Date.now();
+      var locked = {}, original = {}, selected = {}, painting = null;
+      function dirty() { var k; for (k in selected) if (!original[k]) return true; for (k in original) if (!selected[k]) return true; return false; }
+      function state(t) { if (locked[t]) return locked[t]; if (t < now) return "past"; return selected[t] ? "open" : "empty"; }
+      function editable(t) { return !locked[t] && t >= now; }
+      function load() {
+        msg.textContent = "";
+        fetch("/lend/hosts/" + host + "/schedule?start=" + encodeURIComponent(iso(week)) + "&days=" + DAYS, {credentials: "same-origin"})
+          .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+          .then(apply).catch(function () { grid.innerHTML = '<p class="flash error">読み込めませんでした。ページを読み直してください。</p>'; });
+      }
+      function apply(d) {
+        data = d; now = Date.parse(d.now); locked = {}; original = {};
+        d.slots.forEach(function (s) {
+          var a = Date.parse(s.start), b = Date.parse(s.end);
+          if (s.editable) { if (s.state === "open") original[a] = true; return; }
+          var st = ["booked", "holding", "past"].indexOf(s.state) >= 0 ? s.state : "fixed";
+          for (var t = a - a % HOUR; t < b; t += HOUR) locked[t] = st;
+        });
+        selected = Object.assign({}, original);
+        draw();
+      }
+      function draw() {
+        range.textContent = label(week) + " 〜 " + label(week + (DAYS - 1) * 24 * HOUR);
+        var html = '<table class="sched-table"><thead><tr><th></th>';
+        for (var d = 0; d < DAYS; d++) html += "<th>" + label(week + d * 24 * HOUR).replace("（", "<br>（") + "</th>";
+        html += "</tr></thead><tbody>";
+        for (var h = 0; h < 24; h++) {
+          html += '<tr><th scope="row">' + h + "時</th>";
+          for (d = 0; d < DAYS; d++) {
+            var t = week + d * 24 * HOUR + h * HOUR, st = state(t);
+            html += '<td class="cell s-' + st + (editable(t) ? " edit" : "") + '" data-t="' + t + '" title="' + label(t) + " " + h + '時"></td>';
+          }
+          html += "</tr>";
+        }
+        grid.innerHTML = html + "</tbody></table>";
+        save.disabled = !dirty();
+      }
+      function paint(td) {
+        var t = +td.dataset.t;
+        if (!editable(t)) return;
+        if (painting) selected[t] = true; else delete selected[t];
+        td.className = "cell s-" + state(t) + " edit";
+        save.disabled = !dirty(); msg.textContent = save.disabled ? "" : "まだ保存していません";
+      }
+      grid.addEventListener("pointerdown", function (e) {
+        var td = e.target.closest("td.edit");
+        if (!td) return;
+        e.preventDefault();
+        painting = !selected[+td.dataset.t];
+        paint(td);
+      });
+      grid.addEventListener("pointermove", function (e) {
+        if (painting === null) return;
+        var el = document.elementFromPoint(e.clientX, e.clientY), td = el && el.closest && el.closest("td.edit");
+        if (td && grid.contains(td) && !!selected[+td.dataset.t] !== painting) paint(td);
+      });
+      document.addEventListener("pointerup", function () { painting = null; });
+      box.querySelectorAll("[data-week]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          if (dirty() && !confirm("保存していない変更があります。保存せずに週を変えますか？")) return;
+          week += (+b.dataset.week) * DAYS * 24 * HOUR; load();
+        });
+      });
+      save.addEventListener("click", function () {
+        var starts = Object.keys(selected).map(Number).filter(function (t) { return t >= now; }).sort(function (a, b) { return a - b; }).map(iso);
+        save.disabled = true; msg.textContent = "保存しています…";
+        fetch("/lend/hosts/" + host + "/schedule", {method: "PUT", credentials: "same-origin",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({start: iso(week), days: DAYS, price_yen: data.price_yen, starts: starts})})
+          .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
+          .then(function (j) { apply(j); msg.textContent = "保存しました" + ((j.errors || []).length ? "（変えられなかった時間があります）" : ""); })
+          .catch(function (e) { save.disabled = false; msg.textContent = "保存できませんでした: " + e.message; });
+      });
+      window.addEventListener("beforeunload", function (e) { if (dirty()) { e.preventDefault(); e.returnValue = ""; } });
+      load();
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}

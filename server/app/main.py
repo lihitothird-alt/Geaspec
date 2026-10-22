@@ -1319,6 +1319,30 @@ def create_app(
     async def agent_schedule_save(request: Request, ctx: tuple[Host, Session] = Depends(agent_host)):
         """貸し手が Agent のカレンダーで選んだ受付時間を保存する。"""
         host, db = ctx
+        return await save_schedule(request, host, db)
+
+    def owned_host(request: Request, db: Session, host_id: int) -> Host:
+        """サイトにログインしている貸し手の PC (運営はどの PC でも)。"""
+        user = require_user(request, db)
+        host = db.get(Host, host_id)
+        if not host or (host.owner_id != user.id and not is_admin(user)):
+            raise HTTPException(404)
+        return host
+
+    @app.get("/lend/hosts/{host_id}/schedule")
+    def lend_schedule(host_id: int, start: str, request: Request, days: int = 7, db: Session = Depends(get_db)):
+        """貸し出しページのカレンダー (アプリのカレンダーと同じ中身)。"""
+        host = owned_host(request, db, host_id)
+        begin, end = schedule_range(start, days)
+        return schedule_response(host, db, begin, end)
+
+    @app.put("/lend/hosts/{host_id}/schedule")
+    async def lend_schedule_save(host_id: int, request: Request, db: Session = Depends(get_db)):
+        """貸し出しページのカレンダーで選んだ受付時間を保存する (アプリのカレンダーと同じ決まり)。"""
+        host = owned_host(request, db, host_id)
+        return await save_schedule(request, host, db)
+
+    async def save_schedule(request: Request, host: Host, db: Session):
         try:
             body = await request.json()
             begin, end = schedule_range(str(body["start"]), int(body.get("days", 7)))

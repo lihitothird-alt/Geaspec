@@ -1224,6 +1224,39 @@ def test_booking_page_has_no_test_checklist_without_the_tester_record(tmp_path, 
     assert user.post("/bookings/1/test/start").status_code == 404
 
 
+def test_lenders_set_their_hours_on_the_website(tmp_path, now):
+    """貸せる時間は、アプリを開かなくても貸し出しページのカレンダーで決められる (アプリと同じ決まり)。"""
+    app, _ = make_app(tmp_path, free_mode=True)
+    lender = TestClient(app)
+    signup(lender, "lender@example.com")
+    body = {"email": "lender@example.com", "password": "password123", "pc_name": "LENDER-PC",
+            "machine_id": "abcdef0123456789"}
+    host_id = 1
+    assert TestClient(app).post("/api/agent/login", json=body).json()["host"] == "LENDER-PC"
+
+    page = lender.get("/lend").text
+    assert "貸し出す時間" in page and f'data-host="{host_id}"' in page and "確認待ち" in page
+    start = "2026-10-09T15:00:00Z"  # JST 10/10 0:00
+    r = lender.get(f"/lend/hosts/{host_id}/schedule", params={"start": start}).json()
+    assert r["host"] == "LENDER-PC" and r["slots"] == []
+    r = lender.put(f"/lend/hosts/{host_id}/schedule",
+                   json={"start": start, "days": 7, "price_yen": r["price_yen"],
+                         "starts": ["2026-10-10T05:00:00Z", "2026-10-10T06:00:00Z"]}).json()
+    assert r["added"] == 2 and [s["state"] for s in r["slots"]] == ["open", "open"]
+    # 外すと消える
+    r = lender.put(f"/lend/hosts/{host_id}/schedule",
+                   json={"start": start, "days": 7, "price_yen": 500, "starts": ["2026-10-10T06:00:00Z"]}).json()
+    assert [s["start"] for s in r["slots"]] == ["2026-10-10T06:00:00Z"]
+    assert lender.put(f"/lend/hosts/{host_id}/schedule", json={"start": "x"}).status_code == 400
+
+    # ほかの人の PC は見えない・変えられない
+    other = TestClient(app)
+    signup(other, "other@example.com")
+    assert other.get(f"/lend/hosts/{host_id}/schedule", params={"start": start}).status_code == 404
+    assert other.put(f"/lend/hosts/{host_id}/schedule",
+                     json={"start": start, "days": 7, "price_yen": 500, "starts": []}).status_code == 404
+
+
 def clock_now(now):
     return now["t"].replace(tzinfo=dt.timezone.utc)
 
@@ -1258,7 +1291,7 @@ def test_simple_mode_hides_follow_reviews_and_the_app_page(tmp_path, now):
         assert "フォロー中" not in html and 'href="/app"' not in html and "/lenders/" not in html, page
     # 貸し出しのページには、Streamer のダウンロードと「時間の登録はアプリから」の案内を出す
     lend = user.get("/lend").text
-    assert "https://www.vrdesktop.net/" in lend and "Geaspec アプリのカレンダーから" in lend
+    assert "https://www.vrdesktop.net/" in lend and "貸せる時間はこのページで決められます" in lend
     assert user.get("/following").status_code == 404
     assert user.get("/app").status_code == 404
     assert user.get("/lenders/1").status_code == 404
