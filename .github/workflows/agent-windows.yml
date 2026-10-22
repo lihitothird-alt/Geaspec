@@ -82,7 +82,7 @@ jobs:
           $zip = "$env:RUNNER_TEMP\python-embed.zip"
           Invoke-WebRequest "https://www.python.org/ftp/python/$env:EMBED_PYTHON/python-$env:EMBED_PYTHON-embed-amd64.zip" -OutFile $zip
           Expand-Archive $zip "$out\python"
-          python -m pip install psutil openvr pillow --only-binary=:all: --python-version 3.12 --platform win_amd64 --target "$out\lib"
+          python -m pip install psutil openvr pillow pystray six --only-binary=:all: --python-version 3.12 --platform win_amd64 --target "$out\lib"
           Copy-Item host_agent.py, geaspec_gui.py, vr_timer.py $out
           # 予約サイトのアドレスが決まっていれば組み込む (貸し手はログインするだけでよくなる)
           if (Test-Path server_url.txt) { Copy-Item server_url.txt $out; Write-Host "予約サイト: $(Get-Content server_url.txt)" }

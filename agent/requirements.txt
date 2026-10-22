@@ -2,3 +2,5 @@ psutil>=5.9
 # VR の中に残り時間を出す (SteamVR のオーバーレイ) ための部品
 openvr>=2.0
 Pillow>=10.1
+# 画面右下 (通知領域) のアイコン
+pystray>=0.19

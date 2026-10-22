@@ -19,6 +19,7 @@ import uuid
 from pathlib import Path
 
 import host_agent as h
+import tray
 
 POLL_INTERVAL_DEFAULT = 15.0
 
@@ -636,6 +637,11 @@ class AgentWindow:
         root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.cover = CoverWindow(self)
         self.seen_new_bookings = h.STATUS.new_bookings
+        # 画面右下 (通知領域) のアイコン。ふだんはウィンドウを閉じて、ここで動き続ける
+        self.tray = tray.Tray()
+        self.told_about_tray = False
+        if sys.platform == "win32":
+            self.tray.start()
         self.show_start_page()
         self.tick()
 
@@ -690,16 +696,66 @@ class AgentWindow:
         self.update_cover()
         if self.home is not None:
             self.home.update_status()
+        self.handle_tray()
         if h.STATUS.new_bookings != self.seen_new_bookings:
             self.seen_new_bookings = h.STATUS.new_bookings
-            self.bring_to_front()
+            if self.hidden():
+                self.tray.notify("新しい予約が入りました。時間になると自動で準備します")
+            else:
+                self.bring_to_front()
             if self.home is not None:
                 self.home.schedule.load()  # 予約が入ったマスを紫にする
         self.drain_logs()
         if self.closing and not self.c.running():
+            self.tray.stop()
             self.root.destroy()
             return
         self.root.after(500, self.tick)
+
+    # --- 通知領域のアイコン -------------------------------------------------
+
+    def handle_tray(self) -> None:
+        title, _detail, tone = self.c.status_text()
+        self.tray.update(title, tone)
+        for action in self.tray.poll():
+            if action == "web":
+                self.open_lend_page()
+            elif action == "show":
+                self.show_window()
+            elif action == "log":
+                self.show_window()
+                if self.home is not None and not self.home.showing_log():
+                    self.home.toggle_log()
+            elif action == "quit":
+                self.show_window()
+                self.quit_app()
+
+    def hidden(self) -> bool:
+        try:
+            return self.root.state() == "withdrawn"
+        except self.tk.TclError:
+            return False
+
+    def hide_to_tray(self) -> None:
+        self.root.withdraw()
+        if not self.told_about_tray:
+            self.told_about_tray = True
+            self.tray.notify("Geaspec は画面右下のアイコンで動き続けます。終了するときは、アイコンを右クリック →「終了」")
+
+    def show_window(self) -> None:
+        try:
+            self.root.deiconify()
+            self.root.lift()
+            self.root.focus_force()
+        except self.tk.TclError:
+            pass
+
+    def open_lend_page(self) -> None:
+        """貸し出す時間は Web サイトで決める (ログインしていれば、そのまま貸し出しページが開く)。"""
+        import webbrowser
+
+        if self.c.server:
+            webbrowser.open(f"{self.c.server}/lend#schedule")
 
     def update_cover(self) -> None:
         st = h.STATUS
@@ -775,6 +831,16 @@ class AgentWindow:
         messagebox.showinfo(title, message, parent=self.root)
 
     def on_close(self) -> None:
+        """ウィンドウの × は、アイコンだけにする (準備が終わっていれば)。終了はアイコンのメニューから。"""
+        if self.closing:
+            return
+        if self.tray.active and self.home is not None:
+            if self.home.schedule.ask_discard():
+                self.hide_to_tray()
+            return
+        self.quit_app()
+
+    def quit_app(self) -> None:
         from tkinter import messagebox
 
         if self.closing:
@@ -786,6 +852,7 @@ class AgentWindow:
         elif self.c.running():
             message = "Agent を終了すると、予約を受け付けなくなります。\n終了しますか？"
         else:
+            self.tray.stop()
             self.root.destroy()
             return
         if not messagebox.askyesno("Geaspec Agent を終了", message, icon="warning", default="no", parent=self.root):
@@ -981,6 +1048,12 @@ class HomeView:
             wraplength=600,
         )
         self.status_detail.pack(fill="x", padx=(42, 16), pady=(0, 12))
+        web = tk.Frame(card, bg=COLORS["card"])
+        web.pack(fill="x", padx=(42, 16), pady=(0, 12))
+        ttk.Button(web, text="貸し出す時間を決める（Web サイト）", style="Primary.TButton",
+                   command=window.open_lend_page).pack(side="left")
+        tk.Label(web, text="下のカレンダーでも決められます", font=window.font_small, fg=COLORS["muted"],
+                 bg=COLORS["card"]).pack(side="left", padx=10)
 
         # --- カレンダー / 動きの記録 (同じ場所を切り替える) ---
         self.middle = tk.Frame(frame, bg=COLORS["bg"])
@@ -1007,7 +1080,8 @@ class HomeView:
         self.cleanup_button.pack(side="left")
         ttk.Button(actions, text="ログインし直す", command=self.relogin).pack(side="right")
         tk.Label(
-            frame, text="ウィンドウを閉じると Agent も終了し、予約を受け付けなくなります。",
+            frame, text=("ウィンドウを閉じても、画面右下のアイコンで動き続けます。終了するときは、アイコンを右クリック →「終了」。"
+                         if window.tray.active else "ウィンドウを閉じると Agent も終了し、予約を受け付けなくなります。"),
             font=window.font_small, fg=COLORS["muted"], bg=COLORS["bg"], anchor="w",
         ).pack(fill="x", padx=18, pady=(0, 10))
         self.update_status()
@@ -1030,6 +1104,9 @@ class HomeView:
             self.log_text.delete("1.0", f"{excess + 1}.0")
         self.log_text.see("end")
         self.log_text.configure(state="disabled")
+
+    def showing_log(self) -> bool:
+        return bool(self.log_frame.winfo_ismapped())
 
     def toggle_log(self) -> None:
         """カレンダーと動きの記録を切り替える (ウィンドウは増やさない)。"""
@@ -1469,7 +1546,21 @@ def find_agent_window() -> int:
         return True
 
     user32.EnumWindows(visit, 0)
-    return found[0] if found else 0
+    if found:
+        return found[0]
+    hidden: list[int] = []  # アイコンだけで動いているとき (ウィンドウを隠している)
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def visit_hidden(handle, _lparam):
+        buffer = ctypes.create_unicode_buffer(256)
+        user32.GetWindowTextW(handle, buffer, 256)
+        if buffer.value.startswith("Geaspec Agent "):
+            hidden.append(handle)
+            return False
+        return True
+
+    user32.EnumWindows(visit_hidden, 0)
+    return hidden[0] if hidden else 0
 
 
 def bring_existing_window_to_front() -> bool:
@@ -1510,7 +1601,7 @@ def main() -> int:
 
         root = tk.Tk()
         root.withdraw()
-        messagebox.showinfo("Geaspec Agent", "Geaspec Agent はすでに起動しています。タスクバーを確認してください。")
+        messagebox.showinfo("Geaspec Agent", "Geaspec Agent はすでに起動しています。画面右下のアイコンを確認してください。")
         return 0
     if sys.platform == "win32":
         try:  # 高解像度の画面で文字がぼやけないようにする
@@ -1526,6 +1617,10 @@ def main() -> int:
     h.log.addHandler(QueueLogHandler(log_queue))
     h.log.info("Geaspec Agent %s を起動しました", h.AGENT_VERSION)
     window = AgentWindow(controller, log_queue)
+    # 準備が終わっていれば、ウィンドウは出さずにアイコンだけで動く (「アプリに戻る」から開いたときは出す)
+    opened_by_link = any(arg.startswith("geaspec:") for arg in sys.argv[1:])
+    if window.tray.active and window.home is not None and not opened_by_link:
+        window.root.withdraw()
     window.root.mainloop()
     return 0
 

@@ -218,8 +218,11 @@ def start_cloudflare(config: dict, data: Path) -> bool:
     """自分のドメインがあれば、Cloudflare Tunnel でそのドメインに公開する。"""
     domain = str(config.get("domain") or "")
     if not domain:
+        print("自分のドメインは設定されていません（次の起動で「ドメイン」と聞かれたら、geaspec.com のように入れてください）。")
         return False
     import cloudflare_tunnel as cf
+
+    print(f"Cloudflare で https://{domain} に公開します…")
 
     exe = cf.find_cloudflared(data)
     if exe is None or not cf.ensure_tunnel(exe, data, domain):
