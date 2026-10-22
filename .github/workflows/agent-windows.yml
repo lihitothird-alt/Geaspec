@@ -83,7 +83,7 @@ jobs:
           Invoke-WebRequest "https://www.python.org/ftp/python/$env:EMBED_PYTHON/python-$env:EMBED_PYTHON-embed-amd64.zip" -OutFile $zip
           Expand-Archive $zip "$out\python"
           python -m pip install psutil openvr pillow pystray six --only-binary=:all: --python-version 3.12 --platform win_amd64 --target "$out\lib"
-          Copy-Item host_agent.py, geaspec_gui.py, vr_timer.py $out
+          Copy-Item host_agent.py, geaspec_gui.py, vr_timer.py, tray.py $out
           # 予約サイトのアドレスが決まっていれば組み込む (貸し手はログインするだけでよくなる)
           if (Test-Path server_url.txt) { Copy-Item server_url.txt $out; Write-Host "予約サイト: $(Get-Content server_url.txt)" }
           Copy-Item packaging\GeaspecAgent.cmd $out
@@ -113,7 +113,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "--version failed" }
           & "$out\python\python.exe" "$out\host_agent.py" --cleanup-only --dry-run --config "$env:RUNNER_TEMP\none.json"
           if ($LASTEXITCODE -ne 0) { throw "dry-run failed" }
-          & "$out\python\python.exe" -c "import sys; sys.path.insert(0, r'$out'); import tkinter, geaspec_gui; print('tcl', tkinter.Tcl().eval('info patchlevel'))"
+          & "$out\python\python.exe" -c "import sys; sys.path.insert(0, r'$out'); import tkinter, geaspec_gui, pystray; print('tcl', tkinter.Tcl().eval('info patchlevel'))"
           if ($LASTEXITCODE -ne 0) { throw "tkinter / GUI import failed" }
           # VR の中のタイマーの部品 (SteamVR がなくても読み込めること・文字の画像を作れること)
           & "$out\python\python.exe" -c "import sys; sys.path.insert(0, r'$out'); import openvr, vr_timer, pathlib, tempfile; p = vr_timer.render('残り 42分', vr_timer.WATCH_SIZE, pathlib.Path(tempfile.gettempdir()) / 'w.png'); print('vr timer ok', p)"
