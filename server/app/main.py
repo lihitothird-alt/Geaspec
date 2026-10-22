@@ -1253,6 +1253,15 @@ def create_app(
             )
             db.add(host)
             if host.pending:
+                if app.state.tester_store is not None:  # Discord の運営チャンネルにも知らせる (ボットが伝える)
+                    from . import booking_notice
+
+                    thread = booking_notice.thread_id(user.discord_thread or "")
+                    app.state.tester_store.add_web_event(
+                        "lender_pc", f"貸し手の PC「{host.name}」が登録されました（Meta: {user.meta_username or '未設定'}）"
+                        + (f" <#{thread}>" if thread else "")
+                        + f"\n管理画面で「承認する」を押すと貸し出せるようになります: {settings.base_url}/admin",
+                        clock.utcnow(), urgent=True)
                 for admin_email in sorted(settings.admin_emails):
                     send_mail(
                         admin_email,

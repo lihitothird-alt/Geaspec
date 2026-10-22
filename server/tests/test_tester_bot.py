@@ -291,13 +291,15 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         threads[thread.id] = thread
         assert thread.users == [1]
         assert custom_ids(thread.sent[0][1]["view"]) == ["gs:vd"]
-        prep = thread.sent[1][0]  # 申し込んだらやっておくこと
-        assert "VPN を切る" in prep and "FPS と Ping の表示" in prep and "Allow remote connections" not in prep
-        assert "https://lg.example.ts.net/guide" in prep and "#" not in prep  # ページのいちばん上から開く
-        # 申し込んだらすぐ、いちばん下に「次にやること: 予約する」が届く (運営も、2つの答えも待たない)
-        assert store.tester(1)["status"] == "ready" and len(thread.sent) == 4
-        assert "テストでやること（一覧）" in thread.sent[-2][0] and "やることは 4つ" in thread.sent[-2][0]
-        assert "次にやること: 予約する" in thread.sent[-1][0]
+        # 申し込んだらすぐ、短いカードが 1 枚だけ届く (運営も、2つの答えも待たない)。長い説明は Web サイト
+        assert store.tester(1)["status"] == "ready" and len(thread.sent) == 2
+        assert "**① 予約する**（1/3）" in thread.sent[-1][0]
+        pages = "\n".join(f"{t}\n{b}" for t, b in bot.card_pages("borrow", store.tester(1)))
+        assert "VPN を切る" in pages and "https://lg.example.ts.net/guide" in pages and "Allow remote connections" not in pages
+        # 「次へ」を押すと、同じメッセージが次の手順に変わる
+        i = await press(tester, thread.id, "gs:pg:borrow:1")
+        assert i.log[0][0] == "edit" and "**② 当日までの準備**（2/3）" in i.log[0][1]
+        assert custom_ids(i.log[0][2]["view"])[:2] == ["gs:pg:borrow:0", "gs:pg:borrow:2"]
         assert any("hikari_meta" in c for c, _ in ops_log)
         sent_before = len(thread.sent)
 
@@ -312,11 +314,10 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         await press(ops, 5, "gs:ready:1")
         assert len(thread.sent) == sent_before
         ready_text = thread.sent[-1][0]
-        assert "Virtual Desktop を入れる" not in ready_text  # VD を持っている人には出さない
+        assert "Virtual Desktop**（Meta" not in ready_text  # VD を持っている人には出さない
         assert "https://lg.example.ts.net" in ready_text and "`aikotoba`" in ready_text
-        assert "平日は19時以降、土日は終日" in ready_text
-        assert custom_ids(thread.sent[-1][1]["view"]) == ["gs:link", "gs:bookhelp"]
-        assert "予約ページの「テストのチェックリスト」" in ready_text
+        assert "平日は19時以降、土日は終日" in pages and "予約ページの「テストのチェックリスト」" in pages
+        assert custom_ids(thread.sent[-1][1]["view"]) == ["gs:pg:borrow:-1", "gs:pg:borrow:1", "gs:link", "gs:bookhelp"]
 
         # 予約で迷った → 予約した (前の版のメッセージのボタン。準備から予約までの時間を記録し、チェックリストを出す)
         await press(tester, thread.id, "gs:bookhelp")
@@ -620,14 +621,15 @@ def test_group_c_gets_lender_guide(tmp_path, monkeypatch):
         store.set_setting("hours", "土日だけ")
         assert await bot.send_ready_now(store.tester(3)) is True
         (ready, ready_kw), (text, kw) = thread.sent[-2], thread.sent[-1]
-        assert "テストでやること（一覧）" in thread.sent[0][0]
-        assert "次にやること: 予約する" in ready and "土日だけ" in ready
-        assert "PC を貸すテストの手順" in text and "GeaspecAgent-Setup-" in text and "詳細情報" in text
+        assert "① 予約する" in ready and "土日だけ" in "\n".join(b for _, b in bot.card_pages("borrow", store.tester(3)))
+        assert "**① Virtual Desktop Streamer を入れる**（1/4）" in text
+        lend = "\n".join(f"{t}\n{b}" for t, b in bot.card_pages("lend", store.tester(3)))
+        assert "GeaspecAgent-Setup-" in lend and "詳細情報" in lend and "/lend" in lend
         # データが消えたかの確認は、貸し終わったときに届く (申し込んだときには、まだ出さない)
-        assert "データが消えているか" not in text and "貸し終わるたびに" in text
-        assert custom_ids(kw["view"]) == ["gs:lenderapp", "gs:link"]
+        assert "データが消えているか" not in lend
+        assert custom_ids(kw["view"]) == ["gs:pg:lend:-1", "gs:pg:lend:1", "gs:lenderapp", "gs:link"]
         await bot.send_extras(thread, store.tester(3))  # 2 回は送らない
-        assert thread.sent[-1][0] == text and len(thread.sent) == 3
+        assert thread.sent[-1][0] == text and len(thread.sent) == 2
 
         # 貸したあとにデータが消えたかを確かめて押す。残っていたら運営を呼ぶ
         i = FakeInteraction(FakeUser(3), 30, "gs:wipe:ok")
@@ -647,7 +649,7 @@ def test_group_c_gets_lender_guide(tmp_path, monkeypatch):
 def test_panel_shows_hours():
     assert "平日は19時以降、土日は終日" in tb.panel_text(tb.DEFAULT_HOURS)
     assert "https://x/guide" in tb.panel_text("土日", "https://x") and "/guide" not in tb.panel_text("土日")
-    assert "反応しない" in tb.panel_text("土日")
+    assert "次へ" in tb.panel_text("土日")  # くわしいことはカードと Web サイトで
 
 
 def test_csv_joins_the_feedback_form(store):
@@ -877,7 +879,7 @@ def test_ready_message_gives_a_personal_link_instead_of_a_password(tmp_path, mon
         await bot.send_ready(thread, store.tester(1))
         text, kw = thread.sent[-1]
         assert "合言葉" not in text and "https://x/join?t=" in text
-        assert custom_ids(kw["view"]) == ["gs:link", "gs:bookhelp"]
+        assert custom_ids(kw["view"])[2:] == ["gs:link", "gs:bookhelp"]
         token = text.split("/join?t=")[1].split()[0]
         assert invite.read_token("s3cret", token, T0)["meta"] == "meta1"
         assert invite.read_token("s3cret", token, T0)["thread"] == ""  # サーバー番号がまだ分からない
@@ -942,19 +944,22 @@ def test_testers_waiting_from_an_older_version_get_their_guide(tmp_path, store, 
             assert await bot.send_ready_now(tester) is True
         assert store.waiting_testers() == []
         texts = [t for t, _ in thread.sent]
-        assert len(texts) == 2  # 一覧と予約の案内。VD の入れ方は予約の案内の中に入れたので、別には送らない
-        assert "Virtual Desktop を入れる" in texts[1] and "次にやること: 予約する" in texts[1]
+        assert len(texts) == 1  # 短いカード 1 枚。VD の入れ方はカードの中に入れたので、別には送らない
+        assert "Virtual Desktop**（Meta のストア" in texts[0] and "① 予約する" in texts[0]
         assert any("no_vd_user" in c for c in sent_ops)
 
     asyncio.run(scenario())
 
 
-def test_urls_are_not_followed_by_text_discord_would_link():
+def test_urls_are_not_followed_by_text_discord_would_link(tmp_path, monkeypatch):
     import re
     # Discord は URL のすぐ後ろの「）。貸し出しの」までリンクにしてしまう。URL の後ろは空白か行の終わりにする
-    for text in (tb.prep_text("https://x/join?t=abc&next=%2Fguide%23fps"), tb.panel_text("土日", "https://x")):
+    store, bot = make_bot(tmp_path, monkeypatch, [at(0)])
+    cards = [b for kind in ("borrow", "lend") for _, b in bot.card_pages(kind, None)]
+    for text in (*cards, tb.panel_text("土日", "https://x")):
         for m in re.finditer(r"https?://\S+", text):
             assert m.group(0).isascii(), m.group(0)
+    store.close()
 
 
 def test_lenders_get_setup_steps_instead_of_booking(tmp_path, monkeypatch):
@@ -975,8 +980,8 @@ def test_lenders_get_setup_steps_instead_of_booking(tmp_path, monkeypatch):
         texts = [t for t, _ in thread.sent]
         assert store.tester(7)["grp"] == "C" and store.tester(7)["status"] == "ready"
         assert not any("次にやること: 予約する" in t for t in texts)  # 借りる人向けの案内は出さない
-        steps = texts[-1]
-        assert "PC を貸すテストの手順" in steps and "Allow remote connections" in steps
+        assert "① Virtual Desktop Streamer を入れる" in texts[-1] and "Allow remote connections" in texts[-1]
+        steps = "\n".join(f"{t}\n{b}" for t, b in bot.card_pages("lend", store.tester(7)))
         assert f"/releases/download/agent-v{tb.version.VERSION}/GeaspecAgent-Setup-{tb.version.VERSION}.exe" in steps
         assert "貸せる時間" in steps and "PC を貸す" in ops_log[-1]
         store.close()
@@ -1085,8 +1090,8 @@ def test_anything_testers_write_in_their_thread_reaches_ops(tmp_path, monkeypatc
 
 def test_testers_are_told_they_can_write_anytime(tmp_path, monkeypatch):
     store, bot = make_bot(tmp_path, monkeypatch, [at(0)])
-    assert tb.NOTES_HINT in tb.prep_text("https://x/guide")
-    assert tb.NOTES_HINT in bot.lender_text() and tb.NOTES_HINT in bot.thanks_text(1)
+    assert tb.NOTES_HINT in bot.card_pages("borrow", None)[-1][1] and tb.NOTES_HINT in bot.card_pages("lend", None)[-1][1]
+    assert tb.NOTES_HINT in bot.thanks_text(1)
     store.close()
 
 
