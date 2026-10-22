@@ -10,6 +10,7 @@ import csv
 import datetime as dt
 import io
 import json
+import re
 import sqlite3
 import statistics
 import threading
@@ -121,6 +122,10 @@ LENDER_QUESTIONS: list[dict] = [
 ]
 LENDER_KEYS = [q["key"] for q in LENDER_QUESTIONS]
 
+# FPS を測るワールド (ボットの /geaspec-setup worlds: で変えられる。最大 3 つ)
+DEFAULT_WORLDS = "日本語話者向け集会場, Japan Shrine, Nagisa"
+MAX_WORLDS = 3
+
 # 遊んでいる途中のお願い
 MISSIONS = {"heavy": "重いワールドに行った", "crowd": "人の多いインスタンスに入った", "photo": "VRChat のカメラで自撮りした"}
 
@@ -180,6 +185,15 @@ CREATE TABLE IF NOT EXISTS notes (
     text TEXT NOT NULL,
     at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS web_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    session_id INTEGER,
+    text TEXT NOT NULL,
+    urgent INTEGER NOT NULL DEFAULT 0,
+    at TEXT NOT NULL,
+    sent_at TEXT
+);
 CREATE TABLE IF NOT EXISTS booking_notices (
     booking_id INTEGER NOT NULL,
     kind TEXT NOT NULL,
@@ -193,7 +207,9 @@ ADDED_COLUMNS = {
     "testers": {"booked_at": "TEXT", "booking_help": "INTEGER NOT NULL DEFAULT 0", "lender_app_at": "TEXT"},
     "sessions": {"fps_worlds": "TEXT NOT NULL DEFAULT '{}'", "ping_ms": "INTEGER", "completed_at": "TEXT", "followup_sent_at": "TEXT",
                  # どの PC で測ったか (Virtual Desktop の一覧に出る名前)。PC ごとの実測 FPS を出すのに使う
-                 "pc": "TEXT NOT NULL DEFAULT ''"},
+                 "pc": "TEXT NOT NULL DEFAULT ''",
+                 # 予約サイトの予約ページから始めたテストは、どの予約のテストか
+                 "booking_id": "INTEGER"},
 }
 
 
@@ -349,14 +365,42 @@ class TesterStore:
     def session(self, session_id: int) -> dict | None:
         return self._one("SELECT * FROM sessions WHERE id = ?", (session_id,))
 
-    def start_session(self, user_id: int, thread_id: int, now: dt.datetime, pc: str = "") -> tuple[dict, bool]:
-        """テストを始める。途中のテストがあればそれを返す (2つ目は作らない)。pc はつなぐ PC の名前。"""
+    def start_session(self, user_id: int, thread_id: int, now: dt.datetime, pc: str = "",
+                      booking_id: int | None = None) -> tuple[dict, bool]:
+        """テストを始める。途中のテストがあればそれを返す (2つ目は作らない)。pc はつなぐ PC の名前。
+
+        booking_id は予約ページから始めたときの予約。前の予約で途中のままのテストは「途中でやめた」にして、新しく始める。
+        """
         current = self.open_session(thread_id)
+        if current and booking_id is not None and current.get("booking_id") != booking_id:
+            self._run("UPDATE sessions SET status = 'dropped', ended_at = COALESCE(ended_at, ?) WHERE id = ?",
+                      (_iso(now), current["id"]))
+            current = None
         if current:
             return current, False
-        cur = self._run("INSERT INTO sessions (user_id, thread_id, status, opened_at, pc) VALUES (?, ?, 'connecting', ?, ?)",
-                        (user_id, thread_id, _iso(now), pc.strip()))
+        cur = self._run("INSERT INTO sessions (user_id, thread_id, status, opened_at, pc, booking_id) "
+                        "VALUES (?, ?, 'connecting', ?, ?, ?)", (user_id, thread_id, _iso(now), pc.strip(), booking_id))
         return self.session(cur.lastrowid), True
+
+    def session_for_booking(self, booking_id: int) -> dict | None:
+        return self._one("SELECT * FROM sessions WHERE booking_id = ? ORDER BY id DESC LIMIT 1", (booking_id,))
+
+    def worlds(self) -> list[str]:
+        """FPS を測るワールドの名前 (最大 3 つ)。"""
+        raw = self.get_setting("worlds", DEFAULT_WORLDS)
+        return [w.strip() for w in re.split(r"[,、，/／]", raw) if w.strip()][:MAX_WORLDS]
+
+    # 予約サイトで起きたこと (テスト開始・困った など) を、ボットが運営チャンネルに伝える
+    def add_web_event(self, kind: str, text: str, now: dt.datetime, *, session_id: int | None = None,
+                      urgent: bool = False) -> None:
+        self._run("INSERT INTO web_events (kind, session_id, text, urgent, at) VALUES (?, ?, ?, ?, ?)",
+                  (kind, session_id, text, int(urgent), _iso(now)))
+
+    def pending_web_events(self) -> list[dict]:
+        return self._all("SELECT * FROM web_events WHERE sent_at IS NULL ORDER BY id")
+
+    def mark_web_event_sent(self, event_id: int, now: dt.datetime) -> None:
+        self._run("UPDATE web_events SET sent_at = ? WHERE id = ?", (_iso(now), event_id))
 
     def mark_entered(self, session_id: int, now: dt.datetime) -> float:
         """ワールドに入れた。VD を開いてから何秒かかったかを返す。"""
@@ -382,6 +426,11 @@ class TesterStore:
         missions[key] = not missions.get(key, False)
         self._run("UPDATE sessions SET missions = ? WHERE id = ?", (json.dumps(missions), session_id))
         return missions
+
+    def set_missions(self, session_id: int, missions: dict[str, bool]) -> None:
+        if any(key not in MISSIONS for key in missions):
+            raise ValueError(missions)
+        self._run("UPDATE sessions SET missions = ? WHERE id = ?", (json.dumps(missions), session_id))
 
     def set_performance(self, session_id: int, *, fps_by_world: dict[str, int | None], ping_ms: int | None = None,
                         latency_ms: int | None = None) -> None:

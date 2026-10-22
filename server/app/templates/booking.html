@@ -56,7 +56,109 @@
   {% endif %}
   {% endif %}
 
-  {% if discord_url and booking.status in live_states and booking.slot.play_end_at > now %}
+  {% if test %}
+  {% set act = "/bookings/" ~ booking.id ~ "/test/" %}
+  <div class="card test-card" id="test">
+    <h2>テストのチェックリスト</h2>
+    {% if test.done %}
+    <p class="test-done"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>テストは完了です。ありがとうございました！</p>
+    <p class="sub">VRChat で撮った写真は、時間が終わるとこのページからダウンロードできます。写真や数字は、あとからでも足せます。</p>
+    {% else %}
+    <p class="sub">上から順に進めてください。終わったところに ✅ が付きます。</p>
+    {% endif %}
+    <ol class="checklist">
+      <li class="done"><b>予約する</b></li>
+      <li class="{{ 'done' if test.started }}">
+        <b>開始の少し前に「テストを始める」を押して、Virtual Desktop でつなぐ</b>
+        {% if not test.started %}
+          {% if test.can_start %}
+          <form method="post" action="{{ act }}start"><button class="btn lg">テストを始める</button></form>
+          {% else %}
+          <p class="sub">{{ test.start_from|jst("%m/%d %H:%M") }} から押せます。</p>
+          {% endif %}
+        {% elif test.status == "connecting" %}
+          <p>Quest で Virtual Desktop を開き、パソコンの一覧から「{{ booking.slot.host.name }}」を選んでください。VRChat が立ち上がったら、<strong>メールアドレス（またはユーザー名）とパスワード</strong>で自分のアカウントにログインします（Steam のボタンは押さない）。</p>
+          <p class="sub">もし自分ではない人のアカウントでログインされていたら、何も触らずに下の「困ったとき」から運営を呼んでください。</p>
+        {% endif %}
+      </li>
+      <li class="{{ 'done' if test.entered }}">
+        <b>ワールドに入れたら「ワールドに入れた」を押す</b>
+        {% if test.status == "connecting" %}
+        <div class="test-row">
+          <form method="post" action="{{ act }}entered"><button class="btn">ワールドに入れた</button></form>
+          <form method="post" action="{{ act }}giveup" onsubmit="return confirm('つながらなかったことにして、テストを終えますか？')"><button class="btn ghost small">つながらなかった</button></form>
+        </div>
+        {% elif test.entered %}<p class="sub">入るまで {{ test.enter_text }}</p>{% endif %}
+      </li>
+      <li class="{{ 'done' if test.photo }}">
+        <b>FPS と Ping を記録する</b>
+        <p class="sub">VRChat のメニューの歯車 →いちばん下の「デバッグ」→「FPS と Ping の表示」をオン。「{{ test.worlds|join("」「") }}」で 30秒ほど歩き回りながら、見えた数字を入れるか、Quest のスクリーンショットを送ってください（<a href="/guide#fps">画像つきの説明</a>）。</p>
+        {% if test.started %}
+        <form method="post" action="{{ act }}perf" enctype="multipart/form-data" class="form test-perf">
+          {% for w in test.worlds %}
+          <label>{{ w }} の FPS<input type="number" name="fps_{{ loop.index0 }}" min="0" max="240" inputmode="numeric" value="{{ test.fps.get(w, '') }}"></label>
+          {% endfor %}
+          <label>Ping（ms）<input type="number" name="ping" min="0" max="2000" inputmode="numeric" value="{{ '' if test.ping is none else test.ping }}"></label>
+          <label>スクリーンショット（{{ test.max_photos }} 枚まで）<input type="file" name="photos" accept="image/png,image/jpeg,image/webp" multiple></label>
+          {% if test.photos %}<p class="sub">送った写真: {{ test.photos }} 枚</p>{% endif %}
+          <button class="btn small">記録する</button>
+        </form>
+        {% endif %}
+      </li>
+      <li class="{{ 'done' if test.missions.values()|select|list|length == test.mission_labels|length }}">
+        <b>（できたら）やってみてほしいこと</b>
+        {% if test.started %}
+        <form method="post" action="{{ act }}missions" class="test-missions">
+          {% for key, label in test.mission_labels.items() %}
+          <label class="fb-pick"><input type="checkbox" name="mission" value="{{ key }}"{% if test.missions.get(key) %} checked{% endif %}><span>{{ label }}</span></label>
+          {% endfor %}
+          <button class="btn small ghost">記録する</button>
+        </form>
+        {% endif %}
+      </li>
+      <li class="{{ 'done' if test.status in ('survey', 'done') and (test.survey or not test.connected) }}">
+        <b>遊び終わったら「遊び終わった」を押して、アンケートに答える</b>
+        {% if test.status == "playing" %}
+          <form method="post" action="{{ act }}done"><button class="btn">遊び終わった</button></form>
+          <p class="sub">時間まで遊んで大丈夫です。早く終わったら、上の「いま終わる」で PC を返せます。</p>
+        {% elif test.status == "survey" and test.connected and test.survey %}
+          <p class="sub">アンケートは記録しました。FPS と Ping の写真か数字を入れると、テストが完了します。</p>
+        {% elif test.status == "survey" and test.connected %}
+        <form method="post" action="{{ act }}survey" class="fb-form test-survey">
+          {% for q in test.questions %}
+          <fieldset class="fb-q">
+            <legend>{{ loop.index }}. {{ q.text }}{% if q.skip_if %}<span class="sub">（VR ができるパソコンを持っている人は、答えなくて大丈夫です）</span>{% endif %}</legend>
+            <div class="fb-chips">
+              {% for v, label in q.options %}
+              <label class="fb-pick"><input type="{{ 'checkbox' if q.multi else 'radio' }}" name="{{ q.key }}" value="{{ v }}"{% if not q.multi and not q.skip_if %} required{% endif %}><span>{{ label }}</span></label>
+              {% endfor %}
+            </div>
+          </fieldset>
+          {% endfor %}
+          <label>いちばん迷ったところ（任意）<textarea name="stuck" rows="2" maxlength="1000"></textarea></label>
+          <label>ひとこと感想（任意）<textarea name="comment" rows="2" maxlength="1000"></textarea></label>
+          <button class="btn lg">アンケートを送る</button>
+        </form>
+        {% elif test.status == "survey" %}
+        <form method="post" action="{{ act }}stuck" class="form">
+          <label>ごめんなさい！ どこで止まったか教えてください（任意）<textarea name="stuck" rows="3" maxlength="1000"></textarea></label>
+          <button class="btn">送ってテストを終える</button>
+        </form>
+        {% endif %}
+      </li>
+    </ol>
+    {% if not test.done %}
+    <details class="test-help">
+      <summary>困ったとき</summary>
+      <form method="post" action="{{ act }}help" class="form">
+        <label>何が起きたか（任意）<input type="text" name="what" maxlength="300"></label>
+        <button class="btn danger">運営を呼ぶ</button>
+      </form>
+      {% if discord_url %}<p class="sub">Discord の自分のスレッドでも相談できます: <a href="{{ discord_url }}" target="_blank" rel="noopener">スレッドを開く</a></p>{% endif %}
+    </details>
+    {% endif %}
+  </div>
+  {% elif discord_url and booking.status in live_states and booking.slot.play_end_at > now %}
   <div class="card status-card discord-back" id="discord">
     <div class="ic" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></div>
     <div>

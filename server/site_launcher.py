@@ -150,6 +150,8 @@ def site_environment(config: dict, address: str, data: Path) -> dict[str, str]:
         "PAYMENT_PROVIDERS": config.get("payment_providers", "fake"),
         "DATABASE_URL": f"sqlite:///{(data / 'geaspec.db').as_posix()}",
         "MEDIA_DIR": str(data / "media"),
+        # テストの記録は Discord ボットと同じファイル。予約ページで進めたテストも、ボットの集計に入る
+        "TESTER_DB": str(data / "tester_bot.db"),
         "BASE_URL": address or f"http://localhost:{PORT}",
         "SMTP_USER": config.get("mail_user", ""),
         "SMTP_PASSWORD": config.get("mail_password", ""),

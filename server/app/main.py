@@ -27,13 +27,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import clock, feedback, invite, services, social
+from . import clock, feedback, invite, services, social, web_test
 from .config import Settings
 from .db import Base, add_missing_columns, make_engine, make_sessionmaker
 from .models import Booking, BookingStatus, Feedback, Host, Slot, User
 from .payments import PROVIDER_LABELS, PaymentGateway, build_payments
 from .security import connection_code, hash_password, hash_token, new_agent_token, verify_password
 from .mail import Mailer, build_mailer
+from .tester_store import MISSIONS, TesterStore
 from .version import VERSION
 from .vpn import VpnProvider, build_vpn
 
@@ -72,6 +73,9 @@ def create_app(
     app.state.payments = payments or build_payments(settings)
     app.state.vpn = vpn or build_vpn(settings)
     app.state.mailer = mailer or build_mailer(settings)
+    # テストの記録 (Discord ボットと同じファイル)。ないときは、予約ページにテストのチェックリストを出さない
+    app.state.tester_store = TesterStore(settings.tester_db) if settings.tester_db else None
+    tester_shots = Path(settings.tester_db).parent / "tester_screenshots" if settings.tester_db else None
     media_root = Path(settings.media_dir)
     (media_root / "screenshots").mkdir(parents=True, exist_ok=True)
     @app.middleware("http")
@@ -587,7 +591,158 @@ def create_app(
             discord_url=invite.thread_url(user.discord_thread or request.session.get("discord_thread", ""))
             if booking.user_id == user.id else "",
             is_borrower=booking.user_id == user.id,
+            test=test_context(booking) if booking.user_id == user.id else None,
         )
+
+    def test_context(booking: Booking) -> dict | None:
+        """予約ページのテストのチェックリスト。テストの記録がないサイトでは出さない。"""
+        store = app.state.tester_store
+        if store is None or booking.status in (BookingStatus.PENDING_PAYMENT, BookingStatus.CANCELLED,
+                                               BookingStatus.EXPIRED):
+            return None
+        session = store.session_for_booking(booking.id)
+        now = clock.utcnow()
+        if session is None and booking.slot.play_end_at <= now:
+            return None  # テストをしないまま終わった予約
+        return {
+            **web_test.state(session),
+            "can_start": web_test.can_start(booking, now),
+            "start_from": booking.slot.start_at - dt.timedelta(minutes=web_test.START_EARLY_MINUTES),
+            "worlds": store.worlds(),
+            "questions": web_test.asked_questions(None),
+            "mission_labels": MISSIONS,
+            "max_photos": web_test.MAX_PHOTOS,
+        }
+
+    def test_event(booking: Booking, kind: str, text: str, *, session: dict | None = None, urgent: bool = False) -> None:
+        app.state.tester_store.add_web_event(kind, f"{web_test.who(booking)} {text}", clock.utcnow(),
+                                             session_id=session["id"] if session else None, urgent=urgent)
+
+    def finish_test(booking: Booking, session: dict) -> None:
+        """必要なものがそろったら、テストを終える (運営に結果が届く)。"""
+        latest = app.state.tester_store.session(session["id"])
+        st = web_test.state(latest)
+        if st["done"] or st["status"] != "survey" or not (st["photo"] and st["survey"]):
+            return
+        app.state.tester_store.complete(session["id"], clock.utcnow(), stuck=latest["stuck"], comment=latest["comment"])
+        test_event(booking, "done", "のテストが完了しました（予約ページから）", session=session)
+
+    @app.post("/bookings/{booking_id}/test/{action}")
+    async def booking_test(booking_id: int, action: str, request: Request, db: Session = Depends(get_db)):
+        """予約ページのテストのチェックリストのボタン。"""
+        user = require_user(request, db)
+        booking = db.get(Booking, booking_id)
+        store = app.state.tester_store
+        if not booking or booking.user_id != user.id or store is None:
+            raise HTTPException(404)
+        back = redirect(f"/bookings/{booking.id}#test")
+        form = await request.form()
+        values = {key: [v for v in form.getlist(key) if isinstance(v, str)] for key in form.keys()}
+        now = clock.utcnow()
+        session = store.session_for_booking(booking.id)
+        status = session["status"] if session else ""
+
+        if action == "start":
+            if not web_test.can_start(booking, now):
+                flash(request, f"「テストを始める」は、開始の {web_test.START_EARLY_MINUTES} 分前から押せます", "error")
+                return back
+            uid, tid = web_test.identity(store, user)
+            session, created = store.start_session(uid, tid, now, pc=booking.slot.host.name, booking_id=booking.id)
+            if created:
+                test_event(booking, "start", "がテストを始めました（予約ページから）", session=session)
+            return back
+        if action == "help":
+            what = (values.get("what") or [""])[0].strip()[:300]
+            step = web_test.help_step(session if status in ("connecting", "playing", "survey") else None)
+            count = store.add_help(session["id"], step, now) if session and status != "dropped" else 1
+            test_event(booking, "help", f"が困っています（{step}・{count}回目）" + (f"\n「{what}」" if what else ""),
+                       session=session, urgent=True)
+            for admin_email in sorted(settings.admin_emails):
+                send_mail(admin_email, f"テスターが困っています（予約 #{booking.id}）",
+                          f"{web_test.who(booking)} が困っています（{step}）。\n\n{what or '（書かれていません）'}\n\n"
+                          f"{settings.base_url}/admin")
+            flash(request, "運営を呼びました。すぐに連絡します。そのまま待っていてください")
+            return back
+        if session is None or status == "dropped":
+            flash(request, "先に「テストを始める」を押してください", "error")
+            return back
+
+        if action == "entered":
+            if status == "connecting":
+                seconds = store.mark_entered(session["id"], now)
+                test_event(booking, "entered", f"がワールドに入りました（{web_test.format_duration(seconds)}）",
+                           session=session)
+        elif action == "giveup":
+            if status == "connecting":
+                store.finish_play(session["id"], now, connected=False)
+                test_event(booking, "giveup", "がつながりませんでした。連絡してあげてください", session=session,
+                           urgent=True)
+        elif action == "missions":
+            store.set_missions(session["id"], web_test.missions_from(values))
+            flash(request, "記録しました")
+        elif action == "perf":
+            try:
+                fps, ping = web_test.parse_performance(values, store.worlds())
+            except web_test.WebTestError as exc:
+                flash(request, str(exc), "error")
+                return back
+            if fps or ping is not None:
+                merged = {**web_test.state(session)["fps"], **fps}
+                store.set_performance(session["id"], fps_by_world=merged,
+                                      ping_ms=ping if ping is not None else session["ping_ms"],
+                                      latency_ms=session["latency_ms"])
+            saved = 0
+            for upload in form.getlist("photos"):
+                if isinstance(upload, str) or not upload.filename:
+                    continue
+                suffix = web_test.PHOTO_TYPES.get((upload.content_type or "").split(";")[0])
+                if suffix is None:
+                    flash(request, f"{upload.filename} は写真として読めませんでした（PNG・JPEG・WebP）", "error")
+                    continue
+                if len(json.loads(store.session(session["id"])["screenshots"])) >= web_test.MAX_PHOTOS:
+                    flash(request, f"写真は {web_test.MAX_PHOTOS} 枚までです", "error")
+                    break
+                data = await upload.read(web_test.MAX_PHOTO_MB * 1024 * 1024 + 1)
+                if len(data) > web_test.MAX_PHOTO_MB * 1024 * 1024:
+                    flash(request, f"{upload.filename} が大きすぎます（{web_test.MAX_PHOTO_MB}MB まで）", "error")
+                    continue
+                tester_shots.mkdir(parents=True, exist_ok=True)
+                path = tester_shots / f"test{session['id']:03d}-web{secrets.token_hex(4)}{suffix}"
+                path.write_bytes(data)
+                store.add_screenshot(session["id"], str(path))
+                saved += 1
+            if fps or ping is not None or saved:
+                flash(request, "記録しました" + (f"（写真 {saved} 枚）" if saved else ""))
+            finish_test(booking, session)
+        elif action == "done":
+            if status == "playing":
+                store.finish_play(session["id"], now, connected=True)
+        elif action == "survey":
+            if status != "survey" or not session["connected"]:
+                return back
+            try:
+                answers = web_test.parse_survey(values)
+            except web_test.WebTestError as exc:
+                flash(request, str(exc), "error")
+                return back
+            for key, value in answers.items():
+                store.answer(session["id"], key, value)
+            stuck = (values.get("stuck") or [""])[0][:1000]
+            comment = (values.get("comment") or [""])[0][:1000]
+            store.save_comment(session["id"], stuck=stuck, comment=comment)
+            session = store.session(session["id"])
+            if not web_test.state(session)["photo"]:
+                flash(request, "アンケートを記録しました。最後に、FPS と Ping の写真か数字を入れると完了です")
+            finish_test(booking, session)
+        elif action == "stuck":
+            # つながらなかった人は、どこで止まったかだけ聞いて終わる
+            if status == "survey" and not session["connected"]:
+                stuck = (values.get("stuck") or [""])[0][:1000]
+                store.complete(session["id"], now, stuck=stuck)
+                test_event(booking, "done", "のテストが完了しました（つながらなかった・予約ページから）", session=session)
+        else:
+            raise HTTPException(404)
+        return back
 
     @app.post("/bookings/{booking_id}/review")
     def review_booking(
