@@ -1455,3 +1455,23 @@ def test_slot_list_marks_slots_that_can_run_on(setup, now):
     assert "連続可能 最大3時間（〜16:00）" in page
     assert "連続可能 最大2時間（〜16:00）" in page
     assert page.count("連続可能 最大") == 2
+
+
+def test_own_domain_sends_http_visitors_to_https(tmp_path):
+    """ログインのクッキーは https でしか送られないので、http://geaspec.com で来た人は https に送る。"""
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'test.db'}", secret_key="test",
+                        media_dir=str(tmp_path / "media"), base_url="https://geaspec.com", secure_cookies=True)
+    app = create_app(settings, payments={"fake": FakePayments()}, vpn=FakeVpn())
+    c = TestClient(app, base_url="http://geaspec.com")
+    r = c.get("/login?next=/lend", follow_redirects=False)
+    assert r.status_code == 301
+    assert r.headers["location"] == "https://geaspec.com/login?next=/lend"
+    r = c.post("/login", data={"email": "a@example.com", "password": "x"}, follow_redirects=False)
+    assert r.status_code == 308  # 入力した内容ごと https に送り直す
+    # Cloudflare 経由で https から来た通信は、そのまま通す (X-Forwarded-Proto は uvicorn が https に直す)
+    https = TestClient(app, base_url="https://geaspec.com")
+    assert https.get("/healthz", follow_redirects=False).status_code == 200
+    assert c.get("/healthz", headers={"cf-visitor": '{"scheme":"https"}'}, follow_redirects=False).status_code == 200
+    # この PC で開く localhost は http のまま使える
+    local = TestClient(app, base_url="http://localhost:8000")
+    assert local.get("/healthz", follow_redirects=False).status_code == 200

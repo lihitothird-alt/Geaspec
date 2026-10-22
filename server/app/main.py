@@ -16,6 +16,7 @@ import secrets
 import zipfile
 from pathlib import Path
 from typing import Iterator
+from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
@@ -78,6 +79,22 @@ def create_app(
     tester_shots = Path(settings.tester_db).parent / "tester_screenshots" if settings.tester_db else None
     media_root = Path(settings.media_dir)
     (media_root / "screenshots").mkdir(parents=True, exist_ok=True)
+    public_host = urlsplit(settings.base_url).hostname if settings.secure_cookies else None
+
+    @app.middleware("http")
+    async def force_https(request: Request, call_next):
+        """http:// で来た人を https:// に送る。ログインのクッキーは https でしか送られないため。
+
+        Cloudflare から来た通信は、元が http か https かを X-Forwarded-Proto で教えてくれる。
+        この PC で開く localhost はそのまま。
+        """
+        visitor = request.headers.get("cf-visitor", "")  # Cloudflare が付ける {"scheme":"https"} (念のため、行ったり来たりを防ぐ)
+        if (public_host and request.url.hostname == public_host and request.url.scheme == "http"
+                and '"https"' not in visitor):
+            code = 301 if request.method in ("GET", "HEAD") else 308
+            return RedirectResponse(str(request.url.replace(scheme="https", port=None)), status_code=code)
+        return await call_next(request)
+
     @app.middleware("http")
     async def private_site(request: Request, call_next):
         """検索エンジンに載せない。合言葉か招待リンクを使う設定なら、招待した人だけに見せる (ふだんは公開)。"""
