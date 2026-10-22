@@ -32,6 +32,16 @@ QUESTIONS: list[dict] = [
      "options": [("1", "1 とても気になった"), ("2", "2"), ("3", "3"), ("4", "4"), ("5", "5 まったく気にならなかった")]},
     {"key": "sick", "text": "VR酔いはしましたか？",
      "options": [("none", "まったくしない"), ("little", "少し"), ("some", "けっこう"), ("bad", "ひどい")]},
+    {"key": "safety", "text": "使っている間に、気になることはありましたか？（いくつでも）", "multi": True,
+     "options": [("none", "特になかった"), ("other_account", "自分以外のアカウントで入っていた"),
+                 ("saw_pc", "貸してくれた人の画面やファイルが見えた"), ("left_data", "前の人のデータが残っていた"),
+                 ("other", "その他")]},
+    {"key": "usual_fps", "text": "いつもの環境で、人が多めのワールドに行くと FPS はどのくらいですか？",
+     "options": [("30", "30 より下"), ("45", "30〜45"), ("60", "45〜60"), ("72", "60〜72"), ("90", "72 より上"),
+                 ("unknown", "わからない")]},
+    {"key": "region", "text": "住んでいる地方は？",
+     "options": [("hokkaido", "北海道"), ("tohoku", "東北"), ("kanto", "関東"), ("chubu", "中部"), ("kinki", "近畿"),
+                 ("chugoku", "中国"), ("shikoku", "四国"), ("kyushu", "九州・沖縄"), ("abroad", "海外")]},
     {"key": "compare", "text": "いつもの環境（Quest 単体 or 自分の PC）と比べてどうでしたか？",
      "options": [("1", "かなり悪い"), ("2", "少し悪い"), ("3", "同じくらい"), ("4", "少し良い"), ("5", "かなり良い")]},
     {"key": "timer", "text": "手首のタイマーと、終わりのお知らせはどうでしたか？",
@@ -87,7 +97,11 @@ QUESTIONS: list[dict] = [
 ]
 QUESTION_KEYS = [q["key"] for q in QUESTIONS]
 # 予約ページのアンケートで、かならず答えてもらう質問 (1分ほど)。ほかは「時間があれば」
-CORE_QUESTION_KEYS = ("quality", "stutter", "ease", "again", "price")
+# テストで調べたい 5 つ (簡単につながるか・安全か・FPS がどれだけ上がるか・遅れが現実的か・いくらなら払うか) に合わせる
+CORE_QUESTION_KEYS = ("ease", "safety", "trust", "quality", "compare", "usual_fps", "region", "price")
+# 遅れの目安: Virtual Desktop の遅れ (家どうしの距離で変わる) と、VRChat の Ping (PC から VRChat まで)
+LATENCY_OK_MS = 40
+PING_OK_MS = 100
 
 # 前の版で、テストの 3 日後にスレッドで聞いていた質問 (いまは聞かない。前の答えの集計と CSV のために残す)
 FOLLOWUPS: list[dict] = [
@@ -593,6 +607,21 @@ class TesterStore:
                         for name in self.world_names(rows)}
         lat = [r["latency_ms"] for r in rows if r["latency_ms"] is not None]
         nps = [int(x) for x in values("nps")]
+        safety = [r["a"]["safety"] for r in answered if "safety" in r["a"]]
+        # FPS がどれだけ上がったか: 測った FPS (最初のワールド) − いつもの FPS (答えの区切りの上限)
+        first_world = (self.worlds() or [None])[0]
+        gains = [self.world_fps(r)[first_world] - int(r["a"]["usual_fps"]) for r in answered
+                 if first_world in self.world_fps(r) and r["a"].get("usual_fps", "unknown") != "unknown"]
+        by_region: dict[str, dict] = {}
+        for r in answered:
+            region = r["a"].get("region")
+            if not region:
+                continue
+            d = by_region.setdefault(option_label("region", region), {"latency": [], "ping": []})
+            if r["latency_ms"] is not None:
+                d["latency"].append(r["latency_ms"])
+            if r["ping_ms"] is not None:
+                d["ping"].append(r["ping_ms"])
         return {
             "applied": len(testers),
             "ready": sum(1 for t in testers if t["status"] == "ready"),
@@ -623,6 +652,19 @@ class TesterStore:
             "groups": groups,
             **self.lender_summary(),
             "pc_checked_recent_rate": share("pc_checked", {"week", "month"}),
+            "safety_answered": len(safety),
+            "safety_issues": sum(1 for picked in safety if any(v != "none" for v in picked)),
+            "trust_avg": avg("trust"),
+            "compare_better_rate": share("compare", {"4", "5"}),
+            "fps_gain_median": statistics.median(gains) if gains else None,
+            "latency_ok_rate": round(sum(1 for v in lat if v <= LATENCY_OK_MS) / len(lat), 3) if lat else None,
+            "ping_ok_rate": round(sum(1 for v in ping if v <= PING_OK_MS) / len(ping), 3) if ping else None,
+            "by_region": {name: {"tests": max(len(d["latency"]), len(d["ping"])),
+                                 "latency": statistics.median(d["latency"]) if d["latency"] else None,
+                                 "ping": statistics.median(d["ping"]) if d["ping"] else None}
+                          for name, d in by_region.items()},
+            "price_counts": [(label, sum(1 for x in values("price") if x == v))
+                             for v, label in next(q for q in QUESTIONS if q["key"] == "price")["options"]],
             "pc_effect": {v: share("pc_effect", {v}) for v, _ in next(q for q in QUESTIONS if q["key"] == "pc_effect")["options"]},
         }
 
@@ -734,48 +776,75 @@ def _pct(x: float | None) -> str:
 
 
 def summary_lines(s: dict) -> list[str]:
-    """テスト計画書の「測るもの」と同じ目標で、達成していれば ✅、まだなら ⚠️ を付ける。"""
+    """テストで調べたい 5 つごとにまとめる。目標を達成していれば ✅、まだなら ⚠️ を付ける。"""
 
     def mark(ok: bool | None) -> str:
         return "・" if ok is None else ("✅" if ok else "⚠️")
 
+    def ms(v) -> str:
+        return "—" if v is None else f"{v}ms"
+
     enter = s["enter_median_sec"]
     price = s["price_median"]
+    gain = s["fps_gain_median"]
     lines = [
         f"申し込み {s['applied']}人 ・ 準備済み {s['ready']}人 ・ テスト {s['sessions']}回（アンケートまで完了 {s['done']}回）",
         "",
-        f"{mark(None if s['booked_rate'] is None else s['booked_rate'] >= 0.8)} 予約まで進めた割合: {_pct(s['booked_rate'])}（目標 80%以上）"
-        f" ／ 予約までの時間（真ん中の値）: {'—' if s['book_median_sec'] is None else format_duration(s['book_median_sec'])}"
-        f" ／ 予約で迷った: {s['booking_help']}回",
+        "**① 簡単につながるか**",
         f"{mark(None if s['connected_rate'] is None else s['connected_rate'] >= 0.9)} つながった割合: {_pct(s['connected_rate'])}（目標 90%以上）",
         f"{mark(None if enter is None else enter <= 300)} ワールドに入るまで（真ん中の値）: "
         f"{'—' if enter is None else format_duration(enter)}（目標 5分以内）",
         f"{mark(None if s['help_ok_rate'] is None else s['help_ok_rate'] >= 0.8)} 「困った」が1回以下だった割合: {_pct(s['help_ok_rate'])}",
+        f"{mark(None if s['ease_avg'] is None else s['ease_avg'] >= 4)} 分かりやすさ: "
+        f"{'—' if s['ease_avg'] is None else s['ease_avg']}（5 がとても分かりやすい・目標 平均4以上）",
+        "",
+        "**② 安全につながるか**",
+        f"{mark(None if s['safety_answered'] == 0 else s['safety_issues'] == 0)} 気になることがあった: "
+        f"{s['safety_issues']}回 ／ {s['safety_answered']}回（自分以外のアカウント・貸した人の画面・前の人のデータなど。目標 0回）",
+        f"{mark(None if s['trust_avg'] is None else s['trust_avg'] >= 4)} 安心して使えそうか: "
+        f"{'—' if s['trust_avg'] is None else s['trust_avg']}（5 が安心・目標 平均4以上）",
+        "",
+        "**③ FPS がどれだけ上がるか**",
+        "・ 測った FPS（真ん中の値）: " + ("／".join(f"{w} {v}" for w, v in s["fps_by_world"].items()) or "—"),
+        f"・ いつもの環境より（真ん中の値）: {'—' if gain is None else ('+' if gain >= 0 else '') + str(gain) + ' FPS'}",
+        f"{mark(None if s['compare_better_rate'] is None else s['compare_better_rate'] >= 0.7)} いつもより良かった: "
+        f"{_pct(s['compare_better_rate'])}（目標 70%以上）",
         f"{mark(None if s['quality_avg'] is None else s['quality_avg'] >= 4)} 画質・遅れの満足度: "
         f"{'—' if s['quality_avg'] is None else s['quality_avg']}（目標 平均4以上）",
-        f"{mark(None if s['done'] == 0 else s['sick_count'] <= 1)} 「けっこう／ひどく」酔った人: {s['sick_count']}人（目標 1人以下）",
-        f"{mark(None if s['again_rate'] is None else s['again_rate'] >= 0.7)} また使いたい: {_pct(s['again_rate'])}（目標 70%以上）",
-        f"{mark(None if s['nps_top_rate'] is None else s['nps_top_rate'] >= 0.5)} すすめたい度 9〜10: {_pct(s['nps_top_rate'])}（目標 半分以上）",
-        f"・ 払ってもいい金額（真ん中の値）: {'—' if price is None else option_label('price', str(price))}",
-        f"・ 分かりやすさ: {'—' if s['ease_avg'] is None else s['ease_avg']} ／ VD を持っていた人: {_pct(s['has_vd_rate'])}",
-        "・ FPS（真ん中の値）: " + ("／".join(f"{w} {v}" for w, v in s["fps_by_world"].items()) or "—") + " ／ "
-        f"Ping {'—' if s['ping_median'] is None else str(s['ping_median']) + 'ms'} ／ "
-        f"VD の遅れ {'—' if s['latency_median'] is None else str(s['latency_median']) + 'ms'} ／ スクショ {s['screenshots']}枚",
         *[f"・ PC「{pc}」の実測（{d['tests']}回）: "
           + ("／".join(f"{w} {v}fps" for w, v in d["fps"].items()) or "FPS —")
-          + f" ／ Ping {'—' if d['ping'] is None else str(d['ping']) + 'ms'}" for pc, d in s["fps_by_pc"].items()],
+          + f" ／ Ping {ms(d['ping'])}" for pc, d in s["fps_by_pc"].items()],
+        "",
+        "**④ 遅れが現実的な範囲か**",
+        f"{mark(None if s['latency_ok_rate'] is None else s['latency_ok_rate'] >= 0.8)} Virtual Desktop の遅れ（真ん中の値）: "
+        f"{ms(s['latency_median'])} ／ {LATENCY_OK_MS}ms 以下だった割合: {_pct(s['latency_ok_rate'])}（目標 80%以上）",
+        f"{mark(None if s['ping_ok_rate'] is None else s['ping_ok_rate'] >= 0.8)} VRChat の Ping（真ん中の値）: "
+        f"{ms(s['ping_median'])} ／ {PING_OK_MS}ms 以下だった割合: {_pct(s['ping_ok_rate'])}",
+        *[f"・ {name}（{d['tests']}回）: VD の遅れ {ms(d['latency'])} ／ Ping {ms(d['ping'])}"
+          for name, d in s["by_region"].items()],
         f"・ カクつきの気にならなさ: {'—' if s['stutter_avg'] is None else s['stutter_avg']}（5 がまったく気にならない）",
-        f"・ 3日後もまた使いたい: {_pct(s['again_3d_rate'])} ／ 友達に話した: {_pct(s['told_rate'])}",
-        f"・ 貸し手ベータのアプリを入れた人: {s['lender_app']}人",
+        f"{mark(None if s['done'] == 0 else s['sick_count'] <= 1)} 「けっこう／ひどく」酔った人: {s['sick_count']}人（目標 1人以下）",
+        "",
+        "**⑤ いくらなら払うか**",
+        f"・ 1時間に払ってもいい金額（真ん中の値）: {'—' if price is None else option_label('price', str(price))}",
+        "・ 答えの分かれ方: " + ("／".join(f"{label} {n}人" for label, n in s["price_counts"] if n) or "—"),
         f"・ ゲーミング PC の値段を1か月以内に調べた: {_pct(s['pc_checked_recent_rate'])} ／ Geaspec があれば PC を: "
         + "・".join(f"{option_label('pc_effect', k)} {_pct(v)}" for k, v in s["pc_effect"].items()),
-        f"・ 貸した人のアンケート: {s['lenders_answered']}人 ／ もらえたら貸す金額（真ん中の値）: "
+        f"・ 貸した人がもらえたら貸す金額（真ん中の値）: "
         f"{'—' if s['lend_price_median'] is None else option_label('lend_price', str(s['lend_price_median']))}"
-        f" ／ また貸したい: {_pct(s['lend_again_rate'])} ／ 貸す前に不安だった: {_pct(s['lend_worry_rate'])}",
-        f"・ スレッドに書かれた意見: {s['notes']}件",
+        f"（{s['lenders_answered']}人）",
+        "",
+        "**そのほか**",
+        f"{mark(None if s['again_rate'] is None else s['again_rate'] >= 0.7)} また使いたい: {_pct(s['again_rate'])}（目標 70%以上）"
+        f" ／ すすめたい度 9〜10: {_pct(s['nps_top_rate'])}",
+        f"・ 予約まで進めた割合: {_pct(s['booked_rate'])} ／ 予約で迷った: {s['booking_help']}回 ／ VD を持っていた人: {_pct(s['has_vd_rate'])}",
+        f"・ 貸し手ベータのアプリを入れた人: {s['lender_app']}人 ／ また貸したい: {_pct(s['lend_again_rate'])}"
+        f" ／ 貸す前に不安だった: {_pct(s['lend_worry_rate'])}",
+        f"・ スクショ {s['screenshots']}枚 ／ スレッドに書かれた意見: {s['notes']}件",
     ]
     for g in ("A", "B"):
         d = s["groups"][g]
-        lines.append(f"・ {GROUPS[g]}: {d['sessions']}回 ・ 満足度 {'—' if d['quality'] is None else d['quality']} ・ "
-                     f"また使いたい {_pct(d['again'])}")
+        if d["sessions"]:
+            lines.append(f"・ {GROUPS[g]}: {d['sessions']}回 ・ 満足度 {'—' if d['quality'] is None else d['quality']} ・ "
+                         f"また使いたい {_pct(d['again'])}")
     return lines

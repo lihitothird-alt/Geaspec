@@ -709,20 +709,20 @@ def create_app(
             if status == "playing":
                 store.finish_play(session["id"], now, connected=True)
         elif action == "survey":
-            # 最後の画面: FPS と Ping (かならず)・アンケート 5問 (かならず)・写真とほかの質問 (時間があれば)
+            # 最後の画面: FPS・Ping・VD の遅れ (かならず)・アンケート 8問 (かならず)・写真とほかの質問 (時間があれば)
             if status != "survey" or not session["connected"]:
                 return back
             no_perf = bool(values.get("no_perf"))
             try:
-                fps, ping = web_test.parse_performance(values, store.worlds(), required=not no_perf)
+                fps, ping, latency = web_test.parse_performance(values, store.worlds(), required=not no_perf)
                 answers = web_test.parse_survey(values)
             except web_test.WebTestError as exc:
                 flash(request, str(exc), "error")
                 return back
-            if fps or ping is not None:
+            if fps or ping is not None or latency is not None:
                 store.set_performance(session["id"], fps_by_world={**web_test.state(session)["fps"], **fps},
                                       ping_ms=ping if ping is not None else session["ping_ms"],
-                                      latency_ms=session["latency_ms"])
+                                      latency_ms=latency if latency is not None else session["latency_ms"])
             await save_test_photos(request, form, store, session)
             store.set_missions(session["id"], web_test.missions_from(values))
             for key, value in answers.items():
@@ -730,7 +730,7 @@ def create_app(
             stuck = (values.get("stuck") or [""])[0][:1000]
             comment = (values.get("comment") or [""])[0][:1000]
             if no_perf:
-                comment = ("FPS・Ping: 表示できなかった" + (f" ／ {comment}" if comment else ""))[:1000]
+                comment = ("FPS・Ping: 表示できなかった" + (f" ／ {comment}" if comment else ""))[:1000]  # 集計で見分ける
             store.save_comment(session["id"], stuck=stuck, comment=comment)
             finish_test(booking, store.session(session["id"]))
         elif action == "stuck":

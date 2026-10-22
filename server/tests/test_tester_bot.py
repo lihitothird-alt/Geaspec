@@ -1388,3 +1388,32 @@ def test_a_new_booking_page_test_drops_the_unfinished_one(store):
     second, created = store.start_session(-5, -5, T0 + dt.timedelta(days=1), booking_id=2)
     assert created and store.session(first["id"])["status"] == "dropped"
     assert store.session_for_booking(2)["id"] == second["id"]
+
+
+def test_summary_answers_the_five_questions_of_the_test(store):
+    """簡単さ・安全・FPS の上がり方・遅れ・払ってもいい金額を、テストごとの数字から出す。"""
+    def run(uid, *, fps, ping, latency, answers):
+        s, _ = store.start_session(-uid, -uid, T0, booking_id=uid)
+        store.mark_entered(s["id"], T0 + dt.timedelta(minutes=2))
+        store.set_performance(s["id"], fps_by_world={"日本語話者向け集会場": fps}, ping_ms=ping, latency_ms=latency)
+        store.finish_play(s["id"], T0 + dt.timedelta(minutes=50), connected=True)
+        for key, value in answers.items():
+            store.answer(s["id"], key, value)
+        store.complete(s["id"], T0 + dt.timedelta(minutes=51))
+
+    base = {"ease": "5", "trust": "4", "quality": "4", "compare": "5", "price": "200"}
+    run(1, fps=72, ping=40, latency=25, answers={**base, "safety": ["none"], "usual_fps": "45", "region": "kanto"})
+    run(2, fps=60, ping=120, latency=55, answers={**base, "safety": ["saw_pc"], "usual_fps": "unknown",
+                                                     "region": "kyushu", "price": "400"})
+    s = store.summary()
+    assert s["safety_answered"] == 2 and s["safety_issues"] == 1
+    assert s["fps_gain_median"] == 27  # 72 − 45 (いつもの FPS がわからない人は数えない)
+    assert s["latency_ok_rate"] == 0.5 and s["ping_ok_rate"] == 0.5 and s["compare_better_rate"] == 1.0
+    assert s["by_region"]["九州・沖縄"] == {"tests": 1, "latency": 55, "ping": 120}
+    assert ("〜200円", 1) in s["price_counts"] and ("〜400円", 1) in s["price_counts"]
+    text = "\n".join(tb.summary_lines(s))
+    for head in ("① 簡単につながるか", "② 安全につながるか", "③ FPS がどれだけ上がるか", "④ 遅れが現実的な範囲か",
+                 "⑤ いくらなら払うか"):
+        assert head in text
+    assert "⚠️ 気になることがあった: 1回 ／ 2回" in text and "いつもの環境より（真ん中の値）: +27 FPS" in text
+    assert "関東（1回）: VD の遅れ 25ms ／ Ping 40ms" in text
