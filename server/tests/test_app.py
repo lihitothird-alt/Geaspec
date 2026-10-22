@@ -1257,6 +1257,24 @@ def test_lenders_set_their_hours_on_the_website(tmp_path, now):
                      json={"start": start, "days": 7, "price_yen": 500, "starts": []}).status_code == 404
 
 
+def test_new_lender_pc_reaches_the_ops_channel(tmp_path, now):
+    """貸し手がアプリでログインして PC が確認待ちになったら、Discord の運営チャンネルにも知らせる (ボットが伝える)。"""
+    from app.tester_store import TesterStore
+
+    app, _ = make_app(tmp_path, tester_db=str(tmp_path / "tester_bot.db"))
+    lender = TestClient(app)
+    signup(lender, "lender@example.com", meta="lend_meta")
+    body = {"email": "lender@example.com", "password": "password123", "pc_name": "MY-PC", "machine_id": "abcdef0123456789"}
+    assert TestClient(app).post("/api/agent/login", json=body).json()["pending"] is True
+    store = TesterStore(tmp_path / "tester_bot.db")
+    events = store.pending_web_events()
+    assert [e["kind"] for e in events] == ["lender_pc"] and events[0]["urgent"] == 1
+    assert "MY-PC" in events[0]["text"] and "lend_meta" in events[0]["text"] and "/admin" in events[0]["text"]
+    TestClient(app).post("/api/agent/login", json=body)  # 同じ PC でログインし直しても、2 回は知らせない
+    assert len(store.pending_web_events()) == 1
+    store.close()
+
+
 def clock_now(now):
     return now["t"].replace(tzinfo=dt.timezone.utc)
 

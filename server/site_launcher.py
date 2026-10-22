@@ -214,24 +214,52 @@ def wait_until_ready(port: int, timeout: float = 60.0) -> bool:
     return False
 
 
-def start_cloudflare(config: dict, data: Path) -> bool:
-    """自分のドメインがあれば、Cloudflare Tunnel でそのドメインに公開する。"""
+def prepare_cloudflare(config: dict, data: Path):
+    """自分のドメインがあれば、Cloudflare のトンネルを用意する。用意できたら cloudflared の場所を返す。
+
+    サイトを起動する前に確かめる。用意できなかったときは、自分のドメインのリンクを配らない (開けないため)。
+    """
     domain = str(config.get("domain") or "")
     if not domain:
         print("自分のドメインは設定されていません（次の起動で「ドメイン」と聞かれたら、geaspec.com のように入れてください）。")
+        return None
+    import cloudflare_tunnel as cf
+
+    print(f"Cloudflare で https://{domain} に公開する準備をしています…")
+    exe = cf.find_cloudflared(data)
+    if exe is None or not cf.ensure_tunnel(exe, data, domain):
+        print(f"【注意】https://{domain} に公開できませんでした。しばらくは前のアドレスで動かします。")
+        print("この画面の写真を運営（開発）に送ってください。")
+        return None
+    return exe
+
+
+def start_cloudflare(config: dict, data: Path, exe) -> bool:
+    if exe is None:
         return False
     import cloudflare_tunnel as cf
 
-    print(f"Cloudflare で https://{domain} に公開します…")
+    return cf.start_tunnel(exe, data, str(config["domain"]), PORT) is not None
 
-    exe = cf.find_cloudflared(data)
-    if exe is None or not cf.ensure_tunnel(exe, data, domain):
-        return False
-    return cf.start_tunnel(exe, data, domain, PORT) is not None
+
+def reachable(url: str, attempts: int = 12, wait: float = 5.0) -> bool:
+    """インターネット側から、本当にサイトが開けるか確かめる (トンネルがつながるまで少し待つ)。"""
+    import time
+    import urllib.request
+
+    for _ in range(attempts):
+        try:
+            with urllib.request.urlopen(f"{url}/healthz", timeout=10) as r:  # noqa: S310 - 自分のサイトだけ
+                if r.status == 200:
+                    return True
+        except OSError:
+            pass
+        time.sleep(wait)
+    return False
 
 
 def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = False,
-                config: dict | None = None) -> None:
+                config: dict | None = None, cloudflared=None) -> None:
     """サイトが動き出してから行うこと: ブラウザを開き、インターネットに公開する。
 
     公開の許可 (はじめの 1 回だけ) を待っている間も、この PC ではサイトを使えるようにする。
@@ -247,12 +275,16 @@ def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = 
         webbrowser.open(f"http://localhost:{PORT}")
     # 自分のドメインがあっても Funnel は続ける (前の版の貸し手のアプリは、Tailscale のアドレスにつなぐため)
     published = bool(tailscale and address) and start_funnel(tailscale)
-    on_domain = start_cloudflare(config or {}, data)
+    on_domain = start_cloudflare(config or {}, data, cloudflared)
     print()
     print("-" * 60)
     print(f" この PC で開くアドレス: http://localhost:{PORT}")
     if on_domain:
-        print(f" サイトのアドレス（ほかの人に伝える）: {public_url(config or {}, address)}")
+        url = public_url(config or {}, address)
+        if reachable(url):
+            print(f" サイトのアドレス（ほかの人に伝える）: {url}  ← インターネットから開けることを確かめました")
+        else:
+            print(f" 【注意】{url} がまだ開けません。この画面と cloudflared/tunnel.log を運営（開発）に送ってください。")
         if published:
             print(f" 前の版の貸し手のアプリ用: {address}")
     elif published:
@@ -333,12 +365,15 @@ def main() -> int:
             print("公開するときは、画面右下のタスクバーにある Tailscale のアイコンを右クリックして「Connect」を押し、")
             print("この画面を閉じてから、もう一度起動してください。")
 
-    site_url = public_url(config, address)
+    cloudflared = prepare_cloudflare(config, data)
+    # 自分のドメインに公開できたときだけ、そのアドレスをリンクに使う (できなければ Tailscale のアドレス)
+    site_url = public_url(config, address) if cloudflared else address
     os.environ.update(site_environment(config, site_url, data))
     bot_on = start_discord_bot(config, site_url, data)
     print()
     print("サイトを起動しています…")
-    threading.Thread(target=after_start, args=(tailscale, address, data, bot_on, config), daemon=True).start()
+    threading.Thread(target=after_start, args=(tailscale, address, data, bot_on, config, cloudflared),
+                     daemon=True).start()
 
     import uvicorn
 

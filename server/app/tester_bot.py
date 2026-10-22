@@ -80,64 +80,21 @@ def button(label: str, custom_id: str, style=discord.ButtonStyle.secondary, *, r
 
 
 def panel_text(hours: str, site_url: str = "") -> str:
-    return f"""VR ヘッドセット（Quest など）から遠くのゲーミング PC を借りて、PC 版 VRChat を遊ぶテストです。
-いまはこのコミュニティ限定の実験段階で、参加は無料です（正式リリースでは有料にする予定です）。
-
-**参加の条件（借りる人）**: Quest に **Virtual Desktop**（Meta のストアで買う有料のアプリ）が入っていること。持っていない人は、申し込む前に自分で買っておいてください（テストへの参加にはお金はかかりません）
+    """申し込みチャンネルのパネル。くわしい説明は Web サイトに置き、ここは大まかな流れだけ。"""
+    guide = f"\nくわしい説明（画像つき）:\n{site_url}/guide\n" if site_url else ""
+    return f"""VR ヘッドセット（Quest など）から、ほかの人のゲーミング PC を借りて PC 版 VRChat を遊ぶテストです。参加は無料です。
 
 **流れ**
-1. 下の「テスターに申し込む」を押して、PC を借りる側か貸す側かをえらぶ
-2. あなた専用のスレッドができて、すぐに予約サイトのリンクと次にやることが届きます
-3. スレッドに届くあなた専用のリンクから、予約サイトで予約する
-4. 当日、予約ページの「テストのチェックリスト」で「テストを始める」を押して、Virtual Desktop でつなぐ
-5. 遊び終わったら、FPS・Ping・遅れの数字と短いアンケート（1〜2分）を送って完了
+1. 下の「テスターに申し込む」を押す（PC を借りる人・貸す人をえらべます）
+2. あなた専用のスレッドに、手順のカードが届きます（「次へ」で 1 つずつ読めます）
+3. 予約サイトで予約して、当日は予約ページの手順どおりに進めるだけ
 
-**申し込む前に**
-・Meta ユーザー名: スマホの Meta Horizon アプリでプロフィールを開くと見られます（表示名ではなく、ユーザー名のほう）。Virtual Desktop を持っている人は、VD で使っているものと同じです
-・当日は PC 版の VRChat に、自分のアカウントで **メールアドレス（またはユーザー名）とパスワード** を使ってログインします。Steam や Meta でのログインは使えません（Steam でログインすると、貸してくれる人のアカウントになってしまいます）。Quest でいつも Meta のボタンだけでログインしている人は、申し込む前に VRChat の公式サイトに、メールアドレスとパスワードでログインできるか確かめてください。2段階認証をしている人は、確認コードを受け取るスマホも手元に
-{f"・画像つきの説明: {site_url}/guide" + chr(10) if site_url else ""}
-**テストができる時間: {hours}**
-貸し出す PC は運営がふだんも使っているので、それ以外の時間はテストできないことが多いです。
-この時間の外では、ボタンを押しても反応しないことがあります（そのときは時間内にもう一度押してください）。
-
-あなたのパソコンやルーターの設定は何もいりません。
-記録するのは、つながるまでの時間・「困った」の回数・FPS などの数字・アンケートの答えです。名前を出して公開することはありません。"""
-
-
-def prep_text(guide_url: str = "") -> str:
-    """申し込んだ人に、当日までにやっておくことをまとめて伝える。guide_url は説明ページへのリンク (ページのいちばん上から開く)。"""
-    # URL のすぐ後ろに「）」などを付けると Discord がそこまでリンクにしてしまうので、URL は行の最後に置く
-    guide = f"\n　画像つきの説明: {guide_url}" if guide_url else ""
-    return (
-        "**申し込んだら、やっておくこと**\n"
-        "1. **VPN を切る**: Quest・スマホ・パソコン・家のルーターで VPN を使っている人は、テストの間はオフにしてください。"
-        "つながらない原因になります\n"
-        "2. **VRChat のログイン情報を用意する**: メールアドレス（またはユーザー名）とパスワードでログインします。"
-        "Steam や Meta でのログインは使えません（Steam でログインすると、貸してくれる人のアカウントになってしまいます）。"
-        "いつも Meta のボタンだけでログインしている人は、VRChat の公式サイトにメールアドレスとパスワードで入れるか、先に確かめてください。"
-        "2段階認証をしている人は確認コードを受け取るスマホを、そうでない人も VRChat から届く確認メールを見られるようにしておいてください"
-        "（はじめての PC でログインすると、確認コードを聞かれることがあります）\n"
-        "**ルール**: VRChat を開いたとき、もし **自分ではない人のアカウントでログインされていたら**、何も触らずに"
-        "「困った」を押してください。テストはそこで中止します（貸してくれた人を守るためです）\n"
-        "3. **当日、VRChat に入ったら FPS と Ping の表示をオンにする**: Launch Pad の歯車（設定）→ いちばん下の"
-        f"「デバッグ」→「FPS と Ping の表示」。貸し出しの PC は毎回設定が消えるので、テストのたびにオンにしてください{guide}\n\n"
-        + NOTES_HINT
-    )
+**借りる人の条件**: Quest に **Virtual Desktop**（Meta のストアの有料アプリ）が入っていること
+{guide}
+**テストができる時間: {hours}**"""
 
 
 NOTES_HINT = "迷ったこと・気づいたこと・こうしてほしいことは、いつでもこのスレッドに書いてください。そのまま運営に届きます。"
-
-
-def test_items_text(worlds: list[str]) -> str:
-    """テスターに先に見せる「テストでやること」の一覧。"""
-    return ("**テストでやること（一覧）**\n"
-            "テストは、予約サイトの予約ページにある「テストのチェックリスト」で進めます。やることは 4つです。\n"
-            "1. 開始 10分前から押せる「テストを始める」を押して、Quest の Virtual Desktop で貸し出しの PC につなぐ\n"
-            "2. VRChat にメールアドレスとパスワードでログインして、ワールドに入ったら「ワールドに入れた」を押す\n"
-            f"3. 遊んでいる間に、VRChat の FPS と Ping・Virtual Desktop の遅れを表示して、「{worlds[0] if worlds else 'ワールド'}」で"
-            " 30秒ほど歩き回りながら数字を見ておく（スクリーンショットを撮っておくと安心です）\n"
-            "4. 遊び終わったら「遊び終わった」を押して、その数字と短いアンケート（1〜2分）を送る。これで完了です\n"
-            "VRChat からのログアウトはいりません。終わると Geaspec が自動でログイン情報を消します")
 
 
 WIPE_CHECK_TEXT = (
@@ -787,7 +744,6 @@ class TesterBot(discord.Client):
             else:
                 await thread.send(head + "\nQuest の Virtual Desktop を持っているか、えらんでください"
                                   "（えらばなくても、このまま予約に進めます）。", view=welcome_view(tester))
-                await thread.send(prep_text(self.site_link(tester, "/guide")))
         if modal.lend:
             if self.store.mark_ready(user.id, self.clock()):
                 await self.send_extras(thread, tester)
@@ -844,9 +800,8 @@ class TesterBot(discord.Client):
             await thread.send(vd_install_text(tester).rstrip())
         if tester.get("grp") == "C" and not self.store.get_setting(f"sent_lender:{uid}"):
             self.store.set_setting(f"sent_lender:{uid}", "1")
-            await thread.send(f"<@{uid}> " + self.lender_text(tester), view=make_view(
-                button("📥 アプリを入れた", "gs:lenderapp", discord.ButtonStyle.primary),
-                button("🔗 サイトを開く", "gs:link")))
+            text, view = self.card("lend", tester, 0)
+            await thread.send(text, view=view)
 
     async def send_ready_now(self, tester: dict, thread: discord.Thread | None = None) -> bool:
         """運営を待たずに、スレッドへ予約の案内を送る (1 回だけ)。"""
@@ -904,48 +859,73 @@ class TesterBot(discord.Client):
             f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{version.VERSION}/"
             f"GeaspecAgent-Setup-{version.VERSION}.exe")
 
-    def lender_text(self, tester: dict | None = None) -> str:
-        # URL のあとに文字を続けると Discord がそこまでリンクにするので、URL は行の最後に置く
-        return ("**PC を貸すテストの手順**\n"
-                "1. 自分の PC に **Virtual Desktop Streamer**（無料）を入れて、「Allow remote connections」にチェックを入れる\n"
-                f"　ダウンロード（「Download Streamer」ボタン）: {STREAMER_URL}\n"
-                "2. **Geaspec アプリ**をダウンロードして開く。青い画面「Windows によって PC が保護されました」が出たら"
-                "「詳細情報」→「実行」→「インストール」（署名をしていないために出ます。画像つきの説明は下）\n"
-                f"　ダウンロード: {self.installer_url()}\n"
-                f"　画像つきの説明: {self.site_url}/guide?for=lend\n"
-                "　※ 貸し出しのたびに、その Windows ユーザーの VRChat のログイン情報と設定を消します。"
-                "ふだんの VRChat の設定を残したい人は、貸し出し専用の Windows ユーザーを作って、そこで入れてください\n"
-                "3. 予約サイトでアカウントを作る（メールアドレスとパスワードを決める）\n"
-                f"　{self.site_lines(tester).rstrip()}\n"
-                "4. アプリに、3 のメールアドレスとパスワードでログインして、下の「アプリを入れた」を押す。"
-                "運営が確認して承認すると、このスレッドにお知らせが届きます\n"
-                "5. 承認されたら、アプリのカレンダーで **貸せる時間** のマスをクリックして「保存」（やり方は上の説明ページの 4）。予約が入ると、アプリに開始までの時間が出ます\n"
-                "6. 貸す前に、貸し出し用の Windows ユーザーの VRChat から **ログアウト** しておく"
-                "（アプリも開始前と終わったあとに、VRChat のログイン情報を自動で消しますが、念のため）\n"
-                "7. 貸す時間は、PC の電源を入れてアプリを動かしたままにしておく。予約が入ると、このスレッドにもお知らせが届きます。"
-                "貸し出し中は画面が幕で覆われ、終わると借りた人のデータが自動で消えます\n"
-                "8. 貸し終わるたびに、このスレッドに「データが消えたか確かめる」お願いが届きます。"
-                "はじめて貸し終わったときは、貸す側のアンケート（ボタンで6問）も届きます\n\n" + NOTES_HINT)
+    # Discord では短いカードを 1 枚ずつ見せる。「次へ」を押すたびに、同じメッセージが次の手順に変わる。
+    # くわしい説明 (画像つき) は Web サイトの説明ページに置く
+    def card_pages(self, kind: str, tester: dict | None) -> list[tuple[str, str]]:
+        guide = f"{self.site_url}/guide"
+        if kind == "lend":
+            return [
+                ("① Virtual Desktop Streamer を入れる",
+                 "自分の PC に **Virtual Desktop Streamer**（無料）を入れて、「Allow remote connections」にチェックを入れます。\n"
+                 f"ダウンロード（「Download Streamer」ボタン）:\n{STREAMER_URL}"),
+                ("② Geaspec アプリを入れる",
+                 "ダウンロードして開きます。青い画面が出たら「詳細情報」→「実行」→「インストール」。\n"
+                 "貸し出し専用の Windows ユーザーで入れるのがおすすめです（そのユーザーの VRChat の設定は毎回消えます）。\n"
+                 f"ダウンロード:\n{self.installer_url()}\n画像つきの説明:\n{guide}?for=lend"),
+                ("③ ログインする",
+                 "予約サイトでアカウントを作り、アプリに同じメールアドレスとパスワードでログインします。"
+                 "できたら下の「アプリを入れた」を押してください。運営が確認すると、ここにお知らせが届きます。\n"
+                 f"予約サイト:\n{self.site_link(tester)}"),
+                ("④ 貸せる時間を決める",
+                 "予約サイトの「貸し出し」ページのカレンダーで、貸せる時間を選んで「保存」。"
+                 "あとは PC の電源を入れておくだけです。アプリは画面右下のアイコンで動き、時間になると自動で貸し出して、"
+                 f"終わると借りた人のデータを消します。\n{NOTES_HINT}\n貸し出しページ:\n{self.site_url}/lend"),
+            ]
+        vd = ("まず Quest に **Virtual Desktop**（Meta のストアの有料アプリ）を入れておいてください。\n"
+              if (tester or {}).get("has_vd") == 0 else "")
+        return [
+            ("① 予約する",
+             vd + "予約サイトで好きな時間を選んで「予約する」を押します。下の「サイトを開く」からも入れます。\n"
+             + self.site_lines(tester).rstrip()),
+            ("② 当日までの準備",
+             "・VPN を切る\n・VRChat に**メールアドレスとパスワード**でログインできるようにしておく（Steam のボタンは使いません）\n"
+             f"・家の Wi-Fi で参加する\nくわしい説明:\n{guide}#login"),
+            ("③ 当日のテスト",
+             "予約ページの「テストのチェックリスト」どおりに進めるだけです。遊び終わったら、FPS などの数字とアンケート"
+             f"（1〜2分）を送って完了です。\nテストができる時間: {self.hours()}\n{NOTES_HINT}\n画像つきの説明:\n{guide}"),
+        ]
+
+    def card(self, kind: str, tester: dict | None, index: int) -> tuple[str, discord.ui.View]:
+        pages = self.card_pages(kind, tester)
+        index = max(0, min(index, len(pages) - 1))
+        title, body = pages[index]
+        mention = f"<@{tester['user_id']}> " if tester else ""
+        text = f"{mention}**{title}**（{index + 1}/{len(pages)}）\n{body}"
+        items = [button("◀ 戻る", f"gs:pg:{kind}:{index - 1}", row=0, disabled=index == 0),
+                 button("次へ ▶", f"gs:pg:{kind}:{index + 1}", discord.ButtonStyle.primary, row=0,
+                        disabled=index == len(pages) - 1)]
+        if kind == "lend":
+            items += [button("📥 アプリを入れた", "gs:lenderapp", discord.ButtonStyle.success, row=1),
+                      button("🔗 サイトを開く", "gs:link", row=1)]
+        else:
+            items += [button("🔗 サイトを開く", "gs:link", row=1),
+                      button("🆘 予約で迷った", "gs:bookhelp", discord.ButtonStyle.danger, row=1)]
+        return text, make_view(*items)
+
+    async def on_page(self, interaction: discord.Interaction, tester: dict, args: list[str]) -> None:
+        kind = args[0] if args and args[0] in ("borrow", "lend") else "borrow"
+        try:
+            index = int(args[1]) if len(args) > 1 else 0
+        except ValueError:
+            index = 0
+        text, view = self.card(kind, tester, index)
+        await interaction.response.edit_message(content=text, view=view)
 
     async def send_ready(self, thread: discord.Thread, tester: dict) -> None:
-        """予約の案内。スレッドのいちばん下に「次にやること」が来るように、最後に送る。"""
+        """予約の案内。短いカードで、「次へ」を押すと次の手順に変わる。"""
         user_id = tester["user_id"]
-        await thread.send(test_items_text(self.worlds()))
-        await thread.send(
-            f"<@{user_id}> **次にやること: 予約する**\n\n" + vd_install_text(tester) +
-            "**① 予約する**\n" + self.site_lines(tester) +
-            ("　1. リンクを開いて、メールアドレスとパスワードを決める（Meta ユーザー名は申し込みのものを使います）\n"
-             if self.invite_secret else
-             "　1. 「新規登録」でメールアドレスとパスワードを決める\n"
-             "　2. 「アカウント」で Meta ユーザー名を入れる（ここで書いたものと同じ）\n") +
-            "　・「空き枠」から好きな時間を選んで「予約する」\n"
-            "　迷ったら「予約で迷った」を押してください\n\n"
-            "**② 当日は、予約ページの「テストのチェックリスト」に沿って進める**\n"
-            "　予約サイトの「予約一覧」から予約を開くと出ます。最後にアンケートを送ると完了です\n"
-            f"テストができる時間: {self.hours()}\n"
-            "家の Wi-Fi で参加してください（スマホのテザリングだとつながらないことがあります）。途中でやめても大丈夫です。",
-            view=make_view(button("🔗 サイトを開く", "gs:link"),
-                           button("🆘 予約で迷った", "gs:bookhelp", discord.ButtonStyle.danger)))
+        text, view = self.card("borrow", tester, 0)
+        await thread.send(text, view=view)
         if tester.get("has_vd") == 0:
             self.store.set_setting(f"sent_vd:{user_id}", "1")  # 上の案内に入れたので、もう送らない
         await self.send_extras(thread, tester)
@@ -1201,6 +1181,9 @@ class TesterBot(discord.Client):
         if action == "start":
             await self.on_start(interaction, tester)
             return
+        if action == "pg":
+            await self.on_page(interaction, tester, args)
+            return
         if action == "noop":
             await interaction.response.defer()
             return
@@ -1258,10 +1241,13 @@ class TesterBot(discord.Client):
                 "どの画面で止まったか、このスレッドに書いてもらえると助かります（スクショも歓迎です）。")
             await self.notify_ops(f"<@{uid}> さんが予約で迷っています <#{interaction.channel_id}>")
         else:
-            if self.store.mark_lender_app(uid, self.clock()):
-                await self.notify_ops(f"<@{uid}> さんが貸し手ベータのアプリを入れました。管理画面で PC を承認してください "
-                                      f"<#{interaction.channel_id}>")
-            await self.reply(interaction, "ありがとうございます！ 運営が確認して承認したら、ここでお知らせします。")
+            self.store.mark_lender_app(uid, self.clock())
+            # 押すたびに運営を呼ぶ (前に押したときに見落とされていても、もう一度届く)
+            await self.notify_ops(f"{self.ops_role_mention()} <@{uid}> さんが貸し手のアプリを入れました。"
+                                  f"管理画面で PC を承認してください: {self.site_url}/admin <#{interaction.channel_id}>")
+            await self.reply(interaction, "運営に知らせました！ 承認されたら、ここでお知らせします。\n"
+                                          "まだなら、アプリに予約サイトと同じメールアドレスとパスワードでログインしてください"
+                                          "（ログインすると、運営の画面に PC が出ます）。")
 
     async def on_start(self, interaction: discord.Interaction, tester: dict) -> None:
         if tester["status"] != "ready":
