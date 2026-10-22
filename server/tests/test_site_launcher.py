@@ -197,3 +197,29 @@ def test_cloudflare_tunnel_is_set_up_once_with_keys_in_the_data_folder(tmp_path,
     config = (data / "cloudflared" / "config.yml").read_text()
     assert "tunnel: abc-123" in config and "hostname: geaspec.com" in config and "http://localhost:8000" in config
     assert started[0][-1] == "run" and "--config" in started[0]
+
+
+def test_cloudflare_diagnosis_says_which_step_is_missing(tmp_path):
+    import cloudflare_tunnel as cf
+
+    data = tmp_path / "GeaspecSite"
+    (data / "cloudflared").mkdir(parents=True)
+    (data / "cloudflared" / "cert.pem").write_text("cert")
+
+    def no_dns(host):
+        raise OSError("not found")
+
+    def offline(url):
+        raise OSError("ERR_NAME_NOT_RESOLVED")
+
+    lines = cf.diagnose(data, "geaspec.com", Path("cloudflared.exe"), resolve=no_dns, fetch=offline)
+    text = "\n".join(lines)
+    assert "✅ Cloudflare のログイン" in text and "❌ トンネルがまだ作られていません" in text
+    assert "❌ DNS（住所の登録）がありません" in text and "❌ https://geaspec.com がまだ開けません" in text
+    assert (data / "cloudflared" / "diagnosis.txt").read_text(encoding="utf-8").startswith("Cloudflare の診断")
+
+    # 全部そろっていれば ✅ だけ
+    (data / "cloudflared" / "tunnel.json").write_text('{"TunnelID": "abc"}')
+    (data / "cloudflared" / "tunnel.log").write_text("INF Registered tunnel connection connIndex=0\n")
+    lines = cf.diagnose(data, "geaspec.com", Path("cloudflared.exe"), resolve=lambda h: ["104.21.0.1"], fetch=lambda u: 200)
+    assert all(line.startswith("✅") for line in lines[1:])
