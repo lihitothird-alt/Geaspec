@@ -1045,6 +1045,9 @@ td a.badge:hover { text-decoration: underline; }
 .test-missions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .test-survey textarea, .test-help input { width: 100%; }
 .test-help { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.test-more { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.test-more summary { font-weight: 700; cursor: pointer; }
+.test-survey .test-more { margin-bottom: 14px; }
 .test-help summary { font-weight: 700; cursor: pointer; color: var(--danger-ink); }
 .countdown .sub { font-size: .92rem; }
 
