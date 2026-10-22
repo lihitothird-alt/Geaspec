@@ -53,7 +53,8 @@ def can_start(booking: Booking, now: dt.datetime) -> bool:
 def state(session: dict | None) -> dict:
     """チェックリストのどこまで終わったか (ボットのチェックリストと同じ決め方)。"""
     if session is None:
-        return {"started": False, "status": "", "entered": False, "photo": False, "survey": False, "done": False,
+        return {"started": False, "status": "", "entered": False, "photo": False, "perf": False, "survey": False,
+                "done": False,
                 "connected": None, "missions": {}, "fps": {}, "ping": None, "photos": 0, "enter_text": "",
                 "help_count": 0}
     answers = json.loads(session["answers"])
@@ -68,6 +69,8 @@ def state(session: dict | None) -> dict:
         "status": session["status"],
         "entered": bool(session["entered_at"]),
         "photo": bool(photos or fps or session["ping_ms"] is not None),
+        # FPS (ワールドを 1 つ以上) と Ping がそろっている。満足度や料金を決めるための数字
+        "perf": bool(fps) and session["ping_ms"] is not None,
         "survey": all(key in answers for key in CORE_QUESTION_KEYS),
         "done": session["status"] == "done",
         "connected": session["connected"],
@@ -86,8 +89,12 @@ def help_step(session: dict | None) -> str:
     return {"connecting": "つなぐところ", "playing": "遊んでいる途中", "survey": "アンケート"}.get(session["status"], "終わったあと")
 
 
-def parse_performance(form: dict[str, list[str]], worlds: list[str]) -> tuple[dict[str, int], int | None]:
-    """FPS (ワールドごと) と Ping。空の欄は入れなかったことにする。"""
+def parse_performance(form: dict[str, list[str]], worlds: list[str], *,
+                      required: bool = False) -> tuple[dict[str, int], int | None]:
+    """FPS (ワールドごと) と Ping。空の欄は入れなかったことにする。
+
+    required なら、最初のワールドの FPS と Ping はかならず入れてもらう (ほかのワールドは入れられたら)。
+    """
 
     def number(raw: str, label: str, top: int) -> int | None:
         raw = raw.strip().replace(",", "")
@@ -107,6 +114,9 @@ def parse_performance(form: dict[str, list[str]], worlds: list[str]) -> tuple[di
         if value is not None:
             fps[name] = value
     ping = number((form.get("ping") or [""])[0], "Ping", MAX_PING_MS)
+    if required and (not worlds or worlds[0] not in fps or ping is None):
+        raise WebTestError(f"「{worlds[0] if worlds else 'ワールド'}」の FPS と Ping を入れてください"
+                           "（どうしても表示できなかったときは「表示できなかった」にチェック）")
     return fps, ping
 
 

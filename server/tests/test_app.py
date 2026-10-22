@@ -1112,37 +1112,34 @@ def test_testers_run_the_whole_test_on_the_booking_page(tmp_path, now):
     assert s["help_count"] == 1 and s["status"] == "playing"
     assert "入るまで 3分00秒" in user.get("/bookings/1").text
 
-    # （できたら）FPS・Ping と写真、やってみてほしいこと
+    # 遊び終わった → 最後の画面で FPS と Ping (かならず)・アンケート 5問 (かならず)・写真とほかの質問 (時間があれば)
+    user.post("/bookings/1/test/done")
+    page = user.get("/bookings/1").text
+    assert "FPS と Ping（かならず）" in page and "時間があれば、こちらも" in page and "送ってテストを終える" in page
+    answers = core_answers()
+    assert len(answers) == 5
+    # FPS と Ping がないと送れない
+    r = user.post("/bookings/1/test/survey", data=answers)
+    assert "FPS と Ping を入れてください" in r.text and store.session_for_booking(1)["status"] == "survey"
+    assert "数字を確かめて" in user.post("/bookings/1/test/survey", data={**answers, "fps_0": "999", "ping": "40"}).text
+    # アンケートに答えていない質問があると送れない
+    r = user.post("/bookings/1/test/survey", data={**answers, "again": "", "fps_0": "72", "ping": "40"})
+    assert "また使いたいですか？" in r.text and store.session_for_booking(1)["status"] == "survey"
     png = b"\x89PNG\r\n\x1a\n" + b"0" * 100
-    r = user.post("/bookings/1/test/perf",
-                  data={"fps_0": "72", "fps_1": "", "ping": "40", "mission_form": "1", "mission": ["heavy", "photo"]},
+    r = user.post("/bookings/1/test/survey",
+                  data={**answers, "fps_0": "72", "fps_1": "", "ping": "40", "mission": ["heavy", "photo"],
+                        "when": ["event", "photo"], "comment": "楽しかった"},
                   files=[("photos", ("shot.png", png, "image/png")), ("photos", ("note.txt", b"x", "text/plain"))])
     assert r.status_code == 200
     s = store.session_for_booking(1)
+    assert s["status"] == "done" and s["comment"] == "楽しかった"
     assert TesterStore.world_fps(s) == {"日本語話者向け集会場": 72} and s["ping_ms"] == 40
     assert json.loads(s["missions"]) == {"heavy": True, "crowd": False, "photo": True}
+    assert json.loads(s["answers"]) == {**answers, "when": ["event", "photo"]}
     shots = json.loads(s["screenshots"])
     assert len(shots) == 1 and Path(shots[0]).read_bytes() == png
     assert Path(shots[0]).parent == tmp_path / "tester_screenshots"
-    # 数字だけ足しても、前の数字は消さない
-    user.post("/bookings/1/test/perf", data={"fps_1": "45"})
-    assert TesterStore.world_fps(store.session_for_booking(1)) == {"日本語話者向け集会場": 72, "Japan Shrine": 45}
-    assert "数字を確かめて" in user.post("/bookings/1/test/perf", data={"fps_0": "999"}).text
-
-    # 遊び終わった → 短いアンケート (5問)。ほかの質問は「時間があれば」
-    user.post("/bookings/1/test/done")
-    page = user.get("/bookings/1").text
-    assert "送ってテストを終える" in page and "時間があれば、こちらも" in page
-    answers = core_answers()
-    assert len(answers) == 5
-    r = user.post("/bookings/1/test/survey", data={**answers, "again": ""})
-    assert "また使いたいですか？" in r.text and store.session_for_booking(1)["status"] == "survey"
-    user.post("/bookings/1/test/survey", data={**answers, "when": ["event", "photo"], "comment": "楽しかった"})
-    s = store.session_for_booking(1)
-    assert s["status"] == "done" and s["comment"] == "楽しかった"
-    assert json.loads(s["answers"]) == {**answers, "when": ["event", "photo"]}
     assert "テストは完了です" in user.get("/bookings/1").text
-
     assert "3日後" not in user.get("/bookings/1").text
 
     # 運営へのお知らせ (ボットが運営チャンネルに伝える)。名前やメールアドレスは書かない
@@ -1192,8 +1189,8 @@ def test_booking_page_test_for_a_discord_tester_and_one_who_could_not_connect(tm
     store.close()
 
 
-def test_short_survey_finishes_the_test_without_photos(tmp_path, now):
-    """FPS や写真は「できたら」。入れなくても、短いアンケートだけでテストは終わる。"""
+def test_test_needs_fps_and_ping_unless_they_could_not_be_shown(tmp_path, now):
+    """FPS と Ping はかならず集める。どうしても表示できなかった人は、そう答えて終えられる。"""
     from app.tester_store import TesterStore
 
     app, _ = make_app(tmp_path, free_mode=True, tester_db=str(tmp_path / "tester_bot.db"))
@@ -1205,9 +1202,13 @@ def test_short_survey_finishes_the_test_without_photos(tmp_path, now):
     now["t"] = NOW + dt.timedelta(minutes=55)
     for step in ("start", "entered", "done"):
         user.post(f"/bookings/1/test/{step}")
-    user.post("/bookings/1/test/survey", data=core_answers())
     store = TesterStore(tmp_path / "tester_bot.db")
-    assert store.session_for_booking(1)["status"] == "done"
+    user.post("/bookings/1/test/survey", data=core_answers())
+    assert store.session_for_booking(1)["status"] == "survey"  # FPS と Ping がまだ
+    # どうしても表示できなかったときは、チェックして送れる (記録に残る)
+    user.post("/bookings/1/test/survey", data={**core_answers(), "no_perf": "1"})
+    s = store.session_for_booking(1)
+    assert s["status"] == "done" and s["comment"] == "FPS・Ping: 表示できなかった" and s["ping_ms"] is None
     assert [e["kind"] for e in store.pending_web_events()][-1] == "done"
     store.close()
 

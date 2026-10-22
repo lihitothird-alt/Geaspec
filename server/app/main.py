@@ -609,6 +609,7 @@ def create_app(
             "can_start": web_test.can_start(booking, now),
             "start_from": booking.slot.start_at - dt.timedelta(minutes=web_test.START_EARLY_MINUTES),
             "worlds": store.worlds(),
+            "perf_world": store.worlds()[0] if store.worlds() else "",
             "core_questions": web_test.core_questions(),
             "extra_questions": web_test.extra_questions(),
             "mission_labels": MISSIONS,
@@ -625,8 +626,34 @@ def create_app(
         st = web_test.state(latest)
         if st["done"] or st["status"] != "survey" or not st["survey"]:
             return
+        if not st["perf"] and not latest["comment"].startswith("FPS・Ping: 表示できなかった"):
+            return
         app.state.tester_store.complete(session["id"], clock.utcnow(), stuck=latest["stuck"], comment=latest["comment"])
         test_event(booking, "done", "のテストが完了しました（予約ページから）", session=session)
+
+    async def save_test_photos(request: Request, form, store: TesterStore, session: dict) -> int:
+        """テストのスクリーンショット (FPS と Ping が写ったもの) を、ボットと同じ場所に保存する。"""
+        saved = 0
+        for upload in form.getlist("photos"):
+            if isinstance(upload, str) or not upload.filename:
+                continue
+            suffix = web_test.PHOTO_TYPES.get((upload.content_type or "").split(";")[0])
+            if suffix is None:
+                flash(request, f"{upload.filename} は写真として読めませんでした（PNG・JPEG・WebP）", "error")
+                continue
+            if len(json.loads(store.session(session["id"])["screenshots"])) >= web_test.MAX_PHOTOS:
+                flash(request, f"写真は {web_test.MAX_PHOTOS} 枚までです", "error")
+                break
+            data = await upload.read(web_test.MAX_PHOTO_MB * 1024 * 1024 + 1)
+            if len(data) > web_test.MAX_PHOTO_MB * 1024 * 1024:
+                flash(request, f"{upload.filename} が大きすぎます（{web_test.MAX_PHOTO_MB}MB まで）", "error")
+                continue
+            tester_shots.mkdir(parents=True, exist_ok=True)
+            path = tester_shots / f"test{session['id']:03d}-web{secrets.token_hex(4)}{suffix}"
+            path.write_bytes(data)
+            store.add_screenshot(session["id"], str(path))
+            saved += 1
+        return saved
 
     @app.post("/bookings/{booking_id}/test/{action}")
     async def booking_test(booking_id: int, action: str, request: Request, db: Session = Depends(get_db)):
@@ -678,56 +705,32 @@ def create_app(
                 store.finish_play(session["id"], now, connected=False)
                 test_event(booking, "giveup", "がつながりませんでした。連絡してあげてください", session=session,
                            urgent=True)
-        elif action == "perf":
-            try:
-                fps, ping = web_test.parse_performance(values, store.worlds())
-            except web_test.WebTestError as exc:
-                flash(request, str(exc), "error")
-                return back
-            if fps or ping is not None:
-                merged = {**web_test.state(session)["fps"], **fps}
-                store.set_performance(session["id"], fps_by_world=merged,
-                                      ping_ms=ping if ping is not None else session["ping_ms"],
-                                      latency_ms=session["latency_ms"])
-            saved = 0
-            for upload in form.getlist("photos"):
-                if isinstance(upload, str) or not upload.filename:
-                    continue
-                suffix = web_test.PHOTO_TYPES.get((upload.content_type or "").split(";")[0])
-                if suffix is None:
-                    flash(request, f"{upload.filename} は写真として読めませんでした（PNG・JPEG・WebP）", "error")
-                    continue
-                if len(json.loads(store.session(session["id"])["screenshots"])) >= web_test.MAX_PHOTOS:
-                    flash(request, f"写真は {web_test.MAX_PHOTOS} 枚までです", "error")
-                    break
-                data = await upload.read(web_test.MAX_PHOTO_MB * 1024 * 1024 + 1)
-                if len(data) > web_test.MAX_PHOTO_MB * 1024 * 1024:
-                    flash(request, f"{upload.filename} が大きすぎます（{web_test.MAX_PHOTO_MB}MB まで）", "error")
-                    continue
-                tester_shots.mkdir(parents=True, exist_ok=True)
-                path = tester_shots / f"test{session['id']:03d}-web{secrets.token_hex(4)}{suffix}"
-                path.write_bytes(data)
-                store.add_screenshot(session["id"], str(path))
-                saved += 1
-            if "mission_form" in values:
-                store.set_missions(session["id"], web_test.missions_from(values))
-            if fps or ping is not None or saved:
-                flash(request, "記録しました" + (f"（写真 {saved} 枚）" if saved else ""))
         elif action == "done":
             if status == "playing":
                 store.finish_play(session["id"], now, connected=True)
         elif action == "survey":
+            # 最後の画面: FPS と Ping (かならず)・アンケート 5問 (かならず)・写真とほかの質問 (時間があれば)
             if status != "survey" or not session["connected"]:
                 return back
+            no_perf = bool(values.get("no_perf"))
             try:
+                fps, ping = web_test.parse_performance(values, store.worlds(), required=not no_perf)
                 answers = web_test.parse_survey(values)
             except web_test.WebTestError as exc:
                 flash(request, str(exc), "error")
                 return back
+            if fps or ping is not None:
+                store.set_performance(session["id"], fps_by_world={**web_test.state(session)["fps"], **fps},
+                                      ping_ms=ping if ping is not None else session["ping_ms"],
+                                      latency_ms=session["latency_ms"])
+            await save_test_photos(request, form, store, session)
+            store.set_missions(session["id"], web_test.missions_from(values))
             for key, value in answers.items():
                 store.answer(session["id"], key, value)
             stuck = (values.get("stuck") or [""])[0][:1000]
             comment = (values.get("comment") or [""])[0][:1000]
+            if no_perf:
+                comment = ("FPS・Ping: 表示できなかった" + (f" ／ {comment}" if comment else ""))[:1000]
             store.save_comment(session["id"], stuck=stuck, comment=comment)
             finish_test(booking, store.session(session["id"]))
         elif action == "stuck":
