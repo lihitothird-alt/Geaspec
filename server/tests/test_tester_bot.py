@@ -315,10 +315,10 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         assert "Virtual Desktop を入れる" not in ready_text  # VD を持っている人には出さない
         assert "https://lg.example.ts.net" in ready_text and "`aikotoba`" in ready_text
         assert "平日は19時以降、土日は終日" in ready_text
-        assert custom_ids(thread.sent[-1][1]["view"]) == ["gs:link", "gs:booked", "gs:bookhelp"]
-        assert "戻って「予約した」を押す" in ready_text
+        assert custom_ids(thread.sent[-1][1]["view"]) == ["gs:link", "gs:bookhelp"]
+        assert "予約ページの「テストのチェックリスト」" in ready_text
 
-        # 予約で迷った → 予約した (準備から予約までの時間を記録)。押すとチェックリストが出る
+        # 予約で迷った → 予約した (前の版のメッセージのボタン。準備から予約までの時間を記録し、チェックリストを出す)
         await press(tester, thread.id, "gs:bookhelp")
         now[0] = at(0.5)
         await press(tester, thread.id, "gs:booked")
@@ -814,15 +814,16 @@ def test_booking_notices(tmp_path, monkeypatch):
         assert await bot.send_booking_notices() == 2
         assert sum("予約が入りました" in c for c in ops_log) == 2
         assert "10/19（月）23:00〜" in ops_log[0] and "<@1>" in ops_log[0] and "stranger" in ops_log[1]
-        assert "予約を受け付けました" in thread.sent[-2][0] and store.tester(1)["booked_at"]
-        assert "テストのチェックリスト" in thread.sent[-1][0] and "予約: **10/19（月）23:00〜" in thread.sent[-1][0]
+        assert "予約を受け付けました" in thread.sent[-1][0] and store.tester(1)["booked_at"]
+        # テストは予約ページで進める (Discord のチェックリストは出さない)
+        assert f"予約ページ: https://x/bookings/{mine}" in thread.sent[-1][0]
+        assert "予約: **10/19（月）23:00〜" in bot.booking_line(1)
         assert await bot.send_booking_notices() == 0  # 同じお知らせは 2 回送らない
 
         # 開始 15 分前。PC のアプリから 1 時間連絡がないので、運営に注意を出す
         now[0] = at(105)
         assert await bot.send_booking_notices() == 1
-        assert "まもなく始まります" in thread.sent[-1][0]
-        assert custom_ids(thread.sent[-1][1]["view"]) == ["gs:start"]
+        assert "まもなく始まります" in thread.sent[-1][0] and f"/bookings/{mine}" in thread.sent[-1][0]
         assert "Allow remote connections" in ops_log[-1] and "連絡がありません" in ops_log[-1]
 
         # キャンセルは運営に知らせる
@@ -882,7 +883,7 @@ def test_ready_message_gives_a_personal_link_instead_of_a_password(tmp_path, mon
         await bot.send_ready(thread, store.tester(1))
         text, kw = thread.sent[-1]
         assert "合言葉" not in text and "https://x/join?t=" in text
-        assert custom_ids(kw["view"]) == ["gs:link", "gs:booked", "gs:bookhelp"]
+        assert custom_ids(kw["view"]) == ["gs:link", "gs:bookhelp"]
         token = text.split("/join?t=")[1].split()[0]
         assert invite.read_token("s3cret", token, T0)["meta"] == "meta1"
         assert invite.read_token("s3cret", token, T0)["thread"] == ""  # サーバー番号がまだ分からない
@@ -1133,8 +1134,8 @@ def test_booking_that_starts_now_says_start_right_away(tmp_path, monkeypatch):
         make_site_db(site, [("meta1", at(-20), "confirmed")], last_seen=at(0))  # 20 分前に始まった枠に「今すぐ入る」
         bot.site_db = site
         assert await bot.send_booking_notices() == 1
-        assert len(thread.sent) == 2 and "すぐに始められます" in thread.sent[0][0]
-        assert custom_ids(thread.sent[1][1]["view"]) == ["gs:start"]  # チェックリストの「テストを始める」
+        assert len(thread.sent) == 1 and "すぐに始められます" in thread.sent[0][0]
+        assert "予約ページの「テストのチェックリスト」" in thread.sent[0][0]
         assert await bot.send_booking_notices() == 0
         store.close()
 
@@ -1358,3 +1359,38 @@ def test_fps_is_kept_per_pc(store):
     assert "PC「GAMING-PC」の実測（2回）: 集会場 70fps ／ Ping 45ms" in text
     rows = list(csv.reader(io.StringIO(store.to_csv())))
     assert dict(zip(rows[0], rows[1]))["PC"] == "GAMING-PC"
+
+
+def test_tests_run_on_the_booking_page_reach_the_ops_channel(tmp_path, monkeypatch):
+    """予約ページで進めたテストのお知らせは、ボットが運営チャンネルに 1 回だけ伝える。困ったときは運営ロールを呼ぶ。"""
+    async def scenario():
+        now = [T0]
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, now, {}, ops_log)
+        store.set_setting("ops_role_id", "7")
+        s, _ = store.start_session(-5, -5, T0, pc="LG", booking_id=3)
+        store.add_web_event("start", "予約 #3（LG・Meta: q） がテストを始めました", T0, session_id=s["id"])
+        store.add_web_event("help", "予約 #3（LG・Meta: q） が困っています", T0, session_id=s["id"], urgent=True)
+        store.mark_entered(s["id"], T0 + dt.timedelta(minutes=2))
+        store.finish_play(s["id"], T0 + dt.timedelta(minutes=30), connected=True)
+        store.complete(s["id"], T0 + dt.timedelta(minutes=31), comment="楽しかった")
+        store.add_web_event("done", "予約 #3（LG・Meta: q） のテストが完了しました", T0, session_id=s["id"])
+
+        assert await bot.send_web_events() == 3
+        assert ops_log[0] == "予約 #3（LG・Meta: q） がテストを始めました"
+        assert ops_log[1].startswith("<@&7> ") and "困っています" in ops_log[1]
+        assert ops_log[2].startswith("予約 #3（LG・Meta: q）のテストが完了（つながった・入るまで 2分00秒")
+        assert "ひとこと: 楽しかった" in ops_log[2] and "<@-5>" not in ops_log[2]
+        assert await bot.send_web_events() == 0
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_a_new_booking_page_test_drops_the_unfinished_one(store):
+    first, _ = store.start_session(-5, -5, T0, booking_id=1)
+    again, created = store.start_session(-5, -5, T0, booking_id=1)
+    assert again["id"] == first["id"] and not created
+    second, created = store.start_session(-5, -5, T0 + dt.timedelta(days=1), booking_id=2)
+    assert created and store.session(first["id"])["status"] == "dropped"
+    assert store.session_for_booking(2)["id"] == second["id"]

@@ -53,6 +53,8 @@ class Settings:
     site_password: str = ""
     # Discord のボットが渡す本人専用リンクを開いた人だけに見せる (合言葉の代わり)
     invite_only: bool = False
+    # テストの記録 (Discord ボットと同じファイル)。設定すると、予約ページでテストを進められる
+    tester_db: str = ""
     # お知らせメール (Gmail なら smtp.gmail.com と「アプリ パスワード」)。未設定ならメールは送らない
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
@@ -99,6 +101,7 @@ class Settings:
             secure_cookies=base_url.startswith("https://"),
             site_password=os.environ.get("SITE_PASSWORD", ""),
             invite_only=os.environ.get("INVITE_ONLY", "0").strip().lower() in ("1", "true", "yes", "on"),
+            tester_db=os.environ.get("TESTER_DB", ""),
             smtp_host=os.environ.get("SMTP_HOST", cls.smtp_host),
             smtp_port=int(os.environ.get("SMTP_PORT", cls.smtp_port)),
             smtp_user=os.environ.get("SMTP_USER", ""),

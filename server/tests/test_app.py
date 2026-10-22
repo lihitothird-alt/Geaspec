@@ -73,8 +73,9 @@ class StubPayPal:
         return self.result
 
 
-def make_app(tmp_path, payments=None, vpn=None, trial_minutes=0, screenshot_max_mb=250, site_password="", free_mode=False, invite_only=False, simple_mode=False, max_booking_hours=0):
+def make_app(tmp_path, payments=None, vpn=None, trial_minutes=0, screenshot_max_mb=250, site_password="", free_mode=False, invite_only=False, simple_mode=False, max_booking_hours=0, tester_db=""):
     settings = Settings(
+        tester_db=tester_db,
         max_booking_hours=max_booking_hours,
         database_url=f"sqlite:///{tmp_path / 'test.db'}",
         secret_key="test",
@@ -1069,6 +1070,138 @@ def test_public_site_opens_for_anyone_and_still_takes_discord_links(tmp_path, no
     assert user.meta_username == "hikari_quest" and user.discord_thread == "555/777"
     tester.post("/slots/1/book")
     assert "https://discord.com/channels/555/777" in tester.get("/bookings/1").text
+
+
+def survey_answers(own_pc="none"):
+    """アンケートの答え (どの質問も最初の選択肢。own_pc だけ指定)。"""
+    from app import web_test
+
+    data = {}
+    for q in web_test.asked_questions(own_pc):
+        data[q["key"]] = own_pc if q["key"] == "own_pc" else q["options"][0][0]
+    return data
+
+
+def test_testers_run_the_whole_test_on_the_booking_page(tmp_path, now):
+    """Discord に戻らなくても、予約ページのチェックリストだけでテストを最後まで進められる。"""
+    from app.tester_store import TesterStore
+
+    app, _ = make_app(tmp_path, free_mode=True, tester_db=str(tmp_path / "tester_bot.db"))
+    admin = TestClient(app)
+    admin_setup(admin)  # JST 13:00〜14:00 の枠 (いまは 12:00)
+    user = TestClient(app)
+    signup(user, "hikari@example.com", meta="hikari_quest")
+    user.post("/slots/1/book")
+    store = TesterStore(tmp_path / "tester_bot.db")
+
+    page = user.get("/bookings/1").text
+    assert "テストのチェックリスト" in page and "12:50 から押せます" in page and "Discord に戻ってください" not in page
+    user.post("/bookings/1/test/start")  # 早すぎる
+    assert store.session_for_booking(1) is None
+
+    now["t"] = NOW + dt.timedelta(minutes=52)
+    user.post("/bookings/1/test/start")
+    user.post("/bookings/1/test/start")  # 2 回押しても 1 回
+    s = store.session_for_booking(1)
+    assert s["user_id"] < 0 and s["pc"] == "PC-1" and s["status"] == "connecting"
+    page = user.get("/bookings/1").text
+    assert "「PC-1」を選んで" in page and "ワールドに入れた" in page
+
+    # 困った → 運営に届く (急ぎ) ・管理者にメール
+    user.post("/bookings/1/test/help", data={"what": "Virtual Desktop に PC が出てこない"})
+    now["t"] += dt.timedelta(minutes=3)
+    user.post("/bookings/1/test/entered")
+    s = store.session_for_booking(1)
+    assert s["help_count"] == 1 and s["status"] == "playing"
+    assert "入るまで 3分00秒" in user.get("/bookings/1").text
+
+    # FPS・Ping と写真、やってみてほしいこと
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 100
+    r = user.post("/bookings/1/test/perf", data={"fps_0": "72", "fps_1": "", "ping": "40"},
+                  files=[("photos", ("shot.png", png, "image/png")), ("photos", ("note.txt", b"x", "text/plain"))])
+    assert r.status_code == 200
+    user.post("/bookings/1/test/missions", data={"mission": ["heavy", "photo"]})
+    s = store.session_for_booking(1)
+    assert TesterStore.world_fps(s) == {"日本語話者向け集会場": 72} and s["ping_ms"] == 40
+    assert json.loads(s["missions"]) == {"heavy": True, "crowd": False, "photo": True}
+    shots = json.loads(s["screenshots"])
+    assert len(shots) == 1 and Path(shots[0]).read_bytes() == png
+    assert Path(shots[0]).parent == tmp_path / "tester_screenshots"
+    # 数字だけ足しても、前の数字は消さない
+    user.post("/bookings/1/test/perf", data={"fps_1": "45"})
+    assert TesterStore.world_fps(store.session_for_booking(1)) == {"日本語話者向け集会場": 72, "Japan Shrine": 45}
+    assert "数字を確かめて" in user.post("/bookings/1/test/perf", data={"fps_0": "999"}).text
+
+    # 遊び終わった → アンケート。答えていない質問があると送れない
+    user.post("/bookings/1/test/done")
+    page = user.get("/bookings/1").text
+    assert "アンケートを送る" in page and "答えなくて大丈夫" in page
+    answers = survey_answers("vr")  # VR ができる PC を持っている人には、PC を買う質問をしない
+    assert "pc_effect" not in answers
+    r = user.post("/bookings/1/test/survey", data={**answers, "again": ""})
+    assert "また使いたいですか？" in r.text and store.session_for_booking(1)["status"] == "survey"
+    user.post("/bookings/1/test/survey", data={**answers, "when": ["event", "photo"], "comment": "楽しかった"})
+    s = store.session_for_booking(1)
+    assert s["status"] == "done" and s["comment"] == "楽しかった"
+    assert json.loads(s["answers"])["when"] == ["event", "photo"]
+    assert "テストは完了です" in user.get("/bookings/1").text
+
+    # 運営へのお知らせ (ボットが運営チャンネルに伝える)。名前やメールアドレスは書かない
+    events = store.pending_web_events()
+    assert [e["kind"] for e in events] == ["start", "help", "entered", "done"]
+    assert events[1]["urgent"] == 1 and "PC が出てこない" in events[1]["text"] and "Meta: hikari_quest" in events[1]["text"]
+    assert all("hikari@example.com" not in e["text"] for e in events)
+    # ボットの集計にもそのまま入る
+    assert store.summary()["done"] == 1 and store.summary()["connected_rate"] == 1.0
+
+    # ほかの人は押せない
+    other = TestClient(app)
+    signup(other, "other@example.com")
+    assert other.post("/bookings/1/test/start").status_code == 404
+    store.close()
+
+
+def test_booking_page_test_for_a_discord_tester_and_one_who_could_not_connect(tmp_path, now):
+    """Discord のスレッドから来た人は、ボットと同じテスターとして記録する。つながらなかったら、理由だけ聞いて終える。"""
+    from app import invite
+    from app.tester_store import TesterStore
+
+    store = TesterStore(tmp_path / "tester_bot.db")
+    store.apply(42, "hikari", vrchat="v", meta="hikari_quest", gear="Quest 3", region="関東", schedule="", now=NOW)
+    store.set_thread(42, 777)
+    app, _ = make_app(tmp_path, free_mode=True, tester_db=str(tmp_path / "tester_bot.db"))
+    admin = TestClient(app)
+    admin_setup(admin)
+    user = TestClient(app)
+    user.get(f"/join?t={invite.make_token('test', meta='hikari_quest', discord_id=42, now=clock_now(now), thread='555/777')}")
+    user.post("/signup", data={"email": "hikari@example.com", "password": "password123", "agree": "1"})
+    user.post("/slots/1/book")
+    page = user.get("/bookings/1").text
+    assert "テストのチェックリスト" in page and "スレッドを開く" in page
+
+    now["t"] = NOW + dt.timedelta(minutes=55)
+    user.post("/bookings/1/test/start")
+    s = store.session_for_booking(1)
+    assert (s["user_id"], s["thread_id"]) == (42, 777)
+    user.post("/bookings/1/test/giveup")
+    assert "どこで止まったか" in user.get("/bookings/1").text
+    user.post("/bookings/1/test/stuck", data={"stuck": "VR の画面が真っ暗"})
+    s = store.session_for_booking(1)
+    assert s["status"] == "done" and s["connected"] == 0 and s["stuck"] == "VR の画面が真っ暗"
+    events = store.pending_web_events()
+    assert [e["kind"] for e in events] == ["start", "giveup", "done"] and "<#777>" in events[0]["text"]
+    store.close()
+
+
+def test_booking_page_has_no_test_checklist_without_the_tester_record(tmp_path, now):
+    app, _ = make_app(tmp_path, free_mode=True)
+    admin = TestClient(app)
+    admin_setup(admin)
+    user = TestClient(app)
+    signup(user, "hikari@example.com")
+    user.post("/slots/1/book")
+    assert "テストのチェックリスト" not in user.get("/bookings/1").text
+    assert user.post("/bookings/1/test/start").status_code == 404
 
 
 def clock_now(now):

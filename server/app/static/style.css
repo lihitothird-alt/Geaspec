@@ -1024,6 +1024,28 @@ td a.badge:hover { text-decoration: underline; }
 .countdown.live { background: var(--primary); color: var(--on-primary); }
 .countdown strong { font: 700 1.5rem/1.3 var(--font-round); }
 .end-now { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: -6px 0 18px; }
+
+/* 予約ページのテストのチェックリスト */
+.test-card { margin: 0 0 20px; }
+.test-card h2 { margin: 0 0 4px; }
+.test-done { display: flex; align-items: center; gap: 8px; font-weight: 700; margin: 6px 0 2px; }
+.checklist { list-style: none; margin: 14px 0 0; padding: 0; counter-reset: check; }
+.checklist > li { counter-increment: check; position: relative; padding: 12px 0 12px 40px; border-top: 1px solid var(--line); }
+.checklist > li::before {
+  content: counter(check); position: absolute; left: 0; top: 10px; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; font-weight: 700; font-size: .9rem;
+  border: 2px solid var(--edge); background: var(--surface); color: var(--text);
+}
+.checklist > li.done::before { content: "✓"; background: var(--mint); color: var(--sticker-ink); }
+.checklist > li > b { display: block; margin-bottom: 6px; }
+.checklist form { margin: 8px 0 0; }
+.test-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.test-row form { margin: 8px 0 0; }
+.test-perf { display: grid; gap: 10px; max-width: 420px; }
+.test-missions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.test-survey textarea, .test-help input { width: 100%; }
+.test-help { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.test-help summary { font-weight: 700; cursor: pointer; color: var(--danger-ink); }
 .countdown .sub { font-size: .92rem; }
 
 .approve-form { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
