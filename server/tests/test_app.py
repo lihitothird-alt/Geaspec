@@ -1076,7 +1076,7 @@ def core_answers():
     """かならず答える質問の答え (どれも最初の選択肢)。"""
     from app import web_test
 
-    return {q["key"]: q["options"][0][0] for q in web_test.core_questions()}
+    return {q["key"]: [q["options"][0][0]] if q.get("multi") else q["options"][0][0] for q in web_test.core_questions()}
 
 
 def test_testers_run_the_whole_test_on_the_booking_page(tmp_path, now):
@@ -1115,25 +1115,25 @@ def test_testers_run_the_whole_test_on_the_booking_page(tmp_path, now):
     # 遊び終わった → 最後の画面で FPS と Ping (かならず)・アンケート 5問 (かならず)・写真とほかの質問 (時間があれば)
     user.post("/bookings/1/test/done")
     page = user.get("/bookings/1").text
-    assert "FPS と Ping（かならず）" in page and "時間があれば、こちらも" in page and "送ってテストを終える" in page
+    assert "FPS・Ping・遅れ（かならず）" in page and "時間があれば、こちらも" in page and "送ってテストを終える" in page
     answers = core_answers()
-    assert len(answers) == 5
+    assert len(answers) == 8
     # FPS と Ping がないと送れない
     r = user.post("/bookings/1/test/survey", data=answers)
-    assert "FPS と Ping を入れてください" in r.text and store.session_for_booking(1)["status"] == "survey"
-    assert "数字を確かめて" in user.post("/bookings/1/test/survey", data={**answers, "fps_0": "999", "ping": "40"}).text
+    assert "Virtual Desktop の遅れを入れてください" in r.text and store.session_for_booking(1)["status"] == "survey"
+    assert "数字を確かめて" in user.post("/bookings/1/test/survey", data={**answers, "fps_0": "999", "ping": "40", "latency": "25"}).text
     # アンケートに答えていない質問があると送れない
-    r = user.post("/bookings/1/test/survey", data={**answers, "again": "", "fps_0": "72", "ping": "40"})
-    assert "また使いたいですか？" in r.text and store.session_for_booking(1)["status"] == "survey"
+    r = user.post("/bookings/1/test/survey", data={**answers, "price": "", "fps_0": "72", "ping": "40", "latency": "25"})
+    assert "1時間いくらなら払いますか？" in r.text and store.session_for_booking(1)["status"] == "survey"
     png = b"\x89PNG\r\n\x1a\n" + b"0" * 100
     r = user.post("/bookings/1/test/survey",
-                  data={**answers, "fps_0": "72", "fps_1": "", "ping": "40", "mission": ["heavy", "photo"],
+                  data={**answers, "fps_0": "72", "fps_1": "", "ping": "40", "latency": "25", "mission": ["heavy", "photo"],
                         "when": ["event", "photo"], "comment": "楽しかった"},
                   files=[("photos", ("shot.png", png, "image/png")), ("photos", ("note.txt", b"x", "text/plain"))])
     assert r.status_code == 200
     s = store.session_for_booking(1)
     assert s["status"] == "done" and s["comment"] == "楽しかった"
-    assert TesterStore.world_fps(s) == {"日本語話者向け集会場": 72} and s["ping_ms"] == 40
+    assert TesterStore.world_fps(s) == {"日本語話者向け集会場": 72} and s["ping_ms"] == 40 and s["latency_ms"] == 25
     assert json.loads(s["missions"]) == {"heavy": True, "crowd": False, "photo": True}
     assert json.loads(s["answers"]) == {**answers, "when": ["event", "photo"]}
     shots = json.loads(s["screenshots"])

@@ -100,22 +100,23 @@
         {% elif test.entered %}<p class="sub">入るまで {{ test.enter_text }}</p>{% endif %}
       </li>
       <li class="{{ 'done' if test.perf or test.done }}">
-        <b>遊んでいる間に、FPS と Ping を見ておく</b>
-        <p class="sub">VRChat のメニューの歯車 →いちばん下の「デバッグ」→「FPS と Ping の表示」をオン。「{{ test.perf_world }}」で 30秒ほど歩き回りながら、画面に出る FPS と Ping の数字を覚えておいてください（Quest のスクリーンショットを撮っておくと安心です）。{% if test.worlds|length > 1 %}行けたら「{{ test.worlds[1:]|join("」「") }}」でも。{% endif %}<a href="/guide#fps">画像つきの説明</a></p>
+        <b>遊んでいる間に、FPS・Ping・遅れの数字を見ておく</b>
+        <p class="sub">VRChat: メニューの歯車 →いちばん下の「デバッグ」→「FPS と Ping の表示」をオン。<br>Virtual Desktop: メニューの「Streaming」→「Performance overlay」をオンにすると、遅れ（Latency）の ms が出ます。<br>「{{ test.perf_world }}」で 30秒ほど歩き回りながら、数字を覚えておいてください（Quest のスクリーンショットを撮っておくと安心です）。{% if test.worlds|length > 1 %}行けたら「{{ test.worlds[1:]|join("」「") }}」でも。{% endif %}<a href="/guide#fps">画像つきの説明</a></p>
       </li>
       <li class="{{ 'done' if test.done }}">
-        <b>遊び終わったら「遊び終わった」を押して、数字とアンケートを送る（1分ほど）</b>
+        <b>遊び終わったら「遊び終わった」を押して、数字とアンケートを送る（1〜2分）</b>
         {% if test.status == "playing" %}
           <form method="post" action="{{ act }}done"><button class="btn">遊び終わった</button></form>
           <p class="sub">時間まで遊んで大丈夫です。早く終わったら、上の「いま終わる」で PC を返せます。</p>
         {% elif test.status == "survey" and test.connected %}
         <form method="post" action="{{ act }}survey" enctype="multipart/form-data" class="fb-form test-survey">
           <fieldset class="fb-q test-perf">
-            <legend>FPS と Ping（かならず）</legend>
+            <legend>FPS・Ping・遅れ（かならず）</legend>
             {% for w in test.worlds %}
             <label>{{ w }} の FPS{% if not loop.first %}（行けたら）{% endif %}<input type="number" name="fps_{{ loop.index0 }}" min="0" max="240" inputmode="numeric" value="{{ test.fps.get(w, '') }}"></label>
             {% endfor %}
-            <label>Ping（ms）<input type="number" name="ping" min="0" max="2000" inputmode="numeric" value="{{ '' if test.ping is none else test.ping }}"></label>
+            <label>VRChat の Ping（ms）<input type="number" name="ping" min="0" max="2000" inputmode="numeric" value="{{ '' if test.ping is none else test.ping }}"></label>
+            <label>Virtual Desktop の遅れ（ms）<input type="number" name="latency" min="0" max="1000" inputmode="numeric" value="{{ '' if test.latency is none else test.latency }}"></label>
             <label>スクリーンショット（あれば・{{ test.max_photos }} 枚まで）<input type="file" name="photos" accept="image/png,image/jpeg,image/webp" multiple></label>
             <label class="fb-pick"><input type="checkbox" name="no_perf" value="1"><span>どうしても表示できなかった</span></label>
           </fieldset>

@@ -22,6 +22,7 @@ MAX_PHOTO_MB = 15
 PHOTO_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 MAX_FPS = 240
 MAX_PING_MS = 2000
+MAX_LATENCY_MS = 1000
 
 
 class WebTestError(ValueError):
@@ -54,7 +55,7 @@ def state(session: dict | None) -> dict:
     """チェックリストのどこまで終わったか (ボットのチェックリストと同じ決め方)。"""
     if session is None:
         return {"started": False, "status": "", "entered": False, "photo": False, "perf": False, "survey": False,
-                "done": False,
+                "done": False, "latency": None,
                 "connected": None, "missions": {}, "fps": {}, "ping": None, "photos": 0, "enter_text": "",
                 "help_count": 0}
     answers = json.loads(session["answers"])
@@ -70,7 +71,8 @@ def state(session: dict | None) -> dict:
         "entered": bool(session["entered_at"]),
         "photo": bool(photos or fps or session["ping_ms"] is not None),
         # FPS (ワールドを 1 つ以上) と Ping がそろっている。満足度や料金を決めるための数字
-        "perf": bool(fps) and session["ping_ms"] is not None,
+        "perf": bool(fps) and session["ping_ms"] is not None and session["latency_ms"] is not None,
+        "latency": session["latency_ms"],
         "survey": all(key in answers for key in CORE_QUESTION_KEYS),
         "done": session["status"] == "done",
         "connected": session["connected"],
@@ -90,10 +92,10 @@ def help_step(session: dict | None) -> str:
 
 
 def parse_performance(form: dict[str, list[str]], worlds: list[str], *,
-                      required: bool = False) -> tuple[dict[str, int], int | None]:
-    """FPS (ワールドごと) と Ping。空の欄は入れなかったことにする。
+                      required: bool = False) -> tuple[dict[str, int], int | None, int | None]:
+    """FPS (ワールドごと)・VRChat の Ping・Virtual Desktop の遅れ。空の欄は入れなかったことにする。
 
-    required なら、最初のワールドの FPS と Ping はかならず入れてもらう (ほかのワールドは入れられたら)。
+    required なら、最初のワールドの FPS と、Ping と遅れはかならず入れてもらう (ほかのワールドは入れられたら)。
     """
 
     def number(raw: str, label: str, top: int) -> int | None:
@@ -114,10 +116,11 @@ def parse_performance(form: dict[str, list[str]], worlds: list[str], *,
         if value is not None:
             fps[name] = value
     ping = number((form.get("ping") or [""])[0], "Ping", MAX_PING_MS)
-    if required and (not worlds or worlds[0] not in fps or ping is None):
-        raise WebTestError(f"「{worlds[0] if worlds else 'ワールド'}」の FPS と Ping を入れてください"
+    latency = number((form.get("latency") or [""])[0], "Virtual Desktop の遅れ", MAX_LATENCY_MS)
+    if required and (not worlds or worlds[0] not in fps or ping is None or latency is None):
+        raise WebTestError(f"「{worlds[0] if worlds else 'ワールド'}」の FPS・Ping・Virtual Desktop の遅れを入れてください"
                            "（どうしても表示できなかったときは「表示できなかった」にチェック）")
-    return fps, ping
+    return fps, ping, latency
 
 
 def core_questions() -> list[dict]:
