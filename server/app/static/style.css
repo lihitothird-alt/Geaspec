@@ -52,7 +52,8 @@
   --focus: #5b3cf0;
 
   /* --- Type --------------------------------------------------------- */
-  --font-body: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
+  /* 本文は PC やスマホに入っている字を使う (日本語の字を毎回ダウンロードすると重いため) */
+  --font-body: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans CJK JP", sans-serif;
   --font-round: "M PLUS Rounded 1c", var(--font-body);
   --font-num: "Unbounded", "M PLUS Rounded 1c", var(--font-body);
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
