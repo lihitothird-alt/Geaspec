@@ -1,10 +1,13 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.23"
+VERSION = "0.7.24"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.24": [
+        "予約サイトを自分のドメイン（Cloudflare）で公開できるようにしました。Cloudflare の東京の入り口から届くので、速く開けます",
+    ],
     "0.7.23": [
         "テストで調べることを 5 つにしぼりました（簡単につながるか・安全か・FPS がどれだけ上がるか・遅れが現実的か・いくらなら払うか）",
         "Virtual Desktop の遅れ（家から PC までの遅れ）も入れてもらうようにしました。VRChat の Ping は PC から VRChat までの数字です",

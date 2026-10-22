@@ -8,13 +8,14 @@ import site_launcher as s  # noqa: E402
 
 def test_first_settings_are_asked_once():
     answers = iter(["not-an-email", "owner@example.com", "himitsu", "geaspec@gmail.com", "abcd efgh ijkl mnop",
-                    " bot-token "])
+                    " bot-token ", " https://Geaspec.com/ "])
     config = s.ask_first_settings({"public": False}, input_fn=lambda prompt: next(answers))
     assert config["admin_email"] == "owner@example.com"
     assert config["site_password"] == "himitsu"
     assert config["mail_user"] == "geaspec@gmail.com"
     assert config["mail_password"] == "abcdefghijklmnop"
     assert config["discord_token"] == "bot-token"
+    assert config["domain"] == "geaspec.com"
     assert len(config["secret_key"]) == 64
     # 2 回目からは何も聞かない
     again = s.ask_first_settings(config, input_fn=lambda prompt: (_ for _ in ()).throw(AssertionError(prompt)))
@@ -47,8 +48,11 @@ def test_tailscale_must_be_connected():
 def test_mail_is_asked_once_for_existing_sites_and_can_be_skipped(tmp_path):
     old = {"secret_key": "k", "admin_email": "owner@example.com", "site_password": "x"}
     config = s.ask_first_settings(old, input_fn=lambda prompt: "")
-    assert config["mail_user"] == "" and config["mail_password"] == ""
-    s.ask_first_settings(config, input_fn=lambda prompt: (_ for _ in ()).throw(AssertionError(prompt)))
+    assert config["mail_user"] == "" and config["mail_password"] == "" and "domain" not in config
+    # メールはもう聞かない。ドメインは、まだないなら次の起動でまた聞く
+    asked = []
+    s.ask_first_settings(config, input_fn=lambda prompt: asked.append(prompt) or "")
+    assert asked == ["ドメイン: "]
     env = s.site_environment({**config, "mail_user": "g@gmail.com", "mail_password": "p"}, "", tmp_path)
     assert env["SMTP_USER"] == "g@gmail.com" and env["SMTP_PASSWORD"] == "p"
 
@@ -113,7 +117,7 @@ def test_setup_only_saves_the_settings_and_does_not_start(tmp_path, monkeypatch)
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     monkeypatch.setattr(sys, "argv", ["site_launcher.py", "--setup"])
     monkeypatch.setattr(s, "port_in_use", lambda port: False)
-    answers = iter(["owner@example.com", "", ""])
+    answers = iter(["owner@example.com", "", "", ""])
     ask = s.ask_first_settings
     monkeypatch.setattr(s, "ask_first_settings", lambda config: ask(config, input_fn=lambda prompt: next(answers)))
     monkeypatch.setattr(s, "start_discord_bot", lambda *a, **kw: (_ for _ in ()).throw(AssertionError("started")))
@@ -146,3 +150,50 @@ def test_a_slow_first_start_is_waited_for(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert calls == [s.FIRST_WAIT_SEC, s.LONG_WAIT_SEC]
     assert "時間がかかっています" in out and "起動できませんでした" not in out
+
+
+def test_own_domain_becomes_the_site_address_and_is_not_asked_on_the_server(tmp_path):
+    config = {"secret_key": "k", "admin_email": "a@example.com", "domain": "geaspec.com"}
+    assert s.public_url(config, "https://lg.tail.ts.net") == "https://geaspec.com"
+    assert s.public_url({}, "https://lg.tail.ts.net") == "https://lg.tail.ts.net"
+    assert s.site_environment(config, s.public_url(config, ""), tmp_path)["BASE_URL"] == "https://geaspec.com"
+    # クラウドのサーバーで自動で起動したとき (入力できない) は、あとから足した質問で止まらない
+    old = {"secret_key": "k", "admin_email": "a@example.com", "mail_user": "", "discord_token": ""}
+    assert "domain" not in s.ask_first_settings(old, input_fn=lambda _: (_ for _ in ()).throw(EOFError()),
+                                                interactive=False)
+
+
+def test_cloudflare_tunnel_is_set_up_once_with_keys_in_the_data_folder(tmp_path, monkeypatch):
+    import json
+    import subprocess
+
+    import cloudflare_tunnel as cf
+
+    home = tmp_path / "home"
+    monkeypatch.setattr(cf.Path, "home", lambda: home)
+    calls = []
+
+    def run(args, check=False):
+        calls.append(args[2:] if args[1:3] == ["tunnel", "--origincert"] else args[1:])
+        if args[1:] == ["tunnel", "login"]:
+            (home / ".cloudflared").mkdir(parents=True)
+            (home / ".cloudflared" / "cert.pem").write_text("cert")
+        if "create" in args:
+            Path(args[args.index("--credentials-file") + 1]).write_text(json.dumps({"TunnelID": "abc-123"}))
+        return subprocess.CompletedProcess(args, 0)
+
+    data = tmp_path / "GeaspecSite"
+    assert cf.ensure_tunnel(Path("cloudflared"), data, "geaspec.com", run=run) is True
+    assert calls[0] == ["tunnel", "login"]
+    assert (data / "cloudflared" / "cert.pem").read_text() == "cert"
+    assert calls[-1][-4:] == ["dns", "--overwrite-dns", "abc-123", "geaspec.com"]
+    # 2 回目からはログインもトンネル作りもしない (向き先だけ確かめ直す)
+    calls.clear()
+    assert cf.ensure_tunnel(Path("cloudflared"), data, "geaspec.com", run=run) is True
+    assert len(calls) == 1 and "route" in calls[0]
+
+    started = []
+    cf.start_tunnel(Path("cloudflared"), data, "geaspec.com", 8000, popen=lambda args, **kw: started.append(args) or object())
+    config = (data / "cloudflared" / "config.yml").read_text()
+    assert "tunnel: abc-123" in config and "hostname: geaspec.com" in config and "http://localhost:8000" in config
+    assert started[0][-1] == "run" and "--config" in started[0]
