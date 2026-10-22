@@ -1,10 +1,13 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.26"
+VERSION = "0.7.27"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.27": [
+        "サイトのロゴとアイコンを、発表で使っている「GPU の形に歯車が 2 つ入った」ロゴにそろえました",
+    ],
     "0.7.26": [
         "Discord の案内を、短いカードにしました。「次へ」を押すたびに、同じメッセージが次の手順に変わります。くわしい説明は Web サイトにあります",
         "貸す人がアプリでログインすると、運営チャンネルにすぐお知らせが届くようになりました（「アプリを入れた」も押すたびに届きます）",

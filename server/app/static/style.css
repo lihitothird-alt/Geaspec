@@ -189,12 +189,7 @@ summary, .lead, .check span, .persona li, .trust li, .need li, .section-head p, 
   font-family: var(--font-num); font-weight: 800; font-size: 1.12rem; letter-spacing: -.01em;
 }
 .logo-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.logo-mark { width: 38px; height: 38px; flex: none; }
-.logo-mark .lm-teeth { fill: none; stroke: var(--edge); stroke-width: 7; }
-.logo-mark .lm-bg { fill: var(--primary); stroke: var(--edge); stroke-width: 2.5; }
-.logo-mark .lm-visor { fill: #fff; }
-.logo-mark .lm-lens { fill: var(--mint); }
-.logo-mark .lm-spark { fill: var(--yellow); stroke: var(--edge); stroke-width: 1.5; stroke-linejoin: round; }
+.logo-mark { width: 52px; height: 28px; flex: none; color: var(--edge); }
 
 .nav-desktop { display: flex; align-items: center; gap: 2px; }
 .nav-link, button.nav-link {
@@ -239,7 +234,7 @@ summary, .lead, .check span, .persona li, .trust li, .need li, .section-head p, 
   .nav-desktop { display: none; }
   .nav-mobile { display: flex; }
   :root { --header-h: 64px; --gutter: 16px; }
-  .logo-mark { width: 34px; height: 34px; }
+  .logo-mark { width: 46px; height: 25px; }
   .logo { font-size: 1rem; gap: 8px; }
 }
 
@@ -802,7 +797,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px
 .site-footer { margin-top: 0; border-top: 2px solid var(--edge); background: var(--surface); padding: 28px 0 40px; }
 .footer-inner { display: grid; gap: 14px; }
 .footer-brand { display: inline-flex; align-items: center; gap: 8px; font: 800 .95rem/1 var(--font-num); }
-.footer-brand .logo-mark { width: 28px; height: 28px; }
+.footer-brand .logo-mark { width: 40px; height: 22px; }
 .footer-links { display: flex; flex-wrap: wrap; gap: 0 4px; margin: 0 -10px; }
 .footer-links a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; color: var(--text); font-size: .9rem; font-weight: 600; }
 .site-footer .muted { margin: 0; font-size: .82rem; }
