@@ -10,7 +10,7 @@
     {% else %}
     <p class="intro">登録後に Meta (Quest) のユーザー名を設定すると、空き枠を予約できるようになります。</p>
     {% endif %}
-    {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+    {% if error %}<div class="flash error" role="alert">{{ error }}{% if registered %}。<a href="/login">ログイン</a>するか、パスワードを忘れたときは <a href="/forgot?email={{ email|urlencode }}">パスワードの再設定</a> へ{% endif %}</div>{% endif %}
     <form method="post" class="form">
       <label>メールアドレス<input type="email" name="email" value="{{ email or '' }}" required autocomplete="email" inputmode="email"></label>
       <label><span>パスワード <span class="opt">（8文字以上）</span></span><input type="password" name="password" minlength="8" required autocomplete="new-password"></label>

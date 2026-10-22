@@ -143,10 +143,10 @@ jobs:
           python -m pip install -r ..\server\requirements.txt --target "$out\lib"
           Copy-Item ..\server\app "$out\app" -Recurse
           Get-ChildItem "$out\app" -Include __pycache__ -Recurse -Directory | Remove-Item -Recurse -Force
-          Copy-Item ..\server\site_launcher.py, ..\server\cloudflare_tunnel.py, ..\server\GeaspecSite.cmd $out
+          Copy-Item ..\server\site_launcher.py, ..\server\cloudflare_tunnel.py, ..\server\auto_update.py, ..\server\GeaspecSite.cmd $out
           $pth = Get-ChildItem "$out\python\python*._pth" | Select-Object -First 1
           Add-Content $pth.FullName "..\lib`r`n.."
-          & "$out\python\python.exe" -c "import sys; sys.path.insert(0, r'$out'); import site_launcher, cloudflare_tunnel, uvicorn; from app.main import create_app; print('site ok')"
+          & "$out\python\python.exe" -c "import sys; sys.path.insert(0, r'$out'); import site_launcher, cloudflare_tunnel, auto_update, uvicorn; from app.main import create_app; print('site ok')"
           if ($LASTEXITCODE -ne 0) { throw "site bundle import failed" }
           Compress-Archive -Path "$out\*" -DestinationPath "dist\GeaspecSite-${{ steps.ver.outputs.version }}.zip"
 

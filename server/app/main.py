@@ -28,7 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import clock, feedback, invite, services, social, web_test
+from . import account_links, clock, feedback, invite, services, social, web_test
 from .config import Settings
 from .db import Base, add_missing_columns, make_engine, make_sessionmaker
 from .models import Booking, BookingStatus, Feedback, Host, Slot, User
@@ -80,6 +80,8 @@ def create_app(
     media_root = Path(settings.media_dir)
     (media_root / "screenshots").mkdir(parents=True, exist_ok=True)
     public_host = urlsplit(settings.base_url).hostname if settings.secure_cookies else None
+    # パスワードの再設定メールを最後に送った時刻 (ユーザー番号ごと)
+    reset_sent: dict[int, float] = {}
 
     @app.middleware("http")
     async def force_https(request: Request, call_next):
@@ -153,6 +155,24 @@ def create_app(
         except Exception:  # noqa: BLE001 - メールが送れなくても予約などの処理は続ける
             log.exception("メールの準備に失敗しました: %s", subject)
 
+    def needs_email_check(user: User) -> bool:
+        """メールアドレスの確認がまだで、予約できない (メールを送れないサイトでは確かめようがないので求めない)。"""
+        return app.state.mailer.enabled and not user.email_verified
+
+    def send_verify_mail(user: User) -> None:
+        link = f"{settings.base_url}/verify?t={account_links.verify_token(settings.secret_key, user.id, user.email, clock.utcnow())}"
+        send_mail(user.email, "メールアドレスの確認",
+                  f"{settings.service_name} に登録いただき、ありがとうございます。\n\n"
+                  f"下のリンクを開くと、メールアドレスの確認が終わり、予約できるようになります（{account_links.VERIFY_DAYS} 日間有効）。\n{link}\n\n"
+                  "心当たりがない場合は、このメールを無視してください。")
+
+    def send_reset_mail(user: User) -> None:
+        token = account_links.reset_token(settings.secret_key, user.id, user.password_hash, clock.utcnow())
+        send_mail(user.email, "パスワードの再設定",
+                  f"パスワードを再設定するには、下のリンクを開いて新しいパスワードを決めてください"
+                  f"（{account_links.RESET_HOURS} 時間有効・1 回だけ使えます）。\n{settings.base_url}/reset?t={token}\n\n"
+                  "心当たりがない場合は、このメールを無視してください（パスワードは変わりません）。")
+
     def booking_when(booking: Booking) -> str:
         s = booking.slot
         return f"{clock.to_jst(s.start_at):%m/%d}（{'月火水木金土日'[clock.to_jst(s.start_at).weekday()]}）{clock.to_jst(s.start_at):%H:%M}〜{clock.to_jst(s.end_at):%H:%M}"
@@ -205,6 +225,7 @@ def create_app(
             {
                 "settings": settings, "user": user, "is_admin": is_admin(user), "messages": messages,
                 "is_lender": bool(user and db.scalar(select(Host.id).where(Host.owner_id == user.id).limit(1))),
+                "email_unverified": bool(user and needs_email_check(user)),
                 **ctx,
             },
             status_code=status_code,
@@ -377,16 +398,23 @@ def create_app(
             return render(request, db, "signup.html", status_code=400, error=error, email=email)
         user = User(email=email, password_hash=hash_password(password), signup_ref=request.session.get("ref", ""),
                     meta_username=request.session.get("invite_meta", ""),
-                    discord_thread=request.session.get("discord_thread", ""))
+                    discord_thread=request.session.get("discord_thread", ""),
+                    email_verified=not app.state.mailer.enabled or email in settings.admin_emails)
         db.add(user)
         try:
             db.commit()
         except IntegrityError:
             db.rollback()
             return render(
-                request, db, "signup.html", status_code=400, error="このメールアドレスは登録済みです", email=email
+                request, db, "signup.html", status_code=400, error="このメールアドレスは登録済みです",
+                email=email, registered=True,
             )
         request.session["uid"] = user.id
+        if needs_email_check(user):
+            send_verify_mail(user)
+            request.session["verify_sent_at"] = clock.utcnow().timestamp()
+            flash(request, f"登録しました。{email} に確認のメールを送りました。メールのリンクを開くと予約できるようになります")
+            return redirect("/slots" if user.meta_username else "/account")
         if user.meta_username:
             flash(request, "登録しました。空き枠から好きな時間をえらんでください")
             return redirect("/slots")
@@ -423,6 +451,82 @@ def create_app(
             request.session["discord_thread"] = thread
             user.discord_thread = thread
         db.commit()
+        return redirect(safe_next(next, "/slots"))
+
+    # --- パスワードの再設定・メールアドレスの確認 --------------------------------
+
+    @app.get("/forgot", response_class=HTMLResponse)
+    def forgot_form(request: Request, email: str = "", db: Session = Depends(get_db)):
+        return render(request, db, "forgot.html", email=email)
+
+    @app.post("/forgot", response_class=HTMLResponse)
+    def forgot(request: Request, email: str = Form(""), db: Session = Depends(get_db)):
+        email = email.strip().lower()
+        if not app.state.mailer.enabled:
+            return render(request, db, "forgot.html", email=email, no_mail=True)
+        user = db.scalar(select(User).where(User.email == email)) if EMAIL_RE.match(email) else None
+        now = clock.utcnow().timestamp()
+        # 同じ人に何通も送らない (いたずら対策)。登録されているかどうかは、画面ではわからないようにする
+        if user and now - reset_sent.get(user.id, 0) > 120:
+            reset_sent[user.id] = now
+            send_reset_mail(user)
+        return render(request, db, "forgot.html", email=email, sent=True)
+
+    def password_hash_of(db: Session):
+        return lambda uid: (u.password_hash if (u := db.get(User, uid)) else None)
+
+    @app.get("/reset", response_class=HTMLResponse)
+    def reset_form(request: Request, t: str = "", db: Session = Depends(get_db)):
+        valid = account_links.read_reset(settings.secret_key, t, clock.utcnow(), password_hash_of(db)) is not None
+        return render(request, db, "reset.html", token=t, invalid=not valid, status_code=200 if valid else 400)
+
+    @app.post("/reset", response_class=HTMLResponse)
+    def reset(request: Request, t: str = Form(""), password: str = Form(""), db: Session = Depends(get_db)):
+        uid = account_links.read_reset(settings.secret_key, t, clock.utcnow(), password_hash_of(db))
+        if uid is None:
+            return render(request, db, "reset.html", token=t, invalid=True, status_code=400)
+        if len(password) < 8:
+            return render(request, db, "reset.html", token=t, error="パスワードは 8 文字以上にしてください", status_code=400)
+        user = db.get(User, uid)
+        user.password_hash = hash_password(password)
+        user.email_verified = True  # メールのリンクを開けた = そのアドレスの持ち主
+        db.commit()
+        site_ok = request.session.get("site_ok")
+        request.session.clear()
+        request.session["uid"] = user.id
+        if site_ok:
+            request.session["site_ok"] = True
+        flash(request, "新しいパスワードにしました。ログインしています")
+        return redirect("/slots")
+
+    @app.get("/verify")
+    def verify_email(request: Request, t: str = "", db: Session = Depends(get_db)):
+        email_of = lambda uid: (u.email if (u := db.get(User, uid)) else None)  # noqa: E731
+        uid = account_links.read_verify(settings.secret_key, t, clock.utcnow(), email_of)
+        if uid is None:
+            flash(request, "確認のリンクが古いか、正しくありません。ログインして「確認のメールをもう一度送る」を押してください", "error")
+            return redirect("/slots" if current_user(request, db) else "/login")
+        user = db.get(User, uid)
+        if not user.email_verified:
+            user.email_verified = True
+            db.commit()
+        flash(request, "メールアドレスを確認しました。予約できます")
+        if not current_user(request, db):
+            return redirect("/login?next=/slots")
+        return redirect("/slots" if user.meta_username else "/account")
+
+    @app.post("/verify/resend")
+    def verify_resend(request: Request, next: str = Form("/slots"), db: Session = Depends(get_db)):
+        user = require_user(request, db)
+        if not needs_email_check(user):
+            return redirect("/slots")
+        now = clock.utcnow().timestamp()
+        if now - request.session.get("verify_sent_at", 0) < 60:
+            flash(request, "少し前に送りました。1 分ほど待ってから、もう一度押してください", "warn")
+        else:
+            request.session["verify_sent_at"] = now
+            send_verify_mail(user)
+            flash(request, f"{user.email} に確認のメールを送りました。届かないときは迷惑メールのフォルダも見てください")
         return redirect(safe_next(next, "/slots"))
 
     @app.post("/logout")
@@ -500,6 +604,9 @@ def create_app(
         if not user.meta_username:
             flash(request, "先に Meta (Quest) のユーザー名を登録してください", "error")
             return redirect("/account")
+        if needs_email_check(user):
+            flash(request, "予約の前に、メールアドレスの確認をお願いします（届いたメールのリンクを開いてください）", "error")
+            return redirect("/slots")
         slot = db.get(Slot, slot_id) or _404()
         now = clock.utcnow()
         if not services.is_available(db, slot, now, settings.hold_minutes):
@@ -528,6 +635,9 @@ def create_app(
     def book(slot_id: int, request: Request, provider: str = Form(""), until: int = Form(0),
              db: Session = Depends(get_db)):
         user = require_user(request, db)
+        if needs_email_check(user):
+            flash(request, "予約の前に、メールアドレスの確認をお願いします（届いたメールのリンクを開いてください）", "error")
+            return redirect("/slots")
         slot = db.get(Slot, slot_id) or _404()
         gateways: dict[str, PaymentGateway] = request.app.state.payments
         now = clock.utcnow()
@@ -1009,10 +1119,30 @@ def create_app(
         hosts = db.scalars(select(Host).order_by(Host.id)).all()
         upcoming = db.scalars(select(Slot).where(Slot.end_at > now).order_by(Slot.start_at)).all()
         bookings = db.scalars(select(Booking).order_by(Booking.id.desc()).limit(50)).all()
+        unverified = db.scalars(select(User).where(User.email_verified.is_(False)).order_by(User.id.desc()).limit(20)).all()
         return render(
             request, db, "admin/index.html", hosts=hosts, slots=upcoming, bookings=bookings, now=now,
-            hold_minutes=settings.hold_minutes,
+            hold_minutes=settings.hold_minutes, unverified=unverified,
+            admin_reset_hours=account_links.ADMIN_RESET_HOURS,
+            reset_link=request.session.pop("admin_reset_link", ""), reset_for=request.session.pop("admin_reset_for", ""),
         )
+
+    @app.post("/admin/users")
+    def admin_user_tools(request: Request, email: str = Form(""), action: str = Form(""), db: Session = Depends(get_db)):
+        require_admin(request, db)
+        user = db.scalar(select(User).where(User.email == email.strip().lower()))
+        if user is None:
+            flash(request, f"{email} は登録されていません", "error")
+        elif action == "reset":
+            token = account_links.reset_token(settings.secret_key, user.id, user.password_hash, clock.utcnow(),
+                                              hours=account_links.ADMIN_RESET_HOURS)
+            request.session["admin_reset_link"] = f"{settings.base_url}/reset?t={token}"
+            request.session["admin_reset_for"] = user.email
+        elif action == "verify":
+            user.email_verified = True
+            db.commit()
+            flash(request, f"{user.email} をメール確認済みにしました。予約できます")
+        return redirect("/admin#accounts")
 
     @app.post("/admin/hosts", response_class=HTMLResponse)
     def admin_create_host(
