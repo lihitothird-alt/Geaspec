@@ -116,3 +116,53 @@ def start_tunnel(exe: Path, data: Path, domain: str, port: int, popen=subprocess
     log = open(tunnel_dir(data) / "tunnel.log", "a", encoding="utf-8")  # noqa: SIM115 - トンネルが動いている間ずっと書く
     return popen([str(exe), "tunnel", "--no-autoupdate", "--config", str(config), "run"],
                  stdout=log, stderr=subprocess.STDOUT, **kwargs)
+
+
+def diagnose(data: Path, domain: str, exe: Path | None, *, resolve=None, fetch=None) -> list[str]:
+    """自分のドメインで開けないとき、どこで止まっているかを 1 つずつ確かめる (画面に出して、ファイルにも残す)。"""
+    import socket
+    import urllib.request
+
+    resolve = resolve or (lambda host: sorted({a[4][0] for a in socket.getaddrinfo(host, 443)}))
+
+    def default_fetch(url: str) -> int:
+        with urllib.request.urlopen(url, timeout=10) as r:  # noqa: S310 - 自分のサイトだけ
+            return r.status
+
+    fetch = fetch or default_fetch
+    d = tunnel_dir(data)
+    lines = [f"Cloudflare の診断（{domain}）"]
+
+    def check(ok: bool, good: str, bad: str) -> bool:
+        lines.append(("✅ " + good) if ok else ("❌ " + bad))
+        return ok
+
+    check(exe is not None, f"cloudflared のプログラム: {exe}", "cloudflared のプログラムがありません（ダウンロードできなかった・ウイルス対策に消された）")
+    check((d / "cert.pem").exists(), "Cloudflare のログイン（Authorize）: 済み",
+          "Cloudflare のログイン（Authorize）がまだです。ブラウザで geaspec.com を選んで「Authorize」を押してください")
+    tid = tunnel_id(data)
+    check(bool(tid), f"トンネル: {tid}", "トンネルがまだ作られていません")
+    try:
+        addresses = resolve(domain)
+    except OSError:
+        addresses = []
+    check(bool(addresses), f"DNS（住所の登録）: {', '.join(addresses[:2])}",
+          f"DNS（住所の登録）がありません。{domain} をトンネルに向ける設定（route dns）ができていません")
+    log = d / "tunnel.log"
+    tail = log.read_text(encoding="utf-8", errors="replace").splitlines()[-200:] if log.exists() else []
+    connected = any("Registered tunnel connection" in line for line in tail)
+    check(connected, "トンネルの接続: Cloudflare につながっています",
+          "トンネルが Cloudflare につながっていません" + ("（下の記録を見てください）" if tail else "（記録がありません）"))
+    try:
+        status = fetch(f"https://{domain}/healthz")
+    except OSError as exc:
+        status = 0
+        lines.append(f"　（開いたときのエラー: {exc}）")
+    check(status == 200, f"https://{domain} がインターネットから開けます", f"https://{domain} がまだ開けません")
+    if tail and not connected:
+        lines += ["--- cloudflared の記録（最後の 5 行） ---", *tail[-5:]]
+    try:
+        (d / "diagnosis.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+    return lines

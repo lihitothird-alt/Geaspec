@@ -229,9 +229,18 @@ def prepare_cloudflare(config: dict, data: Path):
     exe = cf.find_cloudflared(data)
     if exe is None or not cf.ensure_tunnel(exe, data, domain):
         print(f"【注意】https://{domain} に公開できませんでした。しばらくは前のアドレスで動かします。")
-        print("この画面の写真を運営（開発）に送ってください。")
+        print_diagnosis(data, domain, exe)
         return None
     return exe
+
+
+def print_diagnosis(data: Path, domain: str, exe) -> None:
+    import cloudflare_tunnel as cf
+
+    print()
+    for line in cf.diagnose(data, domain, exe):
+        print(" " + line)
+    print(f" （この内容は {cf.tunnel_dir(data) / 'diagnosis.txt'} にも保存しました。写真かファイルを運営（開発）に送ってください）")
 
 
 def start_cloudflare(config: dict, data: Path, exe) -> bool:
@@ -273,9 +282,10 @@ def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = 
         print("サイトが起動しました。")
     if sys.platform != "linux":  # Linux はクラウドのサーバー (画面がない) で動かすので、ブラウザは開かない
         webbrowser.open(f"http://localhost:{PORT}")
+    # 自分のドメインを先に動かす (Tailscale の許可待ちで、Cloudflare が後回しにならないように)
+    on_domain = start_cloudflare(config or {}, data, cloudflared)
     # 自分のドメインがあっても Funnel は続ける (前の版の貸し手のアプリは、Tailscale のアドレスにつなぐため)
     published = bool(tailscale and address) and start_funnel(tailscale)
-    on_domain = start_cloudflare(config or {}, data, cloudflared)
     print()
     print("-" * 60)
     print(f" この PC で開くアドレス: http://localhost:{PORT}")
@@ -284,7 +294,8 @@ def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = 
         if reachable(url):
             print(f" サイトのアドレス（ほかの人に伝える）: {url}  ← インターネットから開けることを確かめました")
         else:
-            print(f" 【注意】{url} がまだ開けません。この画面と cloudflared/tunnel.log を運営（開発）に送ってください。")
+            print(f" 【注意】{url} がまだ開けません。")
+            print_diagnosis(data, str((config or {}).get("domain") or ""), cloudflared)
         if published:
             print(f" 前の版の貸し手のアプリ用: {address}")
     elif published:
