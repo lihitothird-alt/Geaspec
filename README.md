@@ -93,6 +93,19 @@
 - お知らせメールは、Gmail の「アプリ パスワード」で送ります。作り方: Google アカウントで 2 段階認証をオンにし、https://myaccount.google.com/apppasswords で名前に Geaspec と入れて「作成」を押し、出てきた 16 文字を黒い画面に入れます。送るのは「予約が確定した（借り手）」「新しい予約が入った（貸し手）」「PC が確認待ち（運営）」「PC を承認した（貸し手）」「利用が終わった（借り手）」の 5 つです。管理画面の「テストメールを送る」で届くか確かめられます。設定し直すときは `site_config.json` の `mail_user` と `mail_password` を消して起動し直します。
 - 貸し手のアプリには、`agent/server_url.txt` に書いたサイトのアドレスが組み込まれます。貸し手はアドレスを入れずにログインするだけです。アドレスが変わったら、このファイルを書き換えて新しい版を出します。
 
+## 自分のドメインで公開する（Cloudflare・速い）
+
+Tailscale Funnel は海外の中継を通ることがあって遅いので、自分のドメイン（例: `geaspec.com`）を Cloudflare で買い、Cloudflare Tunnel で公開できます。Cloudflare の東京の入り口から届き、画像などは Cloudflare に保存されるので、日本からは速く開けます。Cloudflare 自体は無料で、ドメイン代（年 1,500 円ほど）だけかかります。
+
+1. [Cloudflare](https://dash.cloudflare.com/) のアカウントを作り、「ドメインの登録」（Domain Registration → Register Domains）でドメインを買います。
+2. 新しい版の `GeaspecSite.cmd` を起動すると「ドメイン」を聞かれるので、買ったドメインを入れます。
+3. ブラウザで Cloudflare のページが開くので、そのドメインを選んで「Authorize」を押します（はじめての 1 回だけ）。あとは自動で、トンネルを作り、ドメインをこの PC につなぎます。
+4. 黒い画面に `https://（ドメイン）` が出れば完了です。
+
+- 鍵はデータのフォルダの `cloudflared` に置くので、クラウドのサーバーに引っ越すときもそのまま使えます（サーバーでは `bash setup-linux.sh` の途中で聞かれます）。
+- Tailscale Funnel のアドレスも、しばらくは一緒に動かします。前の版の貸し手のアプリは、そちらにつなぐためです。貸し手のアプリのつなぎ先（`agent/server_url.txt`）を新しいドメインにした版を出したら、Funnel はなくてもよくなります。
+- トンネルの様子は `cloudflared/tunnel.log` に書きます。
+
 ## 予約サイトをクラウドのサーバーで動かす（PC を消しても止まらない）
 
 運営の PC を消すとサイトも止まるので、Google Cloud の無料のサーバー（e2-micro）に引っ越して 24 時間動かせます。Tailscale Funnel をそのまま使うので、ドメインはいりません。

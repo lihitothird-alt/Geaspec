@@ -64,10 +64,9 @@ if [ -f "$HOME/GeaspecSite.zip" ] && [ ! -f "$DATA/geaspec.db" ]; then
   rm -rf "$tmp"
   echo "前の PC のデータを引き継ぎました"
 fi
-if [ ! -f "$DATA/site_config.json" ]; then
-  echo "はじめての設定をします"
-  (cd "$APP/src/server" && "$APP/venv/bin/python" site_launcher.py --setup </dev/tty)
-fi
+# まだ決めていない設定 (はじめてなら全部、新しい版で増えたもの) を聞き、自分のドメインがあれば Cloudflare の許可をもらう
+echo "設定を確かめます（聞かれたら答えてください）"
+(cd "$APP/src/server" && LOCALAPPDATA="$HOME" "$APP/venv/bin/python" site_launcher.py --setup </dev/tty)
 
 say "5/6 Tailscale でインターネットに公開する準備をします"
 command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh

@@ -64,9 +64,28 @@ def site_gate(config: dict) -> tuple[str, bool]:
     return str(config.get("site_password") or ""), False
 
 
-def ask_first_settings(config: dict, input_fn=input) -> dict:
-    """はじめてのときだけ聞く。決まっているものは聞かない。"""
+def clean_domain(raw: str) -> str:
+    """「https://geaspec.com/」のように入れられても「geaspec.com」にする。"""
+    raw = raw.strip().lower()
+    for prefix in ("https://", "http://"):
+        raw = raw.removeprefix(prefix)
+    return raw.split("/")[0]
+
+
+def public_url(config: dict, funnel_address: str) -> str:
+    """ほかの人に伝えるサイトのアドレス。自分のドメインがあればそれ、なければ Tailscale のアドレス。"""
+    domain = str(config.get("domain") or "")
+    return f"https://{domain}" if domain else funnel_address
+
+
+def ask_first_settings(config: dict, input_fn=input, interactive: bool | None = None) -> dict:
+    """はじめてのときだけ聞く。決まっているものは聞かない。
+
+    interactive が False (クラウドのサーバーで自動で起動したとき) は、あとから足した質問は聞かない。
+    """
     config = dict(config)
+    if interactive is None:
+        interactive = input_fn is not input or sys.stdin.isatty()
     config.setdefault("secret_key", secrets.token_hex(32))
     while "@" not in config.get("admin_email", ""):
         print()
@@ -96,6 +115,13 @@ def ask_first_settings(config: dict, input_fn=input) -> dict:
         print("ボットのトークンを入れてください。作り方は README の「テスター用 Discord ボット」にあります。")
         print("（使わない場合は、何も入れずに Enter）")
         config["discord_token"] = input_fn("Discord ボットのトークン: ").strip()
+    if "domain" not in config and interactive:
+        print()
+        print("自分のドメイン（例: geaspec.com）でサイトを公開できます。Cloudflare で買ったドメインを入れてください。")
+        print("Cloudflare の東京の入り口から届くので、速く開けます。（まだない場合は、何も入れずに Enter。次の起動でまた聞きます）")
+        domain = clean_domain(input_fn("ドメイン: "))
+        if domain:
+            config["domain"] = domain
     config.setdefault("payment_providers", "fake")
     return config
 
@@ -188,7 +214,21 @@ def wait_until_ready(port: int, timeout: float = 60.0) -> bool:
     return False
 
 
-def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = False) -> None:
+def start_cloudflare(config: dict, data: Path) -> bool:
+    """自分のドメインがあれば、Cloudflare Tunnel でそのドメインに公開する。"""
+    domain = str(config.get("domain") or "")
+    if not domain:
+        return False
+    import cloudflare_tunnel as cf
+
+    exe = cf.find_cloudflared(data)
+    if exe is None or not cf.ensure_tunnel(exe, data, domain):
+        return False
+    return cf.start_tunnel(exe, data, domain, PORT) is not None
+
+
+def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = False,
+                config: dict | None = None) -> None:
     """サイトが動き出してから行うこと: ブラウザを開き、インターネットに公開する。
 
     公開の許可 (はじめの 1 回だけ) を待っている間も、この PC ではサイトを使えるようにする。
@@ -202,11 +242,17 @@ def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = 
         print("サイトが起動しました。")
     if sys.platform != "linux":  # Linux はクラウドのサーバー (画面がない) で動かすので、ブラウザは開かない
         webbrowser.open(f"http://localhost:{PORT}")
+    # 自分のドメインがあっても Funnel は続ける (前の版の貸し手のアプリは、Tailscale のアドレスにつなぐため)
     published = bool(tailscale and address) and start_funnel(tailscale)
+    on_domain = start_cloudflare(config or {}, data)
     print()
     print("-" * 60)
     print(f" この PC で開くアドレス: http://localhost:{PORT}")
-    if published:
+    if on_domain:
+        print(f" サイトのアドレス（ほかの人に伝える）: {public_url(config or {}, address)}")
+        if published:
+            print(f" 前の版の貸し手のアプリ用: {address}")
+    elif published:
         print(f" サイトのアドレス（ほかの人に伝える）: {address}")
     elif tailscale and address:
         print(" インターネットへの公開はまだです。上にリンクが出ていたら、ブラウザで開いて許可してから、")
@@ -258,8 +304,15 @@ def main() -> int:
     config_path = data / "site_config.json"
     config = ask_first_settings(load_config(config_path))
     config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
-    if "--setup" in sys.argv[1:]:  # サーバーに入れるとき: 設定だけ聞いて終わる (あとは自動で起動する)
+    if "--setup" in sys.argv[1:]:  # サーバーに入れるとき: 設定と Cloudflare の許可だけ済ませて終わる (あとは自動で起動する)
         print(f"設定を保存しました: {config_path}")
+        if config.get("domain"):
+            import cloudflare_tunnel as cf
+
+            exe = cf.find_cloudflared(data)
+            if exe is None or not cf.ensure_tunnel(exe, data, config["domain"]):
+                return 1
+            print(f"Cloudflare の準備ができました: https://{config['domain']}")
         return 0
 
     address = ""
@@ -277,11 +330,12 @@ def main() -> int:
             print("公開するときは、画面右下のタスクバーにある Tailscale のアイコンを右クリックして「Connect」を押し、")
             print("この画面を閉じてから、もう一度起動してください。")
 
-    os.environ.update(site_environment(config, address, data))
-    bot_on = start_discord_bot(config, address, data)
+    site_url = public_url(config, address)
+    os.environ.update(site_environment(config, site_url, data))
+    bot_on = start_discord_bot(config, site_url, data)
     print()
     print("サイトを起動しています…")
-    threading.Thread(target=after_start, args=(tailscale, address, data, bot_on), daemon=True).start()
+    threading.Thread(target=after_start, args=(tailscale, address, data, bot_on, config), daemon=True).start()
 
     import uvicorn
 
