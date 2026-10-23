@@ -105,6 +105,53 @@ def write_config(data: Path, domain: str, port: int) -> Path:
     return path
 
 
+def stop_leftovers(exe: Path, run: Runner = subprocess.run) -> None:
+    """前に起動したときのトンネルが残っていたら止める (Windows)。
+
+    前の版では、黒い画面を閉じてもトンネルだけが残り、サイトがないのに Cloudflare からの通信を受けて
+    「Bad gateway (502)」になっていた。データのフォルダに置いた cloudflared だけを止める。
+    """
+    if sys.platform != "win32" or exe.parent.name != "cloudflared":
+        return
+    run(["taskkill", "/F", "/IM", exe.name], check=False, capture_output=True)
+
+
+def _close_with_this_window(proc: subprocess.Popen) -> None:
+    """Windows: この黒い画面 (Python) が終わったら、トンネルも一緒に終わるようにする (ジョブにまとめる)。"""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    class Limits(ctypes.Structure):
+        _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                    ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                    ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                    ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD),
+                    ("SchedulingClass", wintypes.DWORD)]
+
+    class IoCounters(ctypes.Structure):
+        _fields_ = [(name, ctypes.c_uint64) for name in ("Read", "Write", "Other", "ReadBytes", "WriteBytes", "OtherBytes")]
+
+    class ExtendedLimits(ctypes.Structure):
+        _fields_ = [("Basic", Limits), ("Io", IoCounters), ("ProcessMemoryLimit", ctypes.c_size_t),
+                    ("JobMemoryLimit", ctypes.c_size_t), ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                    ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel32.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+    kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+    job = kernel32.CreateJobObjectW(None, None)
+    info = ExtendedLimits()
+    info.Basic.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    kernel32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info))  # 9 = 拡張の制限
+    kernel32.AssignProcessToJobObject(job, int(proc._handle))
+    _JOBS.append(job)  # 手放すとジョブが閉じて、トンネルが止まってしまう
+
+
+_JOBS: list = []
+
+
 def start_tunnel(exe: Path, data: Path, domain: str, port: int, popen=subprocess.Popen) -> subprocess.Popen | None:
     """トンネルを動かし続ける (この画面を閉じると止まる)。様子は cloudflared/tunnel.log に書く。"""
     if not tunnel_id(data):
@@ -114,8 +161,14 @@ def start_tunnel(exe: Path, data: Path, domain: str, port: int, popen=subprocess
     if sys.platform == "win32":
         kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     log = open(tunnel_dir(data) / "tunnel.log", "a", encoding="utf-8")  # noqa: SIM115 - トンネルが動いている間ずっと書く
-    return popen([str(exe), "tunnel", "--no-autoupdate", "--config", str(config), "run"],
+    proc = popen([str(exe), "tunnel", "--no-autoupdate", "--config", str(config), "run"],
                  stdout=log, stderr=subprocess.STDOUT, **kwargs)
+    if sys.platform == "win32":
+        try:
+            _close_with_this_window(proc)
+        except Exception as exc:  # noqa: BLE001 - できなくてもトンネルは動かす (次の起動で前のものを止める)
+            print(f"（トンネルを画面と一緒に止める設定ができませんでした: {exc}）")
+    return proc
 
 
 def diagnose(data: Path, domain: str, exe: Path | None, *, resolve=None, fetch=None) -> list[str]:
