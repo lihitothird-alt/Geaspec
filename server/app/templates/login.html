@@ -12,6 +12,7 @@
       <label>パスワード<input type="password" name="password" required autocomplete="current-password"></label>
       <button class="btn block lg">ログイン</button>
     </form>
+    <p class="auth-foot muted"><a href="/forgot{% if email %}?email={{ email|urlencode }}{% endif %}">パスワードを忘れた方</a></p>
     <p class="auth-foot muted">はじめての方は <a href="/signup">新規登録</a></p>
   </div>
 </section>

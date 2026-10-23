@@ -26,6 +26,8 @@ class User(Base):
     nickname: Mapped[str] = mapped_column(String(32), default="")
     # Discord のテスター用スレッド (「サーバー番号/スレッド番号」)。予約のあと、そこへ戻るボタンを出す
     discord_thread: Mapped[str] = mapped_column(String(64), default="")
+    # メールアドレスを確認したか (届いたリンクを開いた)。前からいる人は確認済みとして扱う
+    email_verified: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
 
     @property

@@ -117,6 +117,17 @@
       {% for m in messages %}<div class="flash {{ m.kind }}">{{ m.message }}</div>{% endfor %}
     </div>
     {% endif %}
+    {% if email_unverified %}
+    <div class="wrap flash-stack">
+      <div class="notice warn verify-note">
+        <svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>
+        <div>
+          <p><strong>メールアドレスの確認がまだです。</strong>{{ user.email }} に届いたメールのリンクを開くと、予約できるようになります。届かないときは迷惑メールのフォルダも見てください。</p>
+          <form method="post" action="/verify/resend"><input type="hidden" name="next" value="{{ request.url.path }}"><button class="btn small ghost">確認のメールをもう一度送る</button></form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
 

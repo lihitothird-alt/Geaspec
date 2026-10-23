@@ -297,6 +297,10 @@ button.link { background: none; border: 0; color: var(--text-muted); cursor: poi
 .notice p { margin: 0; }
 .notice.warn { background: var(--yellow-soft); border-color: transparent; }
 .notice.warn > .i { color: var(--warn-ink); }
+.verify-note form { margin-top: 8px; }
+.account-panel { display: grid; gap: 12px; }
+.account-panel p { margin: 0; }
+.selectable { user-select: all; word-break: break-all; }
 
 /* =====================================================================
    Generic card / section

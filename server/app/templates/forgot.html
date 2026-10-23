@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}パスワードを忘れたとき | {{ settings.service_name }}{% endblock %}
+{% block content %}
+<section class="wrap auth">
+  <div class="auth-card">
+    <h1>パスワードを忘れたとき</h1>
+    {% if no_mail %}
+    <div class="notice warn"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>
+      <p>いまはメールを送れないため、運営がパスワードを再設定するリンクを作ります。Discord のスレッドか <a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a> に、登録したメールアドレスを書いて連絡してください。</p></div>
+    {% elif sent %}
+    <div class="notice"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg>
+      <p><strong>{{ email }}</strong> が登録されていれば、パスワードを再設定するメールを送りました。メールのリンクを開いて、新しいパスワードを決めてください（1 時間有効）。届かないときは迷惑メールのフォルダも見てください。</p></div>
+    <p class="auth-foot muted"><a href="/login">ログインに戻る</a></p>
+    {% else %}
+    <p class="intro">登録したメールアドレスを入れてください。パスワードを決め直すためのリンクをメールで送ります。</p>
+    <form method="post" class="form">
+      <label>メールアドレス<input type="email" name="email" value="{{ email or '' }}" required autocomplete="email" inputmode="email"></label>
+      <button class="btn block lg">メールを送る</button>
+    </form>
+    <p class="auth-foot muted"><a href="/login">ログインに戻る</a></p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

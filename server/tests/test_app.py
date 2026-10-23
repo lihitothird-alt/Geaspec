@@ -1475,3 +1475,169 @@ def test_own_domain_sends_http_visitors_to_https(tmp_path):
     # この PC で開く localhost は http のまま使える
     local = TestClient(app, base_url="http://localhost:8000")
     assert local.get("/healthz", follow_redirects=False).status_code == 200
+
+
+class SentMailer:
+    """送ったことにして、中身を残す (メールを送れるサイトのつもり)。"""
+
+    enabled = True
+
+    def __init__(self):
+        self.sent = []
+
+    def send(self, to, subject, body):
+        self.sent.append((to, subject, body))
+
+
+def mail_app(tmp_path):
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'test.db'}", secret_key="test",
+                        admin_emails=frozenset({"admin@example.com"}), media_dir=str(tmp_path / "media"),
+                        base_url="http://testserver")
+    mailer = SentMailer()
+    app = create_app(settings, payments={"fake": FakePayments()}, vpn=FakeVpn(), mailer=mailer)
+    return app, mailer
+
+
+def link_in(mail, path):
+    return re.search(rf"http://testserver({path}\?t=[\w.\-]+)", mail[2]).group(1)
+
+
+def test_forgotten_password_can_be_reset_by_mail(tmp_path, now):
+    app, mailer = mail_app(tmp_path)
+    c = TestClient(app)
+    signup(c, "user@example.com")
+    c.post("/logout")
+    assert "パスワードを忘れた方" in c.get("/login").text
+    mailer.sent.clear()
+    r = c.post("/forgot", data={"email": "User@Example.com"})
+    assert "パスワードを再設定するメールを送りました" in r.text
+    assert [m[0] for m in mailer.sent] == ["user@example.com"]
+    link = link_in(mailer.sent[0], "/reset")
+    # 登録していないアドレスでも同じ画面 (登録されているかどうかを知られないように)。メールは送らない
+    r = c.post("/forgot", data={"email": "nobody@example.com"})
+    assert "パスワードを再設定するメールを送りました" in r.text and len(mailer.sent) == 1
+    # 続けて押しても、同じ人に何通も送らない
+    c.post("/forgot", data={"email": "user@example.com"})
+    assert len(mailer.sent) == 1
+
+    assert "新しいパスワードを決めてください" in c.get(link).text
+    t = link.split("t=")[1]
+    assert "8 文字以上" in c.post("/reset", data={"t": t, "password": "short"}).text
+    r = c.post("/reset", data={"t": t, "password": "newpassword1"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/slots"
+    assert c.get("/account").status_code == 200  # そのままログインしている
+    # 1 回使ったリンクは、もう使えない
+    assert "期限が切れたか、すでに使われています" in c.get(link).text
+    c.post("/logout")
+    assert c.post("/login", data={"email": "user@example.com", "password": "password123"}).status_code == 400
+    r = c.post("/login", data={"email": "user@example.com", "password": "newpassword1"}, follow_redirects=False)
+    assert r.status_code == 303
+
+
+def test_reset_link_expires(tmp_path, now):
+    app, mailer = mail_app(tmp_path)
+    c = TestClient(app)
+    signup(c, "user@example.com")
+    c.post("/forgot", data={"email": "user@example.com"})
+    link = link_in(mailer.sent[-1], "/reset")
+    now["t"] = NOW + dt.timedelta(hours=1, minutes=1)
+    assert "期限が切れたか" in c.get(link).text
+
+
+def test_new_accounts_confirm_their_mail_before_booking(tmp_path, now):
+    app, mailer = mail_app(tmp_path)
+    admin = TestClient(app)
+    admin_setup(admin)
+    c = TestClient(app)
+    signup(c, "fake@example.com")
+    assert mailer.sent[-1][0] == "fake@example.com" and "メールアドレスの確認" in mailer.sent[-1][1]
+    page = c.get("/slots").text
+    assert "メールアドレスの確認がまだです" in page
+    # 確認するまでは予約できない
+    r = c.post("/slots/1/book", follow_redirects=False)
+    assert r.headers["location"] == "/slots"
+    assert c.get("/slots/1/confirm", follow_redirects=False).headers["location"] == "/slots"
+    # すぐにもう一度は送らない
+    before = len(mailer.sent)
+    c.post("/verify/resend", data={"next": "/slots"})
+    assert len(mailer.sent) == before
+    # 届いたリンクを開くと予約できる
+    link = link_in(mailer.sent[-1], "/verify")
+    r = c.get(link, follow_redirects=False)
+    assert r.headers["location"] == "/slots"
+    assert "メールアドレスの確認がまだです" not in c.get("/slots").text
+    r = c.post("/slots/1/book", follow_redirects=False)
+    assert r.headers["location"].startswith("/bookings/")
+
+
+def test_verify_link_does_not_work_for_another_account(tmp_path, now):
+    app, mailer = mail_app(tmp_path)
+    a, b = TestClient(app), TestClient(app)
+    signup(a, "a@example.com")
+    signup(b, "b@example.com")
+    link = link_in(mailer.sent[0], "/verify")
+    forged = link.replace("t=", "t=x")
+    assert b.get(forged, follow_redirects=False).headers["location"] == "/slots"
+    from app.models import User
+
+    assert not db(app).query(User).filter_by(email="b@example.com").one().email_verified
+    assert not db(app).query(User).filter_by(email="a@example.com").one().email_verified
+
+
+def test_a_taken_address_points_to_password_reset(tmp_path, now):
+    app, _ = mail_app(tmp_path)
+    c = TestClient(app)
+    signup(c, "user@example.com")
+    c.post("/logout")
+    r = c.post("/signup", data={"email": "user@example.com", "password": "password123", "agree": "1"})
+    assert "登録済み" in r.text and "/forgot?email=user%40example.com" in r.text
+
+
+def test_admin_can_make_a_reset_link_or_mark_mail_confirmed(tmp_path, now):
+    app, mailer = mail_app(tmp_path)
+    admin = TestClient(app)
+    signup(admin, "admin@example.com")
+    from app.models import User
+
+    assert db(app).query(User).filter_by(email="admin@example.com").one().email_verified  # 運営は確認しなくてよい
+    user = TestClient(app)
+    signup(user, "user@example.com")
+    page = admin.get("/admin").text
+    assert "user@example.com" in page  # 確認がまだの人
+    r = admin.post("/admin/users", data={"email": "user@example.com", "action": "reset"})
+    link = re.search(r"http://testserver(/reset\?t=[\w.\-]+)", r.text).group(1)
+    assert "新しいパスワードを決めてください" in TestClient(app).get(link).text
+    admin.post("/admin/users", data={"email": "user@example.com", "action": "verify"})
+    assert db(app).query(User).filter_by(email="user@example.com").one().email_verified
+    assert "登録されていません" in admin.post("/admin/users", data={"email": "x@example.com", "action": "reset"}).text
+    # 管理者でなければ使えない
+    assert user.post("/admin/users", data={"email": "user@example.com", "action": "verify"}).status_code == 404
+
+
+def test_without_mail_nobody_is_asked_to_confirm(tmp_path, now):
+    app, _ = make_app(tmp_path)
+    c = TestClient(app)
+    signup(c, "user@example.com")
+    assert "メールアドレスの確認がまだです" not in c.get("/slots").text
+    c.post("/logout")
+    assert "運営がパスワードを再設定するリンクを作ります" in c.post("/forgot", data={"email": "user@example.com"}).text
+
+
+def test_people_from_before_count_as_confirmed(tmp_path):
+    """列を足す前からいる人は、いきなり予約できなくならない。"""
+    import sqlite3
+
+    from app.db import add_missing_columns, make_engine
+
+    path = tmp_path / "old.db"
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR, password_hash VARCHAR, meta_username VARCHAR,"
+                " signup_ref VARCHAR, nickname VARCHAR NOT NULL DEFAULT '', discord_thread VARCHAR NOT NULL DEFAULT '',"
+                " created_at DATETIME)")
+    con.execute("INSERT INTO users (email, password_hash) VALUES ('old@example.com', 'x')")
+    con.commit()
+    con.close()
+    add_missing_columns(make_engine(f"sqlite:///{path}"))
+    con = sqlite3.connect(path)
+    assert con.execute("SELECT email_verified FROM users").fetchone() == (1,)
+    con.close()

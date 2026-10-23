@@ -119,7 +119,8 @@ def test_setup_only_saves_the_settings_and_does_not_start(tmp_path, monkeypatch)
     monkeypatch.setattr(s, "port_in_use", lambda port: False)
     answers = iter(["owner@example.com", "", "", ""])
     ask = s.ask_first_settings
-    monkeypatch.setattr(s, "ask_first_settings", lambda config: ask(config, input_fn=lambda prompt: next(answers)))
+    monkeypatch.setattr(s, "ask_first_settings",
+                        lambda config, **kw: ask(config, input_fn=lambda prompt: next(answers), **kw))
     monkeypatch.setattr(s, "start_discord_bot", lambda *a, **kw: (_ for _ in ()).throw(AssertionError("started")))
     assert s.main() == 0
     assert '"admin_email": "owner@example.com"' in (tmp_path / "GeaspecSite" / "site_config.json").read_text(

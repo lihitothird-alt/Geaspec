@@ -18,7 +18,7 @@
   <div class="admin-head">
     <h1>管理</h1>
     <nav class="admin-tabs" aria-label="管理メニュー">
-      <a href="#hosts">PC</a><a href="#slots">予約枠</a><a href="#bookings">最近の予約</a><a href="/admin/feedback">評価フォーム</a>
+      <a href="#hosts">PC</a><a href="#slots">予約枠</a><a href="#bookings">最近の予約</a><a href="#accounts">アカウント</a><a href="/admin/feedback">評価フォーム</a>
     </nav>
   </div>
 
@@ -144,6 +144,28 @@
       {% endfor %}
       </tbody>
     </table></div>
+  </div>
+
+  <div class="panel" id="accounts">
+    <div class="panel-head">
+      <h2>アカウント</h2>
+    </div>
+    <div class="account-panel">
+      <p class="muted">パスワードを忘れた人に、再設定のリンクを作って渡せます（{{ admin_reset_hours }} 時間有効・1 回だけ）。Discord のスレッドなど、本人だけが見られるところで渡してください。
+      メールが届かない人は、本人であることを確かめてから「メール確認済みにする」を押すと予約できるようになります。</p>
+      {% if reset_link %}
+      <div class="notice"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg>
+        <p>{{ reset_for }} さんの再設定リンク: <code class="selectable">{{ reset_link }}</code></p></div>
+      {% endif %}
+      <form method="post" action="/admin/users" class="form grid-form">
+        <label>メールアドレス<input type="email" name="email" required autocomplete="off"></label>
+        <button class="btn" name="action" value="reset">再設定リンクを作る</button>
+        <button class="btn ghost" name="action" value="verify">メール確認済みにする</button>
+      </form>
+      {% if unverified %}
+      <p class="muted">メールアドレスの確認がまだの人（新しい順）: {% for u in unverified %}{{ u.email }}{% if not loop.last %}、{% endif %}{% endfor %}</p>
+      {% endif %}
+    </div>
   </div>
 </section>
 {% endblock %}

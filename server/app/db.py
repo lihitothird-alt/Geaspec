@@ -30,7 +30,9 @@ ADDED_COLUMNS = {
         "followers_notified_at": "DATETIME",
         "specs": "VARCHAR(500) NOT NULL DEFAULT ''",
     },
-    "users": {"nickname": "VARCHAR(32) NOT NULL DEFAULT ''", "discord_thread": "VARCHAR(64) NOT NULL DEFAULT ''"},
+    "users": {"nickname": "VARCHAR(32) NOT NULL DEFAULT ''", "discord_thread": "VARCHAR(64) NOT NULL DEFAULT ''",
+              # 足す前からいる人は、確認済みとして扱う (いきなり予約できなくならないように)
+              "email_verified": "BOOLEAN NOT NULL DEFAULT TRUE"},
 }
 
 

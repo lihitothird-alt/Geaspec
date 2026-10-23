@@ -25,6 +25,8 @@ PORT = 8000
 FIRST_WAIT_SEC = 60
 LONG_WAIT_SEC = 600
 HERE = Path(__file__).resolve().parent
+# 動かしている Cloudflare のトンネル (新しい版に入れ替えるときに止める)
+TUNNELS: list = []
 TAILSCALE_PATHS = (r"C:\Program Files\Tailscale\tailscale.exe", r"C:\Program Files (x86)\Tailscale\tailscale.exe")
 
 
@@ -248,7 +250,10 @@ def start_cloudflare(config: dict, data: Path, exe) -> bool:
         return False
     import cloudflare_tunnel as cf
 
-    return cf.start_tunnel(exe, data, str(config["domain"]), PORT) is not None
+    proc = cf.start_tunnel(exe, data, str(config["domain"]), PORT)
+    if proc is not None:
+        TUNNELS.append(proc)
+    return proc is not None
 
 
 def reachable(url: str, attempts: int = 12, wait: float = 5.0) -> bool:
@@ -268,7 +273,7 @@ def reachable(url: str, attempts: int = 12, wait: float = 5.0) -> bool:
 
 
 def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = False,
-                config: dict | None = None, cloudflared=None) -> None:
+                config: dict | None = None, cloudflared=None, open_browser: bool = True) -> None:
     """サイトが動き出してから行うこと: ブラウザを開き、インターネットに公開する。
 
     公開の許可 (はじめの 1 回だけ) を待っている間も、この PC ではサイトを使えるようにする。
@@ -280,7 +285,8 @@ def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = 
             print("サイトを起動できませんでした。この画面の写真を運営に送ってください。")
             return
         print("サイトが起動しました。")
-    if sys.platform != "linux":  # Linux はクラウドのサーバー (画面がない) で動かすので、ブラウザは開かない
+    # Linux はクラウドのサーバー (画面がない) で動かすので、ブラウザは開かない。自動で新しい版にしたあとも開かない
+    if sys.platform != "linux" and open_browser:
         webbrowser.open(f"http://localhost:{PORT}")
     # 自分のドメインを先に動かす (Tailscale の許可待ちで、Cloudflare が後回しにならないように)
     on_domain = start_cloudflare(config or {}, data, cloudflared)
@@ -307,6 +313,8 @@ def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = 
     if bot_on:
         print(" テスター用の Discord ボットも動いています（記録: tester_bot.db、スクショ: tester_screenshots）。")
     print(" この黒い画面を閉じると、サイトも止まります。")
+    if (config or {}).get("_auto_update"):
+        print(" 新しい版が出たら、予約のない時間に自動で入れ替えます（1 分ほど止まって、自動で起動し直します）。")
     print("-" * 60)
 
 
@@ -345,10 +353,22 @@ def main() -> int:
         print("前に起動した Geaspec の黒い画面がまだ開いています。")
         print("タスクバーで前の黒い画面を探して閉じてから、もう一度 GeaspecSite.cmd を起動してください。")
         return 1
+    import auto_update
+
+    # 自動で新しい版にしたあと: 新しい質問は聞かない (だれも画面の前にいないかもしれない)、ブラウザも開かない
+    args = sys.argv[1:]
+    update_failed = "--update-failed" in args
+    after_update = "--after-update" in args or update_failed
+    if update_failed:
+        # 何度も止まらないように、この起動の間はもう入れ替えない (次に起動したときにまた試す)
+        print("新しい版に入れ替えられませんでした（ファイルが使われていたなど）。いまの版のまま動かします。")
+        print("この画面を閉じて、もう一度 GeaspecSite.cmd を起動すると、もう一度試します。")
+    elif after_update:
+        print("新しい版に入れ替えました。")
     data = data_dir()
     data.mkdir(parents=True, exist_ok=True)
     config_path = data / "site_config.json"
-    config = ask_first_settings(load_config(config_path))
+    config = ask_first_settings(load_config(config_path), interactive=False if after_update else None)
     config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
     if "--setup" in sys.argv[1:]:  # サーバーに入れるとき: 設定と Cloudflare の許可だけ済ませて終わる (あとは自動で起動する)
         print(f"設定を保存しました: {config_path}")
@@ -383,15 +403,27 @@ def main() -> int:
     bot_on = start_discord_bot(config, site_url, data)
     print()
     print("サイトを起動しています…")
-    threading.Thread(target=after_start, args=(tailscale, address, data, bot_on, config, cloudflared),
-                     daemon=True).start()
+    updating = auto_update.enabled(config, HERE, sys.platform) and not update_failed
+    threading.Thread(target=after_start, args=(tailscale, address, data, bot_on, {**config, "_auto_update": updating},
+                                               cloudflared, not after_update), daemon=True).start()
 
     import uvicorn
 
-    uvicorn.run(
+    server = uvicorn.Server(uvicorn.Config(
         "app.main:app", host="127.0.0.1", port=PORT, proxy_headers=True, forwarded_allow_ips="127.0.0.1",
         log_level="warning",
-    )
+    ))
+    updater = None
+    if updating:
+        updater = auto_update.Updater(HERE, VERSION, data / "geaspec.db", lambda: setattr(server, "should_exit", True))
+        updater.start()
+    server.run()
+    if updater and updater.restarting:
+        for proc in TUNNELS:
+            proc.terminate()
+        # Discord ボットなどの動いている部品を待たずに終わる (GeaspecSite.cmd がすぐ入れ替えて起動し直す)
+        sys.stdout.flush()
+        os._exit(auto_update.EXIT_UPDATE)
     return 0
 
 
