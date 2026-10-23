@@ -20,12 +20,14 @@ Virtual Desktop は Windows でしか動きません。そのため、Quest へ�
 
 - 空いている SSD（内蔵か USB の外付け、**64GB 以上**、中身は消えます）
 - 8GB 以上の USB メモリ（NixOS を入れるのに使う）
-- NVIDIA か AMD のグラフィックボード
+- NVIDIA か AMD のグラフィックボード、または Intel の内蔵 GPU（Core Ultra など）
 
 ## 入れ方
 
 1. https://nixos.org/download/ から **NixOS 26.05 のグラフィカル版**の ISO をダウンロードする。
 2. Rufus などで USB メモリに書き込み、そこから PC を起動する。
+   - 起動しないときは、BIOS で「セキュアブート」を切る。
+   - **先に Windows の BitLocker の回復キーを控えておいてください**（Microsoft アカウントのページで見られます）。セキュアブートを変えると、Windows の起動時に回復キーを聞かれることがあります。
 3. インストーラーで、**空いている SSD を選んで**入れる。
    - **Windows が入っているディスクを選ばないように注意**してください。全部消えます。
    - ユーザー名は `geaspec` にします。
@@ -34,7 +36,7 @@ Virtual Desktop は Windows でしか動きません。そのため、Quest へ�
    git clone https://github.com/lihitothird-alt/Geaspec.git
    cd Geaspec/nixos
    sudo nixos-generate-config --show-hardware-config > hardware-configuration.nix
-   nano local.nix        # グラフィックボード (nvidia / amd) と PC の名前を書き換える
+   nano local.nix        # グラフィックボード (nvidia / amd / intel) と PC の名前を書き換える
    sudo nixos-rebuild switch --flake .#geaspec
    sudo tailscale up     # 出てきたリンクを開いて、Geaspec の Tailscale にログインする
    ```

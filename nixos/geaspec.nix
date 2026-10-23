@@ -26,7 +26,7 @@ let
 in
 {
   options.geaspec.gpu = lib.mkOption {
-    type = lib.types.enum [ "nvidia" "amd" ];
+    type = lib.types.enum [ "nvidia" "amd" "intel" ];
     description = "この PC のグラフィックボードの種類";
   };
 
@@ -75,6 +75,9 @@ in
       modesetting.enable = true;
       open = true;
     };
+    # Intel (Core Ultra の内蔵 GPU など): WiVRn が映像を作るとき、GPU の動画の部品 (VA-API) を使う
+    hardware.graphics.extraPackages = lib.mkIf (cfg.gpu == "intel") [ pkgs.intel-media-driver pkgs.vpl-gpu-rt ];
+    environment.sessionVariables.LIBVA_DRIVER_NAME = lib.mkIf (cfg.gpu == "intel") "iHD";
 
     # --- VR: Steam と WiVRn ---
     programs.steam.enable = true;
