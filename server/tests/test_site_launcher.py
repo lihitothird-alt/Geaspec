@@ -224,3 +224,18 @@ def test_cloudflare_diagnosis_says_which_step_is_missing(tmp_path):
     (data / "cloudflared" / "tunnel.log").write_text("INF Registered tunnel connection connIndex=0\n")
     lines = cf.diagnose(data, "geaspec.com", Path("cloudflared.exe"), resolve=lambda h: ["104.21.0.1"], fetch=lambda u: 200)
     assert all(line.startswith("✅") for line in lines[1:])
+
+
+def test_leftover_tunnel_from_the_data_folder_is_stopped_on_windows(monkeypatch):
+    """前の版で黒い画面を閉じても残っていたトンネルは、次の起動で止める (残っていると 502 になる)。"""
+    import cloudflare_tunnel as cf
+
+    ran = []
+    monkeypatch.setattr(cf.sys, "platform", "win32")
+    cf.stop_leftovers(Path("C:/data/GeaspecSite/cloudflared/cloudflared.exe"), run=lambda args, **kw: ran.append(args))
+    assert ran == [["taskkill", "/F", "/IM", "cloudflared.exe"]]
+    # 自分で入れた cloudflared (データのフォルダの外) は止めない
+    cf.stop_leftovers(Path("C:/Program Files/cloudflared/bin/cloudflared.exe"), run=lambda args, **kw: ran.append(args))
+    monkeypatch.setattr(cf.sys, "platform", "linux")
+    cf.stop_leftovers(Path("/home/u/GeaspecSite/cloudflared/cloudflared"), run=lambda args, **kw: ran.append(args))
+    assert len(ran) == 1

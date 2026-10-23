@@ -250,6 +250,7 @@ def start_cloudflare(config: dict, data: Path, exe) -> bool:
         return False
     import cloudflare_tunnel as cf
 
+    cf.stop_leftovers(exe)
     proc = cf.start_tunnel(exe, data, str(config["domain"]), PORT)
     if proc is not None:
         TUNNELS.append(proc)
@@ -338,12 +339,33 @@ def start_discord_bot(config: dict, address: str, data: Path) -> bool:
     return True
 
 
+def keep_running_when_clicked() -> None:
+    """Windows: 黒い画面の中をクリックしても、サイトが一時停止しないようにする (簡易編集モードを切る)。
+
+    簡易編集モードだと、クリックしただけで画面への書き込みが止まり、サイトもボットも返事をしなくなる。
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-10)  # 入力
+        mode = ctypes.c_uint32()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            # 0x40 = 簡易編集モード、0x80 = その設定を変えるときに付ける
+            kernel32.SetConsoleMode(handle, (mode.value & ~0x40) | 0x80)
+    except Exception:  # noqa: BLE001 - できなくてもサイトは動かす
+        pass
+
+
 def main() -> int:
     import threading
 
     sys.path.insert(0, str(HERE))
     from app.version import VERSION
 
+    keep_running_when_clicked()
     print("=" * 60)
     print(f" Geaspec 予約サイト {VERSION}")
     print("=" * 60)
@@ -383,14 +405,16 @@ def main() -> int:
 
     address = ""
     tailscale = find_tailscale()
-    if not tailscale:
+    if not tailscale and config.get("domain"):
+        pass  # 自分のドメイン (Cloudflare) で公開するので、Tailscale はなくてよい
+    elif not tailscale:
         print()
         print("Tailscale が見つかりません。この PC の中だけでサイトを動かします（インターネットには公開されません）。")
     else:
         status = tailscale_status(tailscale)
         if tailscale_running(status):
             address = public_address(status)
-        else:
+        elif not config.get("domain"):
             print()
             print("Tailscale がオフになっています。この PC の中だけでサイトを動かします。")
             print("公開するときは、画面右下のタスクバーにある Tailscale のアイコンを右クリックして「Connect」を押し、")

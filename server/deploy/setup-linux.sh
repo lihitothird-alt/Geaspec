@@ -5,12 +5,13 @@
 #   curl -fsSLO https://raw.githubusercontent.com/lihitothird-alt/Geaspec/main/server/deploy/setup-linux.sh
 #   bash setup-linux.sh lg
 #
-# 最後の「lg」は、サイトのアドレス https://lg.〇〇.ts.net の「lg」の部分。貸し手のアプリはこのアドレスに
-# つなぐので、いまのアドレスと同じ名前にする (先に Tailscale の管理画面で、前の PC の名前を変えておく)。
+# 自分のドメイン (geaspec.com など) を設定していれば、Cloudflare で公開するので Tailscale はいらない。
+# ドメインがないときだけ Tailscale で公開する。最後の「lg」は、そのときのアドレス https://lg.〇〇.ts.net の「lg」の部分
+# (先に Tailscale の管理画面で、前の PC の名前を変えておく)。
 #
 # - いまの PC のデータ (%LocalAppData%\GeaspecSite を zip にしたもの) を GeaspecSite.zip という名前で
 #   ホームに置いておくと、予約・アカウント・テスターの記録をそのまま引き継ぐ
-# - 新しい版が出たら、同じ 2 行をもう一度貼るだけで入れ替わる (データは ~/GeaspecSite に残る)
+# - 新しい版が出たら、予約のない時間に自動で入れ替わる (手で入れ替えるときは、同じ 2 行をもう一度貼る)
 set -euo pipefail
 
 REPO="https://github.com/lihitothird-alt/Geaspec"
@@ -42,7 +43,7 @@ echo "版: $TAG"
 sudo mkdir -p "$APP"
 sudo chown "$ME" "$APP"
 rm -rf "$APP/src.new"
-git clone -q --depth 1 --branch "$TAG" "$REPO.git" "$APP/src.new"
+git -c advice.detachedHead=false clone -q --depth 1 --branch "$TAG" "$REPO.git" "$APP/src.new"
 [ -d "$APP/venv" ] || python3 -m venv "$APP/venv"
 "$APP/venv/bin/pip" install -q --upgrade pip
 "$APP/venv/bin/pip" install -q -r "$APP/src.new/server/requirements.txt"
@@ -68,22 +69,29 @@ fi
 echo "設定を確かめます（聞かれたら答えてください）"
 (cd "$APP/src/server" && LOCALAPPDATA="$HOME" "$APP/venv/bin/python" site_launcher.py --setup </dev/tty)
 
-say "5/6 Tailscale でインターネットに公開する準備をします"
-command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
-if ! tailscale status >/dev/null 2>&1; then
-  echo "下に出るリンクをブラウザで開いて、いつもの Tailscale のアカウントでログインしてください"
-  sudo tailscale up --hostname="$NAME"
+DOMAIN="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("domain", ""))' "$DATA/site_config.json")"
+if [ -n "$DOMAIN" ]; then
+  # 自分のドメイン (Cloudflare) で公開するので、Tailscale はいらない
+  say "5/6 https://$DOMAIN で公開します（Cloudflare）"
+  DNS="$DOMAIN"
+else
+  say "5/6 Tailscale でインターネットに公開する準備をします"
+  command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
+  if ! tailscale status >/dev/null 2>&1; then
+    echo "下に出るリンクをブラウザで開いて、いつもの Tailscale のアカウントでログインしてください"
+    sudo tailscale up --hostname="$NAME"
+  fi
+  sudo tailscale set --operator="$ME"
+  # 公開の許可は、はじめての 1 回だけブラウザで求められることがある (リンクが出たら開いて許可する)
+  tailscale funnel --bg 8000
+  DNS="$(tailscale status --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
+  echo "サイトのアドレス: https://$DNS"
+  case "$DNS" in
+    "$NAME".*) ;;
+    *) echo "【注意】アドレスが「$NAME.〜」になっていません。Tailscale の管理画面で前の PC の名前を変えてから、"
+       echo "        このサーバーの名前を「$NAME」に変えてください (貸し手のアプリが見つけられないため)" ;;
+  esac
 fi
-sudo tailscale set --operator="$ME"
-# 公開の許可は、はじめての 1 回だけブラウザで求められることがある (リンクが出たら開いて許可する)
-tailscale funnel --bg 8000
-DNS="$(tailscale status --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')"
-echo "サイトのアドレス: https://$DNS"
-case "$DNS" in
-  "$NAME".*) ;;
-  *) echo "【注意】アドレスが「$NAME.〜」になっていません。Tailscale の管理画面で前の PC の名前を変えてから、"
-     echo "        このサーバーの名前を「$NAME」に変えてください (貸し手のアプリが見つけられないため)" ;;
-esac
 
 say "6/6 自動で起動するようにします"
 sudo tee "/etc/systemd/system/$SERVICE.service" >/dev/null <<UNIT
@@ -105,8 +113,30 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 UNIT
+# 新しい版が出たら、予約のない時間に自動で入れ替える (30 分ごとに確かめる)
+sudo install -m 755 "$APP/src/server/deploy/update-linux.sh" "$APP/update.sh"
+sudo tee "/etc/systemd/system/geaspec-update.service" >/dev/null <<UNIT
+[Unit]
+Description=Update Geaspec to the latest release
+
+[Service]
+Type=oneshot
+ExecStart=$APP/update.sh $DATA $ME
+UNIT
+sudo tee "/etc/systemd/system/geaspec-update.timer" >/dev/null <<UNIT
+[Unit]
+Description=Check for a new Geaspec release every 30 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+
+[Install]
+WantedBy=timers.target
+UNIT
 sudo systemctl daemon-reload
 sudo systemctl enable -q "$SERVICE"
+sudo systemctl enable -q --now geaspec-update.timer
 sudo systemctl restart "$SERVICE"
 ok=""
 for _ in $(seq 1 30); do
@@ -117,7 +147,7 @@ if [ -n "$ok" ]; then
   echo
   echo "できました。サイトとボットが動いています: https://$DNS"
   echo "このサーバーが動いている限り、PC を消しても止まりません。"
-  echo "前の PC の GeaspecSite (黒い画面) は、もう起動しないでください (ボットが 2 つ動いてしまいます)。"
+  echo "前の PC の GeaspecSite (黒い画面) は、もう起動しないでください (予約が 2 か所に分かれてしまいます)。"
 else
   echo "うまく起動しませんでした。次の画面を運営 (開発) に送ってください:"
   sudo journalctl -u "$SERVICE" -n 40 --no-pager

@@ -56,7 +56,7 @@ else:  # テスト・dry-run 用に Windows 以外でも import できるよう�
     winreg = None  # type: ignore[assignment]
 
 AGENT_NAME = "GeaspecAgent"
-AGENT_VERSION = "0.7.32"
+AGENT_VERSION = "0.7.33"
 log = logging.getLogger(AGENT_NAME)
 
 # ---------------------------------------------------------------------------
@@ -67,6 +67,8 @@ log = logging.getLogger(AGENT_NAME)
 DEFAULT_VRCHAT_TARGET = "steam://rungameid/438100"
 # 0.5.5 までの既定値 (番号の誤り)。Steam が「ライセンスがありません」と出すので、読み込み時に直す
 WRONG_VRCHAT_TARGET = "steam://rungameid/438110"
+# 予約サイトの引っ越し (前のアドレス → 新しいアドレス)。前の版で保存したアドレスは、新しい方につなぐ
+MOVED_SERVERS = {"https://lg.tail0f59a0.ts.net": "https://geaspec.com"}
 DEFAULT_ALVR_PATH = r"C:\Program Files\ALVR\ALVR Launcher.exe"
 DEFAULT_VD_PATH = r"C:\Program Files\Virtual Desktop Streamer\VirtualDesktop.Streamer.exe"
 
@@ -1414,6 +1416,9 @@ def load_config_file(path: Path) -> dict:
     }
     if config.get("vrchat_target") == WRONG_VRCHAT_TARGET:
         config["vrchat_target"] = DEFAULT_VRCHAT_TARGET
+    server = str(config.get("server", "")).rstrip("/")
+    if server in MOVED_SERVERS:
+        config["server"] = MOVED_SERVERS[server]
     return config
 
 

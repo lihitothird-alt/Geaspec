@@ -381,6 +381,14 @@ class ConfigFileTest(unittest.TestCase):
         self.write('{"server": 123, "token": "pcvr_ok_token", "unknown": 1}')
         self.assertEqual(host_agent.load_config_file(self.path), {"token": "pcvr_ok_token"})
 
+    def test_the_old_site_address_moves_to_the_new_one(self):
+        """前の版で保存した Tailscale のアドレスは、geaspec.com につなぎ直す (サイトの引っ越し)。"""
+        self.write('{"server": "https://lg.tail0f59a0.ts.net/", "token": "pcvr_ok_token"}')
+        self.assertEqual(host_agent.load_config_file(self.path)["server"], "https://geaspec.com")
+        self.write('{"server": "https://other.example.com", "token": "pcvr_ok_token"}')
+        self.assertEqual(host_agent.load_config_file(self.path)["server"], "https://other.example.com")
+        self.assertEqual(host_agent.builtin_server(), "https://geaspec.com")
+
     def test_vrchat_is_launched_by_its_real_steam_id(self):
         self.assertEqual(host_agent.DEFAULT_VRCHAT_TARGET, "steam://rungameid/438100")
         # 0.5.5 までの誤った番号が設定ファイルに残っていても直す
