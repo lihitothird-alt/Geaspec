@@ -1,10 +1,15 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.34"
+VERSION = "0.7.35"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
+# 貸す人の Windows アプリ (サイトと同じ版のもの)
+AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.35": [
+        "「はじめての方へ（貸す人）」と「貸し出し」のページに、Geaspec アプリのダウンロードボタンを付けました",
+    ],
     "0.7.34": [
         "サイトのトップページを短くしました（使い方・必要なもの・よくある質問だけに）",
         "英語のトップページを作りました（https://geaspec.com/en）。海外の人や会社に見せるときに使えます",

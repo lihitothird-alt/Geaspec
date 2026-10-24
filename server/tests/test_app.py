@@ -1653,3 +1653,14 @@ def test_english_top_page(tmp_path, now):
     assert "geaspec.contact@gmail.com" in r.text and 'href="/"' in r.text  # 日本語へ戻るリンク
     ja = c.get("/").text
     assert '<html lang="ja">' in ja and 'href="/en"' in ja and "新規登録" in ja
+
+
+def test_agent_download_button_points_to_this_version(tmp_path, now):
+    from app.version import VERSION
+
+    app, _ = make_app(tmp_path)
+    c = TestClient(app)
+    r = c.get("/download/agent", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"].endswith(f"/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe")
+    assert 'href="/download/agent"' in c.get("/guide?for=lend").text
