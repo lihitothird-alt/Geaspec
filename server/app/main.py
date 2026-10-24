@@ -257,6 +257,13 @@ def create_app(
         min_price = min((s.price_yen for s in slots), default=None)
         return render(request, db, "index.html", slot_count=len(slots), min_price=min_price)
 
+    @app.get("/download/agent")
+    def download_agent():
+        """貸す人の Windows アプリ。サイトと同じ版のインストーラーに飛ばす (版が変わってもリンクはそのまま)。"""
+        from .version import AGENT_SETUP_URL
+
+        return RedirectResponse(AGENT_SETUP_URL, status_code=302)
+
     @app.get("/en", response_class=HTMLResponse)
     def index_en(request: Request, db: Session = Depends(get_db)):
         """英語のトップページ (海外の人・VRChat などの会社向け)。予約などのページは日本語のまま。"""
