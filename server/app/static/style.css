@@ -260,6 +260,10 @@ summary, .lead, .check span, .persona li, .trust li, .need li, .section-head p, 
 .btn.lg { min-height: 58px; padding: 0 30px; font-size: 1.08rem; }
 .btn.small { min-height: 44px; padding: 0 18px; font-size: .92rem; }
 .btn.ghost { --btn-bg: var(--surface); --btn-fg: var(--text); }
+/* スマホで長い文字のボタンが画面からはみ出さないように、折り返す */
+@media (max-width: 600px) {
+  .btn { max-width: 100%; white-space: normal; text-align: center; padding-block: 8px; }
+}
 .btn.sun { --btn-bg: var(--yellow); --btn-fg: var(--sticker-ink); }
 .btn.danger { --btn-bg: var(--danger); --btn-fg: var(--on-danger); }
 .btn.quiet { box-shadow: none; border-color: var(--line); --btn-bg: var(--surface); --btn-fg: var(--text); }
