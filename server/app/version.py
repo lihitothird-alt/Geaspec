@@ -1,10 +1,14 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.33"
+VERSION = "0.7.34"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.34": [
+        "サイトのトップページを短くしました（使い方・必要なもの・よくある質問だけに）",
+        "英語のトップページを作りました（https://geaspec.com/en）。海外の人や会社に見せるときに使えます",
+    ],
     "0.7.33": [
         "クラウドのサーバー（Google Cloud）に引っ越せるようにしました。PC を消してもサイトが動き、新しい版にも自動で入れ替わります",
         "黒い画面を閉じたら、Cloudflare の中継も一緒に止まるようにしました（サイトがないのに中継だけ残り「Bad gateway」になるのを防ぎます）",

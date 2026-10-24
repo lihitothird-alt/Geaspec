@@ -1641,3 +1641,15 @@ def test_people_from_before_count_as_confirmed(tmp_path):
     con = sqlite3.connect(path)
     assert con.execute("SELECT email_verified FROM users").fetchone() == (1,)
     con.close()
+
+
+def test_english_top_page(tmp_path, now):
+    """海外の人・会社に見せる英語のトップページ。ヘッダーとフッターも英語になる。"""
+    app, _ = make_app(tmp_path)
+    c = TestClient(app)
+    r = c.get("/en")
+    assert r.status_code == 200
+    assert '<html lang="en">' in r.text and "Play <mark" in r.text and "Sign up" in r.text
+    assert "geaspec.contact@gmail.com" in r.text and 'href="/"' in r.text  # 日本語へ戻るリンク
+    ja = c.get("/").text
+    assert '<html lang="ja">' in ja and 'href="/en"' in ja and "新規登録" in ja
