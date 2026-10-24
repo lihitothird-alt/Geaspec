@@ -260,6 +260,10 @@ summary, .lead, .check span, .persona li, .trust li, .need li, .section-head p, 
 .btn.lg { min-height: 58px; padding: 0 30px; font-size: 1.08rem; }
 .btn.small { min-height: 44px; padding: 0 18px; font-size: .92rem; }
 .btn.ghost { --btn-bg: var(--surface); --btn-fg: var(--text); }
+/* スマホで長い文字のボタンが画面からはみ出さないように、折り返す */
+@media (max-width: 600px) {
+  .btn { max-width: 100%; white-space: normal; text-align: center; padding-block: 8px; }
+}
 .btn.sun { --btn-bg: var(--yellow); --btn-fg: var(--sticker-ink); }
 .btn.danger { --btn-bg: var(--danger); --btn-fg: var(--on-danger); }
 .btn.quiet { box-shadow: none; border-color: var(--line); --btn-bg: var(--surface); --btn-fg: var(--text); }
@@ -463,6 +467,10 @@ button.link { background: none; border: 0; color: var(--text-muted); cursor: poi
 
 /* 使い方ステップ */
 .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
+.steps.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.section-note { margin: 18px 0 0; color: var(--text-muted); }
+.about-en { max-width: 760px; }
+.about-en p { margin: 0 0 14px; }
 .step {
   position: relative; counter-increment: step;
   padding: 22px 20px 24px; border-radius: var(--radius);
@@ -913,6 +921,8 @@ td a.badge:hover { text-decoration: underline; }
   .persona { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .step:nth-child(2)::after { display: none; }
+  .steps.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .steps.three .step:nth-child(2)::after { display: block; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
@@ -930,6 +940,7 @@ td a.badge:hover { text-decoration: underline; }
   .persona { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .persona li { grid-template-columns: auto minmax(0, 1fr); align-items: center; padding: 14px 16px; }
   .steps { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .steps.three { grid-template-columns: minmax(0, 1fr); }
   .step { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 14px; padding: 16px; }
   .step-top { grid-row: span 2; margin: 0; align-self: start; }
   .step-top .i { display: none; }

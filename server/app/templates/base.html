@@ -1,5 +1,6 @@
+{%- set en = page_lang == "en" -%}
 <!doctype html>
-<html lang="ja">
+<html lang="{{ 'en' if en else 'ja' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -65,45 +66,46 @@
 
   <a class="skip" href="#main">本文へスキップ</a>
   {% if free_mode %}
-  <p class="experiment-bar">{{ settings.service_name }} は、いま<strong>{{ "コミュニティ限定の" if settings.invite_only or settings.site_password else "" }}実験段階</strong>です。実験のあいだ、利用はすべて無料です。<a href="/legal/terms">くわしく</a></p>
+  {% if en %}<p class="experiment-bar">{{ settings.service_name }} is in a <strong>free test</strong>. Everything is free while the test runs.</p>
+  {% else %}<p class="experiment-bar">{{ settings.service_name }} は、いま<strong>{{ "コミュニティ限定の" if settings.invite_only or settings.site_password else "" }}実験段階</strong>です。実験のあいだ、利用はすべて無料です。<a href="/legal/terms">くわしく</a></p>{% endif %}
   {% endif %}
   <header class="site-header">
     <div class="wrap header-inner">
-      <a class="logo" href="/">{{ logo_mark() }}<span class="logo-text">{{ settings.service_name }}</span></a>
+      <a class="logo" href="{{ '/en' if en else '/' }}">{{ logo_mark() }}<span class="logo-text">{{ settings.service_name }}</span></a>
 
       <nav class="nav-desktop" aria-label="メインメニュー">
-        <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}>空き枠</a>
+        <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}>{{ "Open slots" if en else "空き枠" }}</a>
         {% if user %}
-          <a class="nav-link" href="/bookings"{% if path.startswith("/bookings") %} aria-current="page"{% endif %}>予約一覧</a>
-          {% if not simple %}<a class="nav-link" href="/following"{% if path == "/following" %} aria-current="page"{% endif %}>フォロー中</a>{% endif %}
-          {% if is_lender %}<a class="nav-link" href="/lend"{% if path == "/lend" %} aria-current="page"{% endif %}>貸し出し</a>{% endif %}
-          <a class="nav-link" href="/account"{% if path == "/account" %} aria-current="page"{% endif %}>アカウント</a>
-          {% if is_admin %}<a class="nav-link" href="/admin"{% if path.startswith("/admin") %} aria-current="page"{% endif %}>管理</a>{% endif %}
-          <form method="post" action="/logout" class="inline"><button class="nav-link subtle">ログアウト</button></form>
+          <a class="nav-link" href="/bookings"{% if path.startswith("/bookings") %} aria-current="page"{% endif %}>{{ "Bookings" if en else "予約一覧" }}</a>
+          {% if not simple %}<a class="nav-link" href="/following"{% if path == "/following" %} aria-current="page"{% endif %}>{{ "Following" if en else "フォロー中" }}</a>{% endif %}
+          {% if is_lender %}<a class="nav-link" href="/lend"{% if path == "/lend" %} aria-current="page"{% endif %}>{{ "Lend" if en else "貸し出し" }}</a>{% endif %}
+          <a class="nav-link" href="/account"{% if path == "/account" %} aria-current="page"{% endif %}>{{ "Account" if en else "アカウント" }}</a>
+          {% if is_admin %}<a class="nav-link" href="/admin"{% if path.startswith("/admin") %} aria-current="page"{% endif %}>{{ "Admin" if en else "管理" }}</a>{% endif %}
+          <form method="post" action="/logout" class="inline"><button class="nav-link subtle">{{ "Log out" if en else "ログアウト" }}</button></form>
         {% else %}
-          <a class="nav-link" href="/login"{% if path == "/login" %} aria-current="page"{% endif %}>ログイン</a>
-          <a class="btn small" href="/signup">新規登録</a>
+          <a class="nav-link" href="/login"{% if path == "/login" %} aria-current="page"{% endif %}>{{ "Log in" if en else "ログイン" }}</a>
+          <a class="btn small" href="/signup">{{ "Sign up" if en else "新規登録" }}</a>
         {% endif %}
       </nav>
 
       <div class="nav-mobile">
-        {% if path != "/slots" %}<a class="btn small" href="/slots">空き枠</a>{% endif %}
+        {% if path != "/slots" %}<a class="btn small" href="/slots">{{ "Open slots" if en else "空き枠" }}</a>{% endif %}
         <details class="menu">
           <summary><svg class="i ic-open"><use href="#i-menu"/></svg><svg class="i ic-close"><use href="#i-close"/></svg><span class="visually-hidden">メニュー</span></summary>
           <nav class="menu-panel" aria-label="メニュー">
-            <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-calendar"/></svg>空き枠</a>
+            <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-calendar"/></svg>{{ "Open slots" if en else "空き枠" }}</a>
             {% if user %}
-              <a class="nav-link" href="/bookings"{% if path.startswith("/bookings") %} aria-current="page"{% endif %}><svg class="i"><use href="#i-list"/></svg>予約一覧</a>
-              {% if not simple %}<a class="nav-link" href="/following"{% if path == "/following" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-heart"/></svg>フォロー中</a>{% endif %}
-              {% if is_lender %}<a class="nav-link" href="/lend"{% if path == "/lend" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-pc"/></svg>貸し出し</a>{% endif %}
-              <a class="nav-link" href="/account"{% if path == "/account" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-user"/></svg>アカウント</a>
-              {% if is_admin %}<a class="nav-link" href="/admin"{% if path.startswith("/admin") %} aria-current="page"{% endif %}><svg class="i"><use href="#i-gear"/></svg>管理</a>{% endif %}
+              <a class="nav-link" href="/bookings"{% if path.startswith("/bookings") %} aria-current="page"{% endif %}><svg class="i"><use href="#i-list"/></svg>{{ "Bookings" if en else "予約一覧" }}</a>
+              {% if not simple %}<a class="nav-link" href="/following"{% if path == "/following" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-heart"/></svg>{{ "Following" if en else "フォロー中" }}</a>{% endif %}
+              {% if is_lender %}<a class="nav-link" href="/lend"{% if path == "/lend" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-pc"/></svg>{{ "Lend" if en else "貸し出し" }}</a>{% endif %}
+              <a class="nav-link" href="/account"{% if path == "/account" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-user"/></svg>{{ "Account" if en else "アカウント" }}</a>
+              {% if is_admin %}<a class="nav-link" href="/admin"{% if path.startswith("/admin") %} aria-current="page"{% endif %}><svg class="i"><use href="#i-gear"/></svg>{{ "Admin" if en else "管理" }}</a>{% endif %}
               {% if not simple %}<a class="nav-link" href="/app"{% if path == "/app" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-phone"/></svg>アプリとして使う</a>{% endif %}
               <hr>
-              <form method="post" action="/logout" class="inline"><button class="nav-link subtle"><svg class="i"><use href="#i-logout"/></svg>ログアウト</button></form>
+              <form method="post" action="/logout" class="inline"><button class="nav-link subtle"><svg class="i"><use href="#i-logout"/></svg>{{ "Log out" if en else "ログアウト" }}</button></form>
             {% else %}
-              <a class="nav-link" href="/login"{% if path == "/login" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-user"/></svg>ログイン</a>
-              <a class="btn" href="/signup">新規登録</a>
+              <a class="nav-link" href="/login"{% if path == "/login" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-user"/></svg>{{ "Log in" if en else "ログイン" }}</a>
+              <a class="btn" href="/signup">{{ "Sign up" if en else "新規登録" }}</a>
             {% endif %}
           </nav>
         </details>
@@ -135,14 +137,22 @@
     <div class="wrap footer-inner">
       <span class="footer-brand">{{ logo_mark() }}{{ settings.service_name }}</span>
       <nav class="footer-links" aria-label="規約・表記">
-        {% if not simple %}<a href="/app">スマホのアプリとして使う</a>{% endif %}
+        {% if not simple %}<a href="/app">{{ "Use as a phone app" if en else "スマホのアプリとして使う" }}</a>{% endif %}
+        {% if en %}<a href="/" hreflang="ja" lang="ja">日本語</a>{% else %}<a href="/en" hreflang="en" lang="en">English</a>{% endif %}
+        {% if en %}
+        <a href="/guide" hreflang="ja">Getting started (Japanese)</a>
+        <a href="/legal/terms" hreflang="ja">Terms (Japanese)</a>
+        <a href="/legal/privacy" hreflang="ja">Privacy (Japanese)</a>
+        <a href="/legal/platforms" hreflang="ja">VRChat and Steam terms (Japanese)</a>
+        {% else %}
         <a href="/guide">はじめての方へ</a>
         <a href="/legal/terms">利用規約</a>
         <a href="/legal/privacy">プライバシーポリシー</a>
         <a href="/legal/platforms">VRChat・Steam の規約について</a>
+        {% endif %}
         {% if not free_mode %}<a href="/legal/tokushoho">特定商取引法に基づく表記</a>{% endif %}
       </nav>
-      <p class="muted">VRChat は VRChat Inc. の商標です。本サービスは VRChat Inc. および Meta とは関係ありません。</p>
+      <p class="muted">{% if en %}VRChat is a trademark of VRChat Inc. Geaspec is not affiliated with VRChat Inc. or Meta.{% else %}VRChat は VRChat Inc. の商標です。本サービスは VRChat Inc. および Meta とは関係ありません。{% endif %}</p>
     </div>
   </footer>
 

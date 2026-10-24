@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Geaspec — PC VRChat without a gaming PC{% endblock %}
+{% block content %}
+<section class="hero" aria-labelledby="hero-title">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <h1 id="hero-title"><span class="ln">No gaming PC?</span><br><span class="ln">Play <mark class="hl">PC VRChat</mark> anyway.</span></h1>
+      <p class="lead">With just a Quest, connect over the internet to someone's idle gaming PC — only for the time you want to play.</p>
+      <div class="cta-row">
+        <a class="btn lg" href="/slots">See open slots{% if slot_count %} ({{ slot_count }}){% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </div>
+      <ul class="trust" aria-label="Why it is safe">
+        <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-user"/></svg></span>Play with your own VRChat account</li>
+        <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-trash"/></svg></span>Your login data is deleted after each session</li>
+      </ul>
+    </div>
+
+    <div class="hero-visual">
+      <figure class="hud">
+        <div class="hud-link" role="img" aria-label="Your VR headset connects over the internet to a gaming PC">
+          <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>Your<br>headset</div>
+          <div class="wire"><span class="tag"><svg class="i"><use href="#i-globe"/></svg>Internet</span></div>
+          <div class="node pc"><span class="node-ic"><svg class="i"><use href="#i-pc"/></svg></span>Gaming<br>PC</div>
+        </div>
+        <dl class="hud-specs">
+          <div><dt>App</dt><dd>Virtual Desktop</dd></div>
+          <div><dt>Latency</dt><dd><span class="num">50–60</span>ms <small>in our tests</small></dd></div>
+        </dl>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="how">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="how">How it works</h2>
+    </div>
+    <ol class="steps three">
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg></div><h3>Book</h3><p>Pick an open time slot on a PC.{% if free_mode %} Free during the test.{% endif %}</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-play"/></svg></div><h3>Connect and play</h3><p>Connect with Virtual Desktop and log in to VRChat with <strong>your own</strong> account.</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg></div><h3>Ends automatically</h3><p>When time is up, the session ends and your login data is deleted.</p></li>
+    </ol>
+    <p class="section-note">The VR video goes directly between the PC and your headset. Geaspec's servers only handle booking.</p>
+  </div>
+</section>
+
+<section class="section flush-top" aria-labelledby="about">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="about">About Geaspec</h2>
+    </div>
+    <div class="about-en">
+      <p>Geaspec is an independent project from Japan. We are running a small, free, invite-only test with players in Japan, and the booking site is currently in Japanese.</p>
+      <p>We do not charge fees, use VRChat logos or official images, or advertise inside VRChat. We are in contact with VRChat and Steam, and will only offer a paid service in a way their terms allow. Geaspec is not affiliated with VRChat, Valve, Meta or Virtual Desktop.</p>
+      <p>Contact (players, partners and press): <a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a></p>
+    </div>
+  </div>
+</section>
+{% endblock %}

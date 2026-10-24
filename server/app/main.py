@@ -257,6 +257,12 @@ def create_app(
         min_price = min((s.price_yen for s in slots), default=None)
         return render(request, db, "index.html", slot_count=len(slots), min_price=min_price)
 
+    @app.get("/en", response_class=HTMLResponse)
+    def index_en(request: Request, db: Session = Depends(get_db)):
+        """英語のトップページ (海外の人・VRChat などの会社向け)。予約などのページは日本語のまま。"""
+        slots = services.available_slots(db, clock.utcnow(), settings.hold_minutes)
+        return render(request, db, "index_en.html", slot_count=len(slots), page_lang="en")
+
     @app.get("/guide", response_class=HTMLResponse)
     def guide(request: Request, db: Session = Depends(get_db)):
         """画像つきの「はじめての方へ」。申し込む前にも読めるよう、招待リンクなしで見られる。
