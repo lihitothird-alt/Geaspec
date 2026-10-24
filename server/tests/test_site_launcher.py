@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -239,3 +240,21 @@ def test_leftover_tunnel_from_the_data_folder_is_stopped_on_windows(monkeypatch)
     monkeypatch.setattr(cf.sys, "platform", "linux")
     cf.stop_leftovers(Path("/home/u/GeaspecSite/cloudflared/cloudflared"), run=lambda args, **kw: ran.append(args))
     assert len(ran) == 1
+
+
+def test_bundled_certificates_are_trusted(monkeypatch):
+    """Windows の証明書の一覧が足りなくても、https の確認ができるように certifi の一覧を使う。"""
+    import ssl
+    import urllib.request
+
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    s.trust_bundled_certificates()
+    import certifi
+
+    assert os.environ["SSL_CERT_FILE"] == certifi.where()
+    ctx = ssl.create_default_context()  # urllib・Discord ボット (aiohttp) が使うのと同じ作り方
+    assert ctx.cert_store_stats()["x509_ca"] > 100
+    # すでに決めてあれば変えない
+    monkeypatch.setenv("SSL_CERT_FILE", "/custom.pem")
+    s.trust_bundled_certificates()
+    assert os.environ["SSL_CERT_FILE"] == "/custom.pem"

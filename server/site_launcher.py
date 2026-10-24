@@ -339,6 +339,19 @@ def start_discord_bot(config: dict, address: str, data: Path) -> bool:
     return True
 
 
+def trust_bundled_certificates() -> None:
+    """https の相手を確かめるときに、Windows の証明書の一覧に加えて、同梱の一覧 (certifi) も使う。
+
+    Windows の一覧には、ブラウザが自動で取りに行く証明書が入っていないことがあり、そのままだと
+    自分のドメイン (Cloudflare) の確認や、新しい版の確認・ダウンロードが「CERTIFICATE_VERIFY_FAILED」で失敗する。
+    """
+    try:
+        import certifi
+    except ImportError:
+        return
+    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+
+
 def keep_running_when_clicked() -> None:
     """Windows: 黒い画面の中をクリックしても、サイトが一時停止しないようにする (簡易編集モードを切る)。
 
@@ -366,6 +379,7 @@ def main() -> int:
     from app.version import VERSION
 
     keep_running_when_clicked()
+    trust_bundled_certificates()
     print("=" * 60)
     print(f" Geaspec 予約サイト {VERSION}")
     print("=" * 60)
