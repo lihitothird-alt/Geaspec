@@ -49,7 +49,8 @@ def latest_version(open_url=urllib.request.urlopen) -> str | None:
     try:
         with open_url(urllib.request.Request(f"{REPO}/releases/latest", method="HEAD"), timeout=30) as r:
             url = r.geturl()
-    except OSError:
+    except OSError as exc:
+        print(f"新しい版を確かめられませんでした（あとでもう一度試します）: {exc}")
         return None
     m = re.search(r"/tag/agent-v(\d+(?:\.\d+)+)$", url)
     return m.group(1) if m else None
