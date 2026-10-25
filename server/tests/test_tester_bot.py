@@ -721,6 +721,38 @@ def test_new_version_is_announced_once(tmp_path, store):
     asyncio.run(scenario())
 
 
+def test_guide_channels_are_made_once(tmp_path, store):
+    async def scenario():
+        said = []
+        bot = tb.TesterBot(store, tmp_path, "https://geaspec.example", say=said.append)
+        # 作る権限がなければ、作らずに知らせる
+        await bot.ensure_guide_channels(FakeGuild(manage=False))
+        assert "権限" in said[-1] and not store.get_setting("guide_channels")
+        guild = FakeGuild()
+        panel = FakeGuildChannel(5, tb.PANEL_CHANNEL_NAME)
+        guild.text_channels.append(panel)
+        store.set_setting("panel_channel_id", "5")
+        await bot.ensure_guide_channels(guild)
+        welcome = next(c for c in guild.text_channels if c.name == tb.WELCOME_CHANNEL_NAME)
+        question = next(c for c in guild.text_channels if c.name == tb.QUESTION_CHANNEL_NAME)
+        # 「はじめに」は運営だけが書ける。「質問・困りごと」は誰でも書ける
+        assert welcome.overwrites[guild.default_role].send_messages is False and question.overwrites == {}
+        text = welcome.sent[0][0]
+        assert panel.mention in text and question.mention in text and "https://geaspec.example" in text
+        # 運営が消しても作り直さない
+        guild.text_channels.remove(welcome)
+        await bot.ensure_guide_channels(guild)
+        assert len(guild.text_channels) == 3
+        # すでに似た名前のチャンネルがあれば、それを使う
+        store.set_setting("guide_channels", "")
+        other = FakeGuild()
+        other.text_channels += [FakeGuildChannel(8, "はじめに・ルール"), FakeGuildChannel(9, "質問")]
+        await bot.ensure_guide_channels(other)
+        assert len(other.text_channels) == 3 and other.text_channels[1].sent == []
+
+    asyncio.run(scenario())
+
+
 def test_skipped_versions_are_announced_in_order(tmp_path, store, monkeypatch):
     from app import version
 
