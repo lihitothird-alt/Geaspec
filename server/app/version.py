@@ -1,12 +1,17 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.38"
+VERSION = "0.7.39"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 # 貸す人の Windows アプリ (サイトと同じ版のもの)
 AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.39": [
+        "予約サイトをクラウドのサーバーに移しました。運営の PC を止めても、24 時間いつでも予約できます",
+        "アカウントと予約はそのまま引き継いでいるので、ログインし直す必要はありません",
+        "Discord に「はじめに」と「質問・困りごと」のチャンネルを作りました",
+    ],
     "0.7.38": [
         "英語のページの「PC VR」を「PCVR」にそろえました",
     ],

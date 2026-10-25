@@ -41,6 +41,8 @@ OPS_CHANNEL_NAME = "運営"
 PANEL_CHANNEL_NAME = "🙋テスター申し込み"
 NEWS_NAME = "更新情報"  # この言葉を名前に含むチャンネル・スレッド・フォーラムに、新しい版のお知らせを書く
 NEWS_CHANNEL_NAME = "📢更新情報"  # どこにもなければ、この名前で作る
+WELCOME_CHANNEL_NAME = "はじめに"  # 運営だけが書ける案内
+QUESTION_CHANNEL_NAME = "質問・困りごと"  # 誰でも書ける相談の場
 DEFAULT_HOURS = "平日は19時以降、土日は終日"
 DEFAULT_AGENT_URL = "https://github.com/lihitothird-alt/Geaspec/releases/latest"
 # 貸す人の PC に入れる Virtual Desktop Streamer (無料)。借りる人は Quest の VD アプリだけでよい
@@ -376,6 +378,7 @@ class TesterBot(discord.Client):
         if self.guilds and not self.store.get_setting("panel_channel_id"):
             await self.first_setup(self.guilds[0])
         if self.guilds:
+            await self.ensure_guide_channels(self.guilds[0])
             await self.announce_version(self.guilds[0])
         for tester in self.store.waiting_testers():
             try:
@@ -450,6 +453,55 @@ class TesterBot(discord.Client):
             self.say(f"Discord ボット: 自動で準備できませんでした（{exc}）。Discord で /geaspec-setup を実行してください。")
             return
         self.say(f"Discord ボット: 「{panel.name}」「{ops_channel.name}」チャンネルと「{ops_role.name}」ロールを用意しました。")
+
+    def welcome_text(self, panel: str, question: str) -> str:
+        return "\n".join([
+            "**Geaspec へようこそ**",
+            "Geaspec は、Quest のプレイヤーとゲーミング PC をつなぐ予約サイトです。PC を持っていなくても、"
+            "VRChat を PCVR で遊べます。いまは無料・招待制のテスト中です。",
+            "",
+            "**遊ぶのに必要なもの**",
+            "・Quest（スタンドアロンの VR ヘッドセット）",
+            "・Virtual Desktop（有料アプリ）",
+            "・自分の VRChat アカウントと、2 段階認証のコードを受け取るスマホ",
+            "",
+            "**はじめかた**",
+            f"1. {panel} の「テスターに申し込む」ボタンを押してください",
+            "2. あなた専用のスレッドに、予約と接続の案内が届きます",
+            f"3. 予約サイト: {self.site_url}",
+            "",
+            "**お願い**",
+            "・貸してくださる方の PC を大切に使ってください",
+            "・招待リンクや、予約サイトのログイン情報を人に渡さないでください",
+            "・VRChat の利用規約を守ってください",
+            "",
+            f"わからないことは {question} でお気軽にどうぞ。",
+        ])
+
+    async def ensure_guide_channels(self, guild: discord.Guild) -> None:
+        """「はじめに」と「質問・困りごと」を 1 回だけ用意する。運営が後で消したら、作り直さない。"""
+        if self.store.get_setting("guide_channels"):
+            return
+        if not guild.me.guild_permissions.manage_channels:
+            self.say("Discord ボット: チャンネルを作る権限がないので、「はじめに」と「質問・困りごと」は作りませんでした。")
+            return
+        reason = "Geaspec の案内"
+        try:
+            question = next((c for c in guild.text_channels if "質問" in c.name), None)
+            if question is None:
+                question = await guild.create_text_channel(QUESTION_CHANNEL_NAME, reason=reason)
+            if not any("はじめに" in c.name for c in guild.text_channels):
+                welcome = await guild.create_text_channel(WELCOME_CHANNEL_NAME, reason=reason, overwrites={
+                    guild.default_role: discord.PermissionOverwrite(send_messages=False, add_reactions=True),
+                    guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, embed_links=True),
+                })
+                panel = discord.utils.get(guild.text_channels, id=int(self.store.get_setting("panel_channel_id") or 0))
+                await welcome.send(self.welcome_text(panel.mention if panel else f"「{PANEL_CHANNEL_NAME}」", question.mention))
+        except discord.HTTPException as exc:
+            self.say(f"Discord ボット: 「はじめに」「質問・困りごと」を用意できませんでした（{exc}）")
+            return
+        self.store.set_setting("guide_channels", "1")
+        self.say("Discord ボット: 「はじめに」と「質問・困りごと」を用意しました。")
 
     async def on_guild_join(self, guild: discord.Guild) -> None:
         await self._sync(guild)
