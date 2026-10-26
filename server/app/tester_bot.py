@@ -38,9 +38,11 @@ log = logging.getLogger(__name__)
 IMAGE_TYPES = ("image/png", "image/jpeg", "image/webp")
 OPS_ROLE_NAME = "運営"
 OPS_CHANNEL_NAME = "運営"
-PANEL_CHANNEL_NAME = "🙋テスター申し込み"
+PANEL_CHANNEL_NAME = "テスター申し込み"
 NEWS_NAME = "更新情報"  # この言葉を名前に含むチャンネル・スレッド・フォーラムに、新しい版のお知らせを書く
-NEWS_CHANNEL_NAME = "📢更新情報"  # どこにもなければ、この名前で作る
+NEWS_CHANNEL_NAME = "更新情報"  # どこにもなければ、この名前で作る
+# 前の版で絵文字付きの名前で作ったチャンネル。絵文字のない名前に付け直す
+OLD_CHANNEL_NAMES = {"🙋テスター申し込み": PANEL_CHANNEL_NAME, "📢更新情報": NEWS_CHANNEL_NAME}
 WELCOME_CHANNEL_NAME = "はじめに"  # 運営だけが書ける案内
 QUESTION_CHANNEL_NAME = "質問・困りごと"  # 誰でも書ける相談の場
 # ボットのアイコン (サイトのアプリアイコンと同じ Geaspec のロゴ)。変えたら AVATAR_VERSION を上げる
@@ -382,6 +384,7 @@ class TesterBot(discord.Client):
             await self.first_setup(self.guilds[0])
         await self.ensure_avatar(self.user)
         if self.guilds:
+            await self.rename_old_channels(self.guilds[0])
             await self.ensure_guide_channels(self.guilds[0])
             await self.announce_version(self.guilds[0])
         for tester in self.store.waiting_testers():
@@ -481,6 +484,19 @@ class TesterBot(discord.Client):
             "",
             f"わからないことは {question} でお気軽にどうぞ。",
         ])
+
+    async def rename_old_channels(self, guild: discord.Guild) -> None:
+        """前の版が作った絵文字付きのチャンネル名を、絵文字のない名前に付け直す。"""
+        if not guild.me.guild_permissions.manage_channels:
+            return
+        for channel in list(guild.text_channels):
+            new = OLD_CHANNEL_NAMES.get(channel.name)
+            if new is None:
+                continue
+            try:
+                await channel.edit(name=new, reason="チャンネル名から絵文字を外す")
+            except discord.HTTPException as exc:
+                self.say(f"Discord ボット: 「{channel.name}」の名前を変えられませんでした（{exc}）")
 
     async def ensure_avatar(self, user) -> None:
         """ボットのアイコンを Geaspec のロゴにする。変えるのは 1 回だけ (Discord はアイコンの変更回数に制限がある)。"""

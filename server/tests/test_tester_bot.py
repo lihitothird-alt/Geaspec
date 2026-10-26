@@ -486,6 +486,9 @@ class FakeGuildChannel(FakeThread):
         self.name = name
         self.overwrites = overwrites or {}
 
+    async def edit(self, name=None, reason=None):
+        self.name = name
+
 
 class FakeMember:
     def __init__(self, uid):
@@ -717,6 +720,18 @@ def test_new_version_is_announced_once(tmp_path, store):
         other.text_channels.append(mine)
         assert await bot.announce_version(other) is True
         assert len(mine.sent) == 1 and len(other.text_channels) == 2
+
+    asyncio.run(scenario())
+
+
+def test_old_channel_names_lose_their_emoji(tmp_path, store):
+    async def scenario():
+        bot = tb.TesterBot(store, tmp_path, "https://x", say=lambda _: None)
+        guild = FakeGuild()
+        guild.text_channels += [FakeGuildChannel(5, "🙋テスター申し込み"), FakeGuildChannel(6, "📢更新情報")]
+        await bot.rename_old_channels(guild)
+        assert [c.name for c in guild.text_channels] == ["雑談", tb.PANEL_CHANNEL_NAME, tb.NEWS_CHANNEL_NAME]
+        assert "🙋" not in tb.PANEL_CHANNEL_NAME and "📢" not in tb.NEWS_CHANNEL_NAME
 
     asyncio.run(scenario())
 
