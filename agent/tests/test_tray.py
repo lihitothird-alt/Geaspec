@@ -87,6 +87,17 @@ class TrayTest(unittest.TestCase):
         self.assertEqual(img.size, (64, 64))
         self.assertEqual(img.getpixel((53, 53))[:3], (0xC4, 0x1F, 0x4B))
 
+    def test_icon_image_uses_the_logo(self):
+        from pathlib import Path
+        from unittest import mock
+
+        logo = Path(__file__).resolve().parents[1] / "packaging" / "geaspec.ico"
+        with mock.patch.object(tray, "ICON_PATH", logo):
+            img = tray.icon_image("ok")
+        self.assertEqual(img.size, (64, 64))
+        self.assertEqual(img.getpixel((12, 12))[:3], (255, 255, 255))  # ロゴの白い背景
+        self.assertEqual(img.getpixel((53, 53))[:3], (0x13, 0xA0, 0x7A))  # 状態の点はそのまま
+
 
 if __name__ == "__main__":
     unittest.main()

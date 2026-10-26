@@ -599,6 +599,10 @@ class AgentWindow:
 
         root = self.root = tk.Tk()
         root.title(WINDOW_TITLE)
+        try:
+            root.iconbitmap(default=str(tray.ICON_PATH))  # ウィンドウとタスクバーに Geaspec のロゴを出す (Windows)
+        except tk.TclError:
+            pass
         root.geometry("700x760")
         root.minsize(640, 600)
         root.configure(bg=COLORS["bg"])

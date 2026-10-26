@@ -36,7 +36,8 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName={#AppName}
-UninstallDisplayIcon={app}\{#AppExe}
+UninstallDisplayIcon={app}\geaspec.ico
+SetupIconFile=geaspec.ico
 ; 動いている Agent (コンソール) は Windows の「アプリケーションの終了」機能では閉じられず、
 ; インストールが「アプリケーションを終了しています」で止まるため、PrepareToInstall で自分で終了させる
 CloseApplications=no
@@ -59,11 +60,11 @@ Type: files; Name: "{userprograms}\Geaspec\接続設定の変更.lnk"
 Type: files; Name: "{userprograms}\Geaspec\ログとレポートのフォルダ.lnk"
 
 [Icons]
-Name: "{userprograms}\Geaspec\Geaspec Agent"; Filename: "{app}\{#AppExe}"; Parameters: """{app}\{#AppScript}"""; WorkingDir: "{app}"
+Name: "{userprograms}\Geaspec\Geaspec Agent"; Filename: "{app}\{#AppExe}"; Parameters: """{app}\{#AppScript}"""; WorkingDir: "{app}"; IconFilename: "{app}\geaspec.ico"
 Name: "{userprograms}\Geaspec\動きの記録のフォルダ"; Filename: "{localappdata}\GeaspecAgent"
 Name: "{userprograms}\Geaspec\アンインストール"; Filename: "{uninstallexe}"
 ; サインインしたら自動で開く。貸し出し専用に登録していないユーザーでは何も消さないので、常に入れる
-Name: "{userstartup}\Geaspec Agent"; Filename: "{app}\{#AppExe}"; Parameters: """{app}\{#AppScript}"""; WorkingDir: "{app}"
+Name: "{userstartup}\Geaspec Agent"; Filename: "{app}\{#AppExe}"; Parameters: """{app}\{#AppScript}"""; WorkingDir: "{app}"; IconFilename: "{app}\geaspec.ico"
 
 [Registry]
 ; 説明ページの「Geaspec アプリに戻る」ボタン (geaspec://open) で、このアプリを開く (開いていれば前に出す)

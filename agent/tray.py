@@ -10,23 +10,29 @@ from __future__ import annotations
 import logging
 import queue
 import threading
+from pathlib import Path
 
 log = logging.getLogger("geaspec.tray")
 
 # 状態の色 (画面の色と同じ)
 TONE_COLORS = {"ok": "#13a07a", "busy": "#5b3cf0", "warn": "#c77700", "bad": "#c41f4b"}
+# アプリのアイコン (Geaspec のロゴ)。インストール先ではアプリと同じフォルダに入る
+ICON_PATH = Path(__file__).with_name("geaspec.ico")
 
 
 def icon_image(tone: str = "ok", size: int = 64):
-    """Geaspec の紫の丸に、状態の色の点を付けたアイコン。"""
+    """Geaspec のロゴに、状態の色の点を付けたアイコン。ロゴのファイルがなければ紫の丸で代わりにする。"""
     from PIL import Image, ImageDraw
 
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    try:
+        img = Image.open(ICON_PATH).convert("RGBA").resize((size, size), Image.LANCZOS)
+    except OSError:
+        img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        d.ellipse((2, 2, size - 3, size - 3), fill="#5b3cf0")
+        m = size // 4
+        d.ellipse((m, m, size - m - 1, size - m - 1), outline="white", width=max(3, size // 10))
     d = ImageDraw.Draw(img)
-    d.ellipse((2, 2, size - 3, size - 3), fill="#5b3cf0")
-    # 歯車のかわりの白い輪 (Geaspec のロゴの雰囲気)
-    m = size // 4
-    d.ellipse((m, m, size - m - 1, size - m - 1), outline="white", width=max(3, size // 10))
     dot = size // 3
     d.ellipse((size - dot - 1, size - dot - 1, size - 1, size - 1), fill=TONE_COLORS.get(tone, TONE_COLORS["warn"]),
               outline="white", width=max(2, size // 32))
