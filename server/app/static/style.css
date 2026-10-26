@@ -391,6 +391,49 @@ button.link { background: none; border: 0; color: var(--text-muted); cursor: poi
 }
 .trust .ic .i { width: 16px; height: 16px; stroke-width: 2.6; }
 
+.hero-sub {
+  margin: -6px 0 16px; font: 800 clamp(1.05rem, .95rem + .6vw, 1.4rem)/1.5 var(--font-round);
+  letter-spacing: .04em; color: var(--text);
+}
+
+/* --- Hero visual: その場所で・その姿で・その瞬間を -------------------
+   はじめは Quest で見たときのように灰色のモザイク。走査線が通ると、PC で見たときの色に変わる */
+.scenes { margin: 0; padding-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.scene { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.scene:nth-child(1) { transform: rotate(-2deg); }
+.scene:nth-child(2) { transform: translateY(-18px) rotate(1.5deg); }
+.scene:nth-child(3) { transform: rotate(-1deg); }
+.scene-art {
+  position: relative; overflow: hidden; aspect-ratio: 4 / 5;
+  border: 2px solid var(--edge); border-radius: var(--radius); box-shadow: var(--shadow);
+  background: #b9b4c9;
+}
+.scene-art svg { display: block; width: 100%; height: 100%; filter: grayscale(1) contrast(.75) brightness(1.1); animation: scene-color .9s ease forwards; animation-delay: var(--d); }
+/* Quest で見たときのモザイク。左から順に消える */
+.scene-art::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-conic-gradient(#c8c3d6 0 25%, #aaa4bd 0 50%) 0 0 / 14px 14px;
+  opacity: .92; clip-path: inset(0 0 0 0);
+  animation: scene-unmask .9s ease-in-out forwards; animation-delay: var(--d);
+}
+/* 走査線 */
+.scene-art::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -12%; width: 12%; z-index: 1; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .95), transparent);
+  opacity: 0; animation: scene-scan .9s ease-in-out forwards; animation-delay: var(--d);
+}
+.s-place { --d: .5s; }
+.s-form { --d: 1.3s; }
+.s-moment { --d: 2.1s; }
+.scene figcaption {
+  align-self: center; padding: 4px 12px; border: 2px solid var(--edge); border-radius: 999px;
+  background: var(--surface); box-shadow: var(--shadow-s);
+  font: 800 .88rem/1.4 var(--font-round); white-space: nowrap;
+}
+@keyframes scene-color { to { filter: none; } }
+@keyframes scene-unmask { to { clip-path: inset(0 0 0 100%); } }
+@keyframes scene-scan { 0% { opacity: 1; left: -12%; } 99% { opacity: 1; left: 100%; } 100% { opacity: 0; left: 100%; } }
+
 /* --- Hero visual: session HUD ------------------------------------- */
 .hero-visual { position: relative; }
 .hud {
@@ -935,6 +978,11 @@ td a.badge:hover { text-decoration: underline; }
 }
 @media (max-width: 600px) {
   .hero .lead { margin-bottom: 22px; }
+  .scenes { gap: 8px; }
+  .scene { gap: 8px; }
+  .scene:nth-child(2) { transform: translateY(-10px) rotate(1.5deg); }
+  .scene figcaption { padding: 3px 8px; font-size: .74rem; }
+  .scene-art { box-shadow: var(--shadow-s); }
   .cta-row .btn.lg { flex: 1 1 100%; }
   .trust { margin-top: 22px; }
   .trust li { font-size: .86rem; }

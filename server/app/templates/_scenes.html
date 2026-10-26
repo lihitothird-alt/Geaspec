@@ -1,0 +1,55 @@
+{#- トップページの 3 枚の絵（その場所で・その姿で・その瞬間を）。
+    はじめは Quest で見たときのように灰色のモザイクで、走査線が通ると PC で見たときの色に変わる -#}
+{%- macro scenes(label, place, form, moment) -%}
+<figure class="scenes" aria-label="{{ label }}">
+  <div class="scene s-place">
+    <div class="scene-art" aria-hidden="true">
+      <svg viewBox="0 0 120 150" preserveAspectRatio="xMidYMid slice">
+        <defs><linearGradient id="sc-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b1f6b"/><stop offset=".7" stop-color="#5b3cf0"/><stop offset="1" stop-color="#ff78b4"/></linearGradient></defs>
+        <rect width="120" height="150" fill="url(#sc-sky)"/>
+        <g fill="#fff"><circle cx="18" cy="20" r="1.6"/><circle cx="44" cy="12" r="1.2"/><circle cx="98" cy="30" r="1.4"/><circle cx="70" cy="40" r="1"/><circle cx="12" cy="58" r="1.1"/></g>
+        <circle cx="84" cy="34" r="15" fill="#ffd84a" stroke="#1c1733" stroke-width="3"/>
+        <path d="M18 92 Q60 70 102 92 L94 104 Q60 120 26 104 Z" fill="#3ee0b5" stroke="#1c1733" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M46 92 V66 Q60 52 74 66 V92" fill="none" stroke="#1c1733" stroke-width="3.5" stroke-linejoin="round"/>
+        <path d="M51 92 V69 Q60 59 69 69 V92 Z" fill="#ffd84a" opacity=".85"/>
+        <g stroke="#cbc1ff" stroke-width="1.2" opacity=".55"><path d="M0 128 H120 M0 140 H120 M60 118 L20 150 M60 118 L100 150 M60 118 L60 150"/></g>
+      </svg>
+    </div>
+    <figcaption>{{ place }}</figcaption>
+  </div>
+  <div class="scene s-form">
+    <div class="scene-art" aria-hidden="true">
+      <svg viewBox="0 0 120 150" preserveAspectRatio="xMidYMid slice">
+        <rect width="120" height="150" fill="#ffe5f1"/>
+        <g fill="#ff78b4" opacity=".35"><circle cx="14" cy="16" r="3"/><circle cx="30" cy="16" r="3"/><circle cx="22" cy="28" r="3"/><circle cx="98" cy="118" r="3"/><circle cx="106" cy="130" r="3"/><circle cx="90" cy="130" r="3"/></g>
+        <path d="M30 150 Q32 112 60 108 Q88 112 90 150 Z" fill="#5b3cf0" stroke="#1c1733" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M33 92 Q30 50 60 44 Q90 50 87 92 Q84 112 74 116 L60 100 L46 116 Q36 112 33 92 Z" fill="#cbc1ff" stroke="#1c1733" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M38 46 L34 26 L50 38 Z M82 46 L86 26 L70 38 Z" fill="#cbc1ff" stroke="#1c1733" stroke-width="3" stroke-linejoin="round"/>
+        <ellipse cx="60" cy="78" rx="19" ry="21" fill="#fff4ec" stroke="#1c1733" stroke-width="3"/>
+        <path d="M41 70 Q60 52 79 70 Q70 62 60 64 Q50 62 41 70 Z" fill="#cbc1ff" stroke="#1c1733" stroke-width="2.5" stroke-linejoin="round"/>
+        <circle cx="53" cy="80" r="3.2" fill="#1c1733"/><circle cx="67" cy="80" r="3.2" fill="#1c1733"/>
+        <circle cx="54" cy="79" r="1" fill="#fff"/><circle cx="68" cy="79" r="1" fill="#fff"/>
+        <path d="M56 90 Q60 93 64 90" fill="none" stroke="#1c1733" stroke-width="2" stroke-linecap="round"/>
+        <path d="M50 122 L60 116 L70 122 L60 128 Z" fill="#ffd84a" stroke="#1c1733" stroke-width="2.5" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <figcaption>{{ form }}</figcaption>
+  </div>
+  <div class="scene s-moment">
+    <div class="scene-art" aria-hidden="true">
+      <svg viewBox="0 0 120 150" preserveAspectRatio="xMidYMid slice">
+        <rect width="120" height="150" fill="#1c1733"/>
+        <path d="M60 0 L20 110 H44 Z M60 0 L76 110 H100 Z" fill="#ffd84a" opacity=".28"/>
+        <path d="M10 0 L36 110 H52 Z M110 0 L68 110 H86 Z" fill="#3ee0b5" opacity=".22"/>
+        <path d="M14 110 H106 V122 H14 Z" fill="#5b3cf0" stroke="#cbc1ff" stroke-width="2"/>
+        <circle cx="60" cy="72" r="8" fill="#ff78b4" stroke="#cbc1ff" stroke-width="2.5"/>
+        <path d="M48 110 Q50 84 60 82 Q70 84 72 110 Z" fill="#ff78b4" stroke="#cbc1ff" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M70 90 L84 74" stroke="#cbc1ff" stroke-width="3" stroke-linecap="round"/>
+        <g fill="#2b1f6b" stroke="#cbc1ff" stroke-width="2"><circle cx="16" cy="138" r="9"/><circle cx="38" cy="134" r="9"/><circle cx="60" cy="140" r="9"/><circle cx="82" cy="134" r="9"/><circle cx="104" cy="138" r="9"/></g>
+        <g fill="#ffd84a"><rect x="24" y="30" width="4" height="4" transform="rotate(20 26 32)"/><rect x="92" y="22" width="4" height="4" transform="rotate(-15 94 24)"/><rect x="82" y="50" width="3" height="3"/><rect x="30" y="58" width="3" height="3"/></g>
+      </svg>
+    </div>
+    <figcaption>{{ moment }}</figcaption>
+  </div>
+</figure>
+{%- endmacro -%}

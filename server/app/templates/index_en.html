@@ -1,10 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Geaspec — Same place, same view. VRChat in PCVR from your Quest{% endblock %}
+{% from "_scenes.html" import scenes %}
+{% block title %}Geaspec — That place. That look. That moment.{% endblock %}
 {% block content %}
 <section class="hero" aria-labelledby="hero-title">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <h1 id="hero-title"><span class="ln">Same place.</span><br><span class="ln"><mark class="hl">Same view.</mark></span></h1>
+      <h1 id="hero-title"><span class="ln">That place.</span> <span class="ln">That look.</span> <span class="ln"><mark class="hl">That moment.</mark></span></h1>
+      <p class="hero-sub">The power to make them yours.</p>
       <p class="lead">In the same VRChat world, Quest and PC players see different things. Keep your Quest and join them in PCVR, streamed from someone's idle gaming PC.</p>
       <div class="cta-row">
         <a class="btn lg" href="/slots">See open slots{% if slot_count %} ({{ slot_count }}){% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
@@ -16,17 +18,7 @@
     </div>
 
     <div class="hero-visual">
-      <figure class="hud">
-        <div class="hud-link" role="img" aria-label="Your VR headset connects over the internet to a gaming PC">
-          <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>Your<br>headset</div>
-          <div class="wire"><span class="tag"><svg class="i"><use href="#i-globe"/></svg>Internet</span></div>
-          <div class="node pc"><span class="node-ic"><svg class="i"><use href="#i-pc"/></svg></span>Gaming<br>PC</div>
-        </div>
-        <dl class="hud-specs">
-          <div><dt>App</dt><dd>Virtual Desktop</dd></div>
-          <div><dt>Latency</dt><dd><span class="num">50–60</span>ms <small>in our tests</small></dd></div>
-        </dl>
-      </figure>
+      {{ scenes("What you see in PCVR: that place, that look, that moment", "That place", "That look", "That moment") }}
     </div>
   </div>
 </section>

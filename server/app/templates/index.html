@@ -1,9 +1,12 @@
 {% extends "base.html" %}
+{% from "_scenes.html" import scenes %}
+{% block title %}{{ settings.service_name }} | その場所で、その姿で、その瞬間を。{% endblock %}
 {% block content %}
 <section class="hero" aria-labelledby="hero-title">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <h1 id="hero-title"><span class="ln">同じ場所で、</span><br><span class="ln"><mark class="hl">同じ景色</mark>を。</span></h1>
+      <h1 id="hero-title"><span class="ln">その場所で、</span><span class="ln">その姿で、</span><span class="ln"><mark class="hl">その瞬間</mark>を。</span></h1>
+      <p class="hero-sub">手に入れる力を、あなたに。</p>
       <p class="lead">同じワールドにいても、<span class="nowrap">Quest と PC では</span><span class="nowrap">見えている景色が違う。</span><br><span class="nowrap">いつもの Quest のまま、</span><span class="nowrap">PCVR の VRChat へ。</span></p>
       <div class="cta-row">
         <a class="btn lg" href="/slots">空き枠を見る{% if slot_count %}（{{ slot_count }} 件）{% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
@@ -16,17 +19,7 @@
     </div>
 
     <div class="hero-visual">
-      <figure class="hud">
-        <div class="hud-link" role="img" aria-label="あなたの VR ヘッドセットから、インターネット越しにゲーミングPCに接続するイメージ">
-          <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>あなたの<br>ヘッドセット</div>
-          <div class="wire"><span class="tag"><svg class="i"><use href="#i-globe"/></svg>ネット</span></div>
-          <div class="node pc"><span class="node-ic"><svg class="i"><use href="#i-pc"/></svg></span>ゲーミング<br>PC</div>
-        </div>
-        <dl class="hud-specs">
-          <div><dt>接続アプリ</dt><dd>Virtual Desktop</dd></div>
-          <div><dt>遅延</dt><dd><span class="num">50〜60</span>ms <small>検証時</small></dd></div>
-        </dl>
-      </figure>
+      {{ scenes("PCVR で見える、その場所・その姿・その瞬間のイメージ", "その場所で", "その姿で", "その瞬間を") }}
     </div>
   </div>
 </section>
