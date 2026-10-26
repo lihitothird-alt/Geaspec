@@ -87,6 +87,7 @@ jobs:
           # 予約サイトのアドレスが決まっていれば組み込む (貸し手はログインするだけでよくなる)
           if (Test-Path server_url.txt) { Copy-Item server_url.txt $out; Write-Host "予約サイト: $(Get-Content server_url.txt)" }
           Copy-Item packaging\GeaspecAgent.cmd $out
+          Copy-Item packaging\geaspec.ico $out
           # 画面 (tkinter) は埋め込み版に入っていないので、同じバージョンの公式 Python からコピーする
           $base = python -c "import sys; print(sys.base_prefix)"
           Copy-Item "$base\DLLs\_tkinter.pyd" "$out\python\"
