@@ -9,6 +9,7 @@ AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download
 CHANGES: dict[str, list[str]] = {
     "0.7.40": [
         "貸し手アプリ（Geaspec Agent）のアイコンを Geaspec のロゴにしました（スタートメニュー・ウィンドウ・画面右下のアイコン）",
+        "Discord のボットのアイコンも Geaspec のロゴにしました",
     ],
     "0.7.39": [
         "予約サイトをクラウドのサーバーに移しました。運営の PC を止めても、24 時間いつでも予約できます",

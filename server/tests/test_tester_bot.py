@@ -721,6 +721,33 @@ def test_new_version_is_announced_once(tmp_path, store):
     asyncio.run(scenario())
 
 
+def test_bot_avatar_is_set_once(tmp_path, store):
+    from types import SimpleNamespace
+
+    class FakeBotUser:
+        def __init__(self, fail=False):
+            self.edits, self.fail = [], fail
+
+        async def edit(self, **kw):
+            if self.fail:
+                raise discord.HTTPException(SimpleNamespace(status=429, reason="Too Many Requests"), "rate limited")
+            self.edits.append(kw)
+
+    async def scenario():
+        said = []
+        bot = tb.TesterBot(store, tmp_path, "https://x", say=said.append)
+        # 失敗したら次に起動したときにもう一度試す
+        await bot.ensure_avatar(FakeBotUser(fail=True))
+        assert "アイコン" in said[-1] and not store.get_setting("avatar")
+        user = FakeBotUser()
+        await bot.ensure_avatar(user)
+        assert user.edits[0]["avatar"] == tb.AVATAR_PATH.read_bytes() and user.edits[0]["avatar"][:4] == b"\x89PNG"
+        await bot.ensure_avatar(user)  # 同じアイコンでは 2 回変えない
+        assert len(user.edits) == 1
+
+    asyncio.run(scenario())
+
+
 def test_guide_channels_are_made_once(tmp_path, store):
     async def scenario():
         said = []

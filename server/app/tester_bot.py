@@ -43,6 +43,9 @@ NEWS_NAME = "更新情報"  # この言葉を名前に含むチャンネル・�
 NEWS_CHANNEL_NAME = "📢更新情報"  # どこにもなければ、この名前で作る
 WELCOME_CHANNEL_NAME = "はじめに"  # 運営だけが書ける案内
 QUESTION_CHANNEL_NAME = "質問・困りごと"  # 誰でも書ける相談の場
+# ボットのアイコン (サイトのアプリアイコンと同じ Geaspec のロゴ)。変えたら AVATAR_VERSION を上げる
+AVATAR_PATH = Path(__file__).resolve().parent / "static" / "icons" / "icon-512.png"
+AVATAR_VERSION = "logo-1"
 DEFAULT_HOURS = "平日は19時以降、土日は終日"
 DEFAULT_AGENT_URL = "https://github.com/lihitothird-alt/Geaspec/releases/latest"
 # 貸す人の PC に入れる Virtual Desktop Streamer (無料)。借りる人は Quest の VD アプリだけでよい
@@ -377,6 +380,7 @@ class TesterBot(discord.Client):
             self.store.set_setting("guild_id", str(self.guilds[0].id))
         if self.guilds and not self.store.get_setting("panel_channel_id"):
             await self.first_setup(self.guilds[0])
+        await self.ensure_avatar(self.user)
         if self.guilds:
             await self.ensure_guide_channels(self.guilds[0])
             await self.announce_version(self.guilds[0])
@@ -477,6 +481,18 @@ class TesterBot(discord.Client):
             "",
             f"わからないことは {question} でお気軽にどうぞ。",
         ])
+
+    async def ensure_avatar(self, user) -> None:
+        """ボットのアイコンを Geaspec のロゴにする。変えるのは 1 回だけ (Discord はアイコンの変更回数に制限がある)。"""
+        if user is None or self.store.get_setting("avatar") == AVATAR_VERSION:
+            return
+        try:
+            await user.edit(avatar=AVATAR_PATH.read_bytes())
+        except (OSError, discord.HTTPException) as exc:
+            self.say(f"Discord ボット: アイコンを変えられませんでした（{exc}）")
+            return
+        self.store.set_setting("avatar", AVATAR_VERSION)
+        self.say("Discord ボット: アイコンを Geaspec のロゴにしました。")
 
     async def ensure_guide_channels(self, guild: discord.Guild) -> None:
         """「はじめに」と「質問・困りごと」を 1 回だけ用意する。運営が後で消したら、作り直さない。"""
