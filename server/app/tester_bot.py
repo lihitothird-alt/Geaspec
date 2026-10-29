@@ -255,8 +255,8 @@ def welcome_view(tester: dict) -> discord.ui.View:
 
 def apply_choice_view() -> discord.ui.View:
     """申し込みボタンのあとに、借りる側か貸す側かをえらんでもらう。"""
-    return make_view(button("🥽 Quest だけ（PC を借りて遊ぶ）", "gs:as:borrow", discord.ButtonStyle.primary),
-                     button("🖥 PCVR を持っている（自分の PC を貸す）", "gs:as:lend"))
+    return make_view(button("PC を借りて遊ぶ", "gs:as:borrow", discord.ButtonStyle.primary),
+                     button("自分の PC を貸す", "gs:as:lend"))
 
 
 class ApplyModal(discord.ui.Modal):
