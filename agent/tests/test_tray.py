@@ -95,7 +95,8 @@ class TrayTest(unittest.TestCase):
         with mock.patch.object(tray, "ICON_PATH", logo):
             img = tray.icon_image("ok")
         self.assertEqual(img.size, (64, 64))
-        self.assertEqual(img.getpixel((12, 12))[:3], (255, 255, 255))  # ロゴの白い背景
+        self.assertTrue(all(c < 80 for c in img.getpixel((12, 12))[:3]))  # ロゴの丸い背景 (墨色)
+        self.assertEqual(img.getpixel((1, 1))[3], 0)  # 丸の外は透明
         self.assertEqual(img.getpixel((53, 53))[:3], (0x13, 0xA0, 0x7A))  # 状態の点はそのまま
 
 

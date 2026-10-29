@@ -1200,3 +1200,118 @@ td a.badge:hover { text-decoration: underline; }
 .sched-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 8px 0 0; color: var(--text-muted); }
 .sched-legend .sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid var(--line); vertical-align: -2px; margin-right: 2px; }
 .sched-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+
+/* =====================================================================
+   Discord-like theme
+   Discord と同じ色づかい: 灰色の面を重ねて区切り、ボタンとリンクは Discord の青 (#5865F2)。
+   太い黒線・ずらし影はやめる。色や形はここで上書きしているので、この塊を消せば前の見た目に戻る。
+   ===================================================================== */
+:root {
+  --bg: #f2f3f5;
+  --bg-grid: transparent;
+  --surface: #ffffff;
+  --surface-2: #ebedef;
+  --surface-3: #e3e5e8;
+  --text: #2e3338;
+  --text-muted: #5c5e66;
+  --link: #4752c4;
+  --edge: #d4d7dc;
+  --line: #e3e5e8;
+  --shadow-c: transparent;
+  --primary: #5865f2;
+  --primary-hover: #4752c4;
+  --on-primary: #ffffff;
+  --accent-text: #4752c4;
+  --mint-soft: #e3f6ea;
+  --mint-ink: #1a7f45;
+  --hl: #e0e3ff;
+  --focus: #5865f2;
+  --font-round: var(--font-body);
+  --font-num: var(--font-body);
+  --radius-s: 6px;
+  --radius: 10px;
+  --radius-l: 14px;
+  --shadow-s: none;
+  --shadow: 0 1px 2px rgba(6, 6, 7, .06), 0 2px 10px rgba(6, 6, 7, .04);
+  --shadow-l: 0 2px 4px rgba(6, 6, 7, .08), 0 8px 24px rgba(6, 6, 7, .08);
+  --header-h: 60px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #313338;
+    --surface: #2b2d31;
+    --surface-2: #383a40;
+    --surface-3: #404249;
+    --text: #f2f3f5;
+    --text-muted: #b5bac1;
+    --link: #00a8fc;
+    --edge: #4e5058;
+    --line: #3f4147;
+    --primary: #5865f2;
+    --primary-hover: #4752c4;
+    --on-primary: #ffffff;
+    --accent-text: #949cf7;
+    --mint-soft: #1f3b2b;
+    --mint-ink: #57d68d;
+    --hl: #3c4270;
+    --focus: #949cf7;
+    --shadow: none;
+    --shadow-l: 0 8px 24px rgba(0, 0, 0, .3);
+  }
+}
+h1, h2, h3 { font-weight: 700; letter-spacing: 0; }
+.num { font-weight: 700; }
+.site-header { background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: 0 1px 0 rgba(6, 6, 7, .04); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.logo { font-weight: 700; font-size: 1.05rem; }
+.logo-mark { color: var(--primary); }
+.nav-link, button.nav-link { font-weight: 600; font-size: .92rem; color: var(--text-muted); border-radius: 6px; }
+.nav-link:hover { background: var(--surface-2); color: var(--text); }
+.nav-link[aria-current="page"] { background: var(--surface-3); color: var(--text); box-shadow: none; }
+.menu > summary, .menu-panel { border: 1px solid var(--line); box-shadow: var(--shadow-l); }
+.menu[open] > summary { transform: none; }
+.btn { border: 1px solid transparent; box-shadow: none; font-weight: 600; letter-spacing: .02em; border-radius: 8px; }
+.btn:hover { transform: none; box-shadow: none; background: var(--primary-hover); }
+.btn:active { transform: none; box-shadow: none; }
+.btn.ghost, .btn.quiet { background: var(--surface-3); color: var(--text); border-color: transparent; }
+.btn.ghost:hover, .btn.quiet:hover { background: var(--edge); }
+.btn.lg { min-height: 52px; }
+.card, .slot, .hud, .flash, .scene-art { border: 0; box-shadow: var(--shadow); }
+.card.flat { border: 0; background: var(--surface-2); box-shadow: none; }
+.flash::before { border: 0; }
+.slot { padding: 16px 20px; gap: 10px 20px; }
+.slot-time .num { font-size: 1.25rem; font-weight: 700; }
+.price { font-weight: 700; font-size: 1.05rem; }
+.chip { font-weight: 600; }
+.badge { font-weight: 600; }
+.badge.active { border-color: transparent; }
+.page-head { padding: 28px 0 4px; }
+.page-head h1 { font-size: clamp(1.5rem, 1.3rem + .8vw, 1.9rem); margin-bottom: 8px; }
+.page-head .muted { font-size: .86rem; line-height: 1.7; }
+.flow { margin-bottom: 16px; gap: 4px 18px; }
+.flow li { padding: 0; border: 0; background: none; font-weight: 600; font-size: .82rem; gap: 6px; }
+.flow li::before { width: 20px; height: 20px; font-size: .7rem; }
+.flow li[aria-current="step"] { border: 0; box-shadow: none; color: var(--text); }
+.day-head { border-bottom: 1px solid var(--edge); font-size: 1.05rem; padding: 8px 0 6px; }
+.day-head .num { font-size: 1.1rem; font-weight: 700; }
+.tabs a[aria-current="page"] { border-color: transparent; }
+.section.tight { padding-block: 16px 48px; }
+.empty { border: 1px dashed var(--edge); background: var(--surface); }
+.experiment-bar { background: var(--primary); color: #fff; border-bottom: 0; font-size: .8rem; padding: 6px 16px; }
+.experiment-bar strong, .experiment-bar a { color: #fff; }
+.hero { background: var(--bg); border-bottom: 0; }
+.hero::before { display: none; }
+.trust li { border: 0; box-shadow: var(--shadow); }
+.trust .ic { border: 0; background: var(--hl); color: var(--primary); }
+.price-tag { border: 0; box-shadow: var(--shadow); transform: none; }
+.node .node-ic, .node.quest .node-ic, .node.pc .node-ic { background: var(--hl); color: var(--primary); border: 0; box-shadow: none; }
+.wire .tag { background: var(--surface); color: var(--text-muted); border: 1px solid var(--line); box-shadow: none; }
+.step, .safe-card, .persona li, .faq details, .ticket, .st-body, .auth-card { border: 0; box-shadow: var(--shadow); }
+.ticket::before, .ticket::after { border: 0; }
+.step:not(:last-child)::after { border-width: 2px; border-color: var(--edge); }
+.band-safe { background: var(--surface-2); border-block: 0; }
+.safe-card .ic, .eyebrow .dot { border: 0; }
+input, select, textarea { border: 1px solid var(--edge); background: var(--surface); }
+input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+.hud-bar { border-bottom: 1px solid var(--line); }
+.hero { padding: clamp(32px, 5vw, 64px) 0 clamp(16px, 2vw, 24px); }
+.need li { border: 0; box-shadow: var(--shadow); }
