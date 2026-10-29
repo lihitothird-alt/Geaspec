@@ -85,13 +85,13 @@ def load_bookings(path: Path, now: dt.datetime, *, finished: bool = False) -> li
 
 
 HOSTS_QUERY = """
-SELECT h.id, h.name, h.active, h.pending, o.discord_thread
+SELECT h.id, h.name, h.active, h.pending, o.discord_thread, o.meta_username
 FROM hosts h JOIN users o ON o.id = h.owner_id
 """
 
 
 def load_lender_hosts(path: Path) -> list[dict]:
-    """持ち主が Discord のスレッドから登録した PC。承認されたかを貸す人に知らせるのに使う。読めなければ空。"""
+    """持ち主が分かる PC (Discord のスレッドか Meta ユーザー名がある)。承認されたかを貸す人に知らせるのに使う。読めなければ空。"""
     if not path.exists():
         return []
     try:
@@ -102,8 +102,9 @@ def load_lender_hosts(path: Path) -> list[dict]:
             con.close()
     except sqlite3.Error:
         return []
-    return [{"id": hid, "name": name, "approved": bool(active) and not pending, "owner_thread": thread}
-            for hid, name, active, pending, thread in rows if thread]
+    return [{"id": hid, "name": name, "approved": bool(active) and not pending, "owner_thread": thread or "",
+             "owner_meta": meta or ""}
+            for hid, name, active, pending, thread, meta in rows if thread or meta]
 
 
 def thread_id(ref: str) -> int | None:

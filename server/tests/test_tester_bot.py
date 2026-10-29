@@ -112,9 +112,9 @@ def test_summary_marks_targets(store):
     assert summary["groups"]["A"]["sessions"] == 2
 
     text = "\n".join(summary_lines(summary))
-    assert "⚠️ つながった割合: 67%" in text
-    assert "✅ ワールドに入るまで（真ん中の値）: 3分00秒" in text
-    assert "✅ 画質・遅れの満足度: 4" in text
+    assert "△ つながった割合: 67%" in text
+    assert "○ ワールドに入るまで（真ん中の値）: 3分00秒" in text
+    assert "○ 画質・遅れの満足度: 4" in text
     assert "〜200円" in text
 
 
@@ -328,7 +328,7 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         assert t["booking_help"] == 1 and t["booked_at"] is not None
         assert sum("予約できました" in c for c, _ in ops_log) == 1
         checklist, kw = thread.sent[-1]
-        assert "テストのチェックリスト" in checklist and "✅ 1. 予約する" in checklist and "⬜ 2." in checklist
+        assert "テストのチェックリスト" in checklist and "✓ 1. 予約する" in checklist and "□ 2." in checklist
         assert custom_ids(kw["view"]) == ["gs:start"]
 
         # 準備のあとで Meta ユーザー名を直すと、VD も直すよう運営に知らせる
@@ -350,25 +350,25 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
         i = await press(tester, thread.id, "gs:start")
         assert custom_ids(i.log[0][2]["view"]) == ["gs:entered", "gs:help", "gs:giveup"]
         assert "「LG」を選ぶ" in i.log[0][1]  # サイトにつないでいないときは、設定の PC 名
-        assert "✅ 2." in thread.sent[-1][0] and "⬜ 3." in thread.sent[-1][0]
+        assert "✓ 2." in thread.sent[-1][0] and "□ 3." in thread.sent[-1][0]
         now[0] = at(3)
         await press(tester, thread.id, "gs:help")
         now[0] = at(4.5)
         i = await press(tester, thread.id, "gs:entered")
         assert "3分30秒" in i.log[0][1]
         assert "gs:done" in custom_ids(i.log[1][2]["view"])
-        assert "✅ 3." in thread.sent[-1][0] and custom_ids(thread.sent[-1][1]["view"]) == ["gs:perf"]
+        assert "✓ 3." in thread.sent[-1][0] and custom_ids(thread.sent[-1][1]["view"]) == ["gs:perf"]
 
         # 写真が撮れなかったので数字で入れる → 「4. 写真」に ✅
         i = await press(tester, thread.id, "gs:perf")
         perf = i.log[0][1]
         perf.fps_inputs, perf.ping = [Field("72"), Field("")], Field("40")
         await bot.on_perf(FakeInteraction(tester, thread.id), perf)
-        assert "✅ 4." in thread.sent[-1][0] and "送信してテストを終える」ボタンが出ます" in thread.sent[-1][0]
+        assert "✓ 4." in thread.sent[-1][0] and "送信してテストを終える」ボタンが出ます" in thread.sent[-1][0]
 
         # お願いのチェック。FPS と Ping は数字を入れずに、写真をスレッドに貼ってもらう
         i = await press(tester, thread.id, "gs:m:heavy")
-        assert i.log[0][2]["view"].children[0].label.startswith("✅")
+        assert i.log[0][2]["view"].children[0].label.startswith("✓")
         assert "gs:perf" not in custom_ids(i.log[0][2]["view"])
 
         # 遊び終わった → アンケートを全部ボタンで答える
@@ -387,7 +387,7 @@ def test_full_flow_from_apply_to_survey(tmp_path, monkeypatch):
             view = i.log[0][2]["view"]
         assert custom_ids(view) == ["gs:comment"]
         # アンケートが終わると、チェックリストに「送信」が出る
-        assert "✅ 6." in thread.sent[-1][0] and custom_ids(thread.sent[-1][1]["view"]) == ["gs:submit"]
+        assert "✓ 6." in thread.sent[-1][0] and custom_ids(thread.sent[-1][1]["view"]) == ["gs:submit"]
 
         # ひとこと (任意) は記録だけで、まだ終わらない
         i = await press(tester, thread.id, "gs:comment")
@@ -1147,7 +1147,7 @@ def test_anything_testers_write_in_their_thread_reaches_ops(tmp_path, monkeypatc
 
         msg = FakeMessage(FakeUser(1), channel, "予約ページの日付が分かりにくかったです")
         await bot.on_message(msg)
-        assert msg.reactions == ["📝"]
+        assert msg.reactions == ["✅"]
         assert "借りる人" in ops_log[-1] and "> 予約ページの日付が分かりにくかったです" in ops_log[-1]
 
         # 運営が同じスレッドに書いたもの・ほかのスレッドのものは記録しない
@@ -1224,7 +1224,7 @@ def test_long_booking_shows_the_end_date():
 
 # ---- 予約した → チェックリスト、貸す人へのお知らせ ----
 
-def make_lending_db(path, *, borrower_thread="", owner_thread="", status="confirmed", start=None, approved=True):
+def make_lending_db(path, *, borrower_thread="", owner_thread="", owner_meta="", status="confirmed", start=None, approved=True):
     """貸す人の PC (コンピューター名 GAMING-PC) に、借りる人が 1 件予約したサイトのデータベース。"""
     from sqlalchemy.orm import Session
 
@@ -1236,7 +1236,7 @@ def make_lending_db(path, *, borrower_thread="", owner_thread="", status="confir
     naive = lambda t: t.astimezone(dt.timezone.utc).replace(tzinfo=None)  # noqa: E731
     start = start or at(120)
     with Session(engine) as db:
-        owner = User(email="lender@example.com", password_hash="x", discord_thread=owner_thread)
+        owner = User(email="lender@example.com", password_hash="x", discord_thread=owner_thread, meta_username=owner_meta)
         borrower = User(email="b@example.com", password_hash="x", meta_username="other_name", discord_thread=borrower_thread)
         db.add_all([owner, borrower])
         db.flush()
@@ -1310,7 +1310,7 @@ def test_next_booking_starts_a_fresh_checklist(tmp_path, monkeypatch):
         run_session(store, 1)  # 1 回目は送信まで終わっている
         now[0] = at(60 * 24)
         await bot.begin_checklist(store.tester(1), None)
-        assert "✅ 1. 予約する" in thread.sent[-1][0] and "⬜ 2." in thread.sent[-1][0]
+        assert "✓ 1. 予約する" in thread.sent[-1][0] and "□ 2." in thread.sent[-1][0]
         assert custom_ids(thread.sent[-1][1]["view"]) == ["gs:start"]
         store.close()
 
@@ -1370,6 +1370,45 @@ def test_unapproved_pc_is_not_announced(tmp_path, monkeypatch):
         bot.site_db = tmp_path / "geaspec.db"
         make_lending_db(bot.site_db, owner_thread="555/40", approved=False)
         assert await bot.send_lender_notices() == 0 and thread.sent == []
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_own_pc_moves_on_without_approval(tmp_path, monkeypatch):
+    """運営が自分のアカウントで登録した PC (はじめから承認済み・スレッドとはつながっていない) でも、
+    Meta ユーザー名で貸す人とわかれば、「アプリを入れた」を押した時点で次に進む。"""
+    async def scenario():
+        thread = FakeThread(40)
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, [at(0)], {40: thread}, ops_log)
+        store.apply(4, "運営", vrchat="", meta="Owner_Meta", gear="", region="", schedule="", now=T0)
+        store.set_group(4, "C")
+        store.set_thread(4, 40)
+        bot.site_db = tmp_path / "geaspec.db"
+        make_lending_db(bot.site_db, owner_thread="", owner_meta="owner_meta")
+        i = FakeInteraction(FakeUser(4), 40, "gs:lenderapp")
+        await bot.on_interaction(i)
+        assert "承認を待つ必要はありません" in i.log[-1][1]
+        assert "「GAMING-PC」が承認されました" in thread.sent[-1][0]
+        assert not any("承認してください" in m for m in ops_log)
+        assert await bot.send_lender_notices() == 0  # 同じお知らせは 2 回書かない
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_approval_waits_until_the_thread_is_found(tmp_path, monkeypatch):
+    async def scenario():
+        threads = {}
+        store, bot = make_bot(tmp_path, monkeypatch, [at(0)], threads)
+        store.apply(4, "貸す人", vrchat="", meta="", gear="", region="", schedule="", now=T0)
+        store.set_thread(4, 40)
+        bot.site_db = tmp_path / "geaspec.db"
+        make_lending_db(bot.site_db, owner_thread="555/40")
+        assert await bot.send_lender_notices() == 0  # スレッドが見つからない間は、書いたことにしない
+        threads[40] = FakeThread(40)
+        assert await bot.send_lender_notices() == 1
         store.close()
 
     asyncio.run(scenario())
@@ -1494,5 +1533,5 @@ def test_summary_answers_the_five_questions_of_the_test(store):
     for head in ("① 簡単につながるか", "② 安全につながるか", "③ FPS がどれだけ上がるか", "④ 遅れが現実的な範囲か",
                  "⑤ いくらなら払うか"):
         assert head in text
-    assert "⚠️ 気になることがあった: 1回 ／ 2回" in text and "いつもの環境より（真ん中の値）: +27 FPS" in text
+    assert "△ 気になることがあった: 1回 ／ 2回" in text and "いつもの環境より（真ん中の値）: +27 FPS" in text
     assert "関東（1回）: VD の遅れ 25ms ／ Ping 40ms" in text

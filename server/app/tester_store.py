@@ -776,10 +776,10 @@ def _pct(x: float | None) -> str:
 
 
 def summary_lines(s: dict) -> list[str]:
-    """テストで調べたい 5 つごとにまとめる。目標を達成していれば ✅、まだなら ⚠️ を付ける。"""
+    """テストで調べたい 5 つごとにまとめる。目標を達成していれば ○、まだなら △ を付ける。"""
 
     def mark(ok: bool | None) -> str:
-        return "・" if ok is None else ("✅" if ok else "⚠️")
+        return "・" if ok is None else ("○" if ok else "△")
 
     def ms(v) -> str:
         return "—" if v is None else f"{v}ms"
