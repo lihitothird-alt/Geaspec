@@ -1031,8 +1031,31 @@ class TesterBot(discord.Client):
         return (self.store.tester_by_thread(tid) if tid else None) or self.store.tester_by_meta(booking.get("meta", ""))
 
     def lender_for(self, booking_or_host: dict) -> dict | None:
+        """貸す人のテスター記録。サイトに残したスレッドで探し、なければ Meta ユーザー名で探す
+        (運営が自分のアカウントで PC を登録したときは、スレッドとつながっていないことがある)。"""
         tid = booking_notice.thread_id(booking_or_host.get("owner_thread", ""))
-        return self.store.tester_by_thread(tid) if tid else None
+        return (self.store.tester_by_thread(tid) if tid else None) or self.store.tester_by_meta(booking_or_host.get("owner_meta", ""))
+
+    def ready_hosts(self, tester: dict) -> list[dict]:
+        """この貸す人の、もう貸し出せる (承認済みの) PC。運営自身の PC は登録したときから承認済み。"""
+        if self.site_db is None:
+            return []
+        return [h for h in booking_notice.load_lender_hosts(self.site_db)
+                if h["approved"] and (t := self.lender_for(h)) and t["user_id"] == tester["user_id"]]
+
+    async def announce_host_ready(self, host: dict, lender: dict) -> bool:
+        """承認されたことを、貸す人のスレッドに 1 回だけ書く。スレッドが見つからなければ、次の回にもう一度試す。"""
+        key = f"host_ok:{host['id']}"
+        if self.store.get_setting(key):
+            return False
+        thread = await self._existing_thread(lender)
+        if thread is None:
+            return False
+        self.store.set_setting(key, "1")
+        await thread.send(
+            f"<@{lender['user_id']}> PC「{host['name']}」が承認されました。貸し出せるようになりました！\n"
+            "Geaspec アプリのカレンダーで、貸せる時間のマスをクリックして「保存」してください。保存すると、予約サイトの空き枠に出ます。")
+        return True
 
     def current_session(self, tester: dict) -> dict | None:
         """チェックリストに出す今回のテスト。前のテストが送信済みで、そのあとに予約し直したら、まだ始めていない扱い。"""
@@ -1148,18 +1171,9 @@ class TesterBot(discord.Client):
             return 0
         sent = 0
         for host in booking_notice.load_lender_hosts(self.site_db):
-            key = f"host_ok:{host['id']}"
-            if not host["approved"] or self.store.get_setting(key):
-                continue
-            self.store.set_setting(key, "1")
-            lender = self.lender_for(host)
-            thread = await self._existing_thread(lender) if lender else None
-            if thread is None:
-                continue
-            await thread.send(
-                f"<@{lender['user_id']}> PC「{host['name']}」が承認されました。貸し出せるようになりました！\n"
-                "Geaspec アプリのカレンダーで、貸せる時間のマスをクリックして「保存」してください。保存すると、予約サイトの空き枠に出ます。")
-            sent += 1
+            lender = self.lender_for(host) if host["approved"] else None
+            if lender and await self.announce_host_ready(host, lender):
+                sent += 1
         # 貸し終わった予約 (ボットが止まっていた間の分も、2 日前まではさかのぼる)
         for b in booking_notice.load_bookings(self.site_db, self.clock() - dt.timedelta(days=2), finished=True):
             key = f"lent_done:{b['id']}"
@@ -1326,6 +1340,13 @@ class TesterBot(discord.Client):
             await self.notify_ops(f"<@{uid}> さんが予約で迷っています <#{interaction.channel_id}>")
         else:
             self.store.mark_lender_app(uid, self.clock())
+            ready = self.ready_hosts(tester)
+            if ready:
+                # もう承認済み (運営自身の PC など)。運営を呼ばずに、そのまま次に進める
+                await self.reply(interaction, f"PC「{ready[0]['name']}」は、もう貸し出せる状態です。承認を待つ必要はありません。")
+                for host in ready:
+                    await self.announce_host_ready(host, tester)
+                return
             # 押すたびに運営を呼ぶ (前に押したときに見落とされていても、もう一度届く)
             await self.notify_ops(f"{self.ops_role_mention()} <@{uid}> さんが貸し手のアプリを入れました。"
                                   f"管理画面で PC を承認してください: {self.site_url}/admin <#{interaction.channel_id}>")

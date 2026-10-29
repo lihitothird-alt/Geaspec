@@ -1224,7 +1224,7 @@ def test_long_booking_shows_the_end_date():
 
 # ---- 予約した → チェックリスト、貸す人へのお知らせ ----
 
-def make_lending_db(path, *, borrower_thread="", owner_thread="", status="confirmed", start=None, approved=True):
+def make_lending_db(path, *, borrower_thread="", owner_thread="", owner_meta="", status="confirmed", start=None, approved=True):
     """貸す人の PC (コンピューター名 GAMING-PC) に、借りる人が 1 件予約したサイトのデータベース。"""
     from sqlalchemy.orm import Session
 
@@ -1236,7 +1236,7 @@ def make_lending_db(path, *, borrower_thread="", owner_thread="", status="confir
     naive = lambda t: t.astimezone(dt.timezone.utc).replace(tzinfo=None)  # noqa: E731
     start = start or at(120)
     with Session(engine) as db:
-        owner = User(email="lender@example.com", password_hash="x", discord_thread=owner_thread)
+        owner = User(email="lender@example.com", password_hash="x", discord_thread=owner_thread, meta_username=owner_meta)
         borrower = User(email="b@example.com", password_hash="x", meta_username="other_name", discord_thread=borrower_thread)
         db.add_all([owner, borrower])
         db.flush()
@@ -1370,6 +1370,45 @@ def test_unapproved_pc_is_not_announced(tmp_path, monkeypatch):
         bot.site_db = tmp_path / "geaspec.db"
         make_lending_db(bot.site_db, owner_thread="555/40", approved=False)
         assert await bot.send_lender_notices() == 0 and thread.sent == []
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_own_pc_moves_on_without_approval(tmp_path, monkeypatch):
+    """運営が自分のアカウントで登録した PC (はじめから承認済み・スレッドとはつながっていない) でも、
+    Meta ユーザー名で貸す人とわかれば、「アプリを入れた」を押した時点で次に進む。"""
+    async def scenario():
+        thread = FakeThread(40)
+        ops_log = []
+        store, bot = make_bot(tmp_path, monkeypatch, [at(0)], {40: thread}, ops_log)
+        store.apply(4, "運営", vrchat="", meta="Owner_Meta", gear="", region="", schedule="", now=T0)
+        store.set_group(4, "C")
+        store.set_thread(4, 40)
+        bot.site_db = tmp_path / "geaspec.db"
+        make_lending_db(bot.site_db, owner_thread="", owner_meta="owner_meta")
+        i = FakeInteraction(FakeUser(4), 40, "gs:lenderapp")
+        await bot.on_interaction(i)
+        assert "承認を待つ必要はありません" in i.log[-1][1]
+        assert "「GAMING-PC」が承認されました" in thread.sent[-1][0]
+        assert not any("承認してください" in m for m in ops_log)
+        assert await bot.send_lender_notices() == 0  # 同じお知らせは 2 回書かない
+        store.close()
+
+    asyncio.run(scenario())
+
+
+def test_approval_waits_until_the_thread_is_found(tmp_path, monkeypatch):
+    async def scenario():
+        threads = {}
+        store, bot = make_bot(tmp_path, monkeypatch, [at(0)], threads)
+        store.apply(4, "貸す人", vrchat="", meta="", gear="", region="", schedule="", now=T0)
+        store.set_thread(4, 40)
+        bot.site_db = tmp_path / "geaspec.db"
+        make_lending_db(bot.site_db, owner_thread="555/40")
+        assert await bot.send_lender_notices() == 0  # スレッドが見つからない間は、書いたことにしない
+        threads[40] = FakeThread(40)
+        assert await bot.send_lender_notices() == 1
         store.close()
 
     asyncio.run(scenario())
