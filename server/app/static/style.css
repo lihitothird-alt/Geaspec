@@ -1200,3 +1200,121 @@ td a.badge:hover { text-decoration: underline; }
 .sched-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 8px 0 0; color: var(--text-muted); }
 .sched-legend .sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid var(--line); vertical-align: -2px; margin-right: 2px; }
 .sched-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+
+/* =====================================================================
+   Mint theme
+   灰色の面を重ねて区切る (Discord と同じ考え方) が、灰色はわずかに緑みのある冷たい灰色にして、
+   ボタンとリンクだけをハイテク機器のようなやわらかいミントにする。アイコンはモノクロ。
+   色や形はここで上書きしているので、この塊を消せば前の見た目に戻る。
+   ===================================================================== */
+:root {
+  --bg: #f3f5f5;
+  --bg-grid: transparent;
+  --surface: #ffffff;
+  --surface-2: #eaeded;
+  --surface-3: #e0e4e4;
+  --text: #2f3537;
+  --text-muted: #687073;
+  --link: #1d7a62;
+  --edge: #d1d6d7;
+  --line: #e0e4e4;
+  --shadow-c: transparent;
+  --primary: #7fd9bf;
+  --primary-hover: #6acdb0;
+  --on-primary: #103a2e;
+  --accent-text: #2a8a70;
+  --mint-soft: #dff4ed;
+  --mint-ink: #136650;
+  --hl: #d3f1e7;
+  --focus: #2a8a70;
+  --font-round: var(--font-body);
+  --font-num: var(--font-body);
+  --radius-s: 6px;
+  --radius: 10px;
+  --radius-l: 14px;
+  --shadow-s: none;
+  --shadow: 0 1px 2px rgba(10, 12, 10, .06), 0 2px 10px rgba(10, 12, 10, .04);
+  --shadow-l: 0 2px 4px rgba(10, 12, 10, .08), 0 8px 24px rgba(10, 12, 10, .08);
+  --header-h: 60px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c2021;
+    --surface: #24292a;
+    --surface-2: #2c3233;
+    --surface-3: #353b3c;
+    --text: #dde3e3;
+    --text-muted: #9aa3a4;
+    --link: #8fdfc7;
+    --edge: #434a4b;
+    --line: #2e3435;
+    --primary: #74d1b5;
+    --primary-hover: #8fdfc7;
+    --on-primary: #0f2e25;
+    --accent-text: #8fdfc7;
+    --mint-soft: #173029;
+    --mint-ink: #93e6cd;
+    --hl: #1c3a31;
+    --focus: #8fdfc7;
+    --shadow: none;
+    --shadow-l: 0 8px 24px rgba(0, 0, 0, .35);
+  }
+}
+h1, h2, h3 { font-weight: 700; letter-spacing: 0; }
+.num { font-weight: 700; }
+.site-header { background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: 0 1px 0 rgba(6, 6, 7, .04); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.logo { font-weight: 700; font-size: 1.05rem; }
+.logo-mark { color: var(--text); }
+.nav-link, button.nav-link { font-weight: 600; font-size: .92rem; color: var(--text-muted); border-radius: 6px; }
+.nav-link:hover { background: var(--surface-2); color: var(--text); }
+.nav-link[aria-current="page"] { background: var(--surface-3); color: var(--text); box-shadow: none; }
+.menu > summary, .menu-panel { border: 1px solid var(--line); box-shadow: var(--shadow-l); }
+.menu[open] > summary { transform: none; }
+.btn { border: 1px solid transparent; box-shadow: none; font-weight: 600; letter-spacing: .02em; border-radius: 8px; }
+.btn:hover { transform: none; box-shadow: none; background: var(--primary-hover); }
+.btn:active { transform: none; box-shadow: none; }
+.btn.ghost, .btn.quiet { background: var(--surface-3); color: var(--text); border-color: transparent; }
+.btn.ghost:hover, .btn.quiet:hover { background: var(--edge); }
+.btn.lg { min-height: 52px; }
+.card, .slot, .hud, .flash, .scene-art { border: 0; box-shadow: var(--shadow); }
+.card.flat { border: 0; background: var(--surface-2); box-shadow: none; }
+.flash::before { border: 0; }
+.slot { padding: 16px 20px; gap: 10px 20px; }
+.slot-time .num { font-size: 1.25rem; font-weight: 700; }
+.price { font-weight: 700; font-size: 1.05rem; }
+.chip { font-weight: 600; }
+.badge { font-weight: 600; }
+.badge.active { border-color: transparent; }
+.page-head { padding: 28px 0 4px; }
+.page-head h1 { font-size: clamp(1.5rem, 1.3rem + .8vw, 1.9rem); margin-bottom: 8px; }
+.page-head .muted { font-size: .86rem; line-height: 1.7; }
+.flow { margin-bottom: 16px; gap: 4px 18px; }
+.flow li { padding: 0; border: 0; background: none; font-weight: 600; font-size: .82rem; gap: 6px; }
+.flow li::before { width: 20px; height: 20px; font-size: .7rem; }
+.flow li[aria-current="step"] { border: 0; box-shadow: none; color: var(--text); }
+.day-head { border-bottom: 1px solid var(--edge); font-size: 1.05rem; padding: 8px 0 6px; }
+.day-head .num { font-size: 1.1rem; font-weight: 700; }
+.tabs a[aria-current="page"] { border-color: transparent; }
+.section.tight { padding-block: 16px 48px; }
+.empty { border: 1px dashed var(--edge); background: var(--surface); }
+.experiment-bar { background: var(--surface-3); color: var(--text-muted); border-bottom: 1px solid var(--line); font-size: .8rem; padding: 6px 16px; }
+.experiment-bar strong, .experiment-bar a { color: var(--text); }
+.hero { background: var(--bg); border-bottom: 0; }
+.hero::before { display: none; }
+.trust li { border: 0; box-shadow: var(--shadow); }
+.trust .ic { border: 0; background: var(--surface-2); color: var(--text); }
+.price-tag { border: 0; box-shadow: var(--shadow); transform: none; }
+.node .node-ic, .node.quest .node-ic, .node.pc .node-ic { background: var(--surface-2); color: var(--text); border: 0; box-shadow: none; }
+.wire .tag { background: var(--surface); color: var(--text-muted); border: 1px solid var(--line); box-shadow: none; }
+.step, .safe-card, .persona li, .faq details, .ticket, .st-body, .auth-card { border: 0; box-shadow: var(--shadow); }
+.ticket::before, .ticket::after { border: 0; }
+.step:not(:last-child)::after { border-width: 2px; border-color: var(--edge); }
+.band-safe { background: var(--surface-2); border-block: 0; }
+.safe-card .ic, .eyebrow .dot { border: 0; }
+input, select, textarea { border: 1px solid var(--edge); background: var(--surface); }
+input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+.hud-bar { border-bottom: 1px solid var(--line); }
+.hero { padding: clamp(32px, 5vw, 64px) 0 clamp(16px, 2vw, 24px); }
+.need li { border: 0; box-shadow: var(--shadow); }
+.need .box, .faq summary::before, .flow li::before { background: var(--surface-3); color: var(--text); border: 0; }
+.flow li:not([aria-current="step"])::before { background: var(--surface-3); color: var(--text-muted); }

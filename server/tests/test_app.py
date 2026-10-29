@@ -1288,6 +1288,8 @@ def test_guide_and_terms_are_readable_before_joining(tmp_path):
         assert f"/static/guide/{img}.webp" in page.text
         assert client.get(f"/static/guide/{img}.webp").status_code == 200
     assert client.get("/legal/terms", follow_redirects=False).status_code == 200
+    about = client.get("/about", follow_redirects=False)
+    assert about.status_code == 200 and "ギアスをかけて、スペックを上げる" in about.text
     rules = client.get("/legal/platforms", follow_redirects=False)
     assert rules.status_code == 200 and "Steam 利用契約" in rules.text and "自分のアカウント" in rules.text
     assert "/legal/platforms" in client.get("/legal/terms").text
