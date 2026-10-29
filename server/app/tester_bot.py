@@ -115,8 +115,8 @@ WIPE_CHECK_TEXT = (
 
 
 def wipe_check_view() -> discord.ui.View:
-    return make_view(button("✅ 全部消えていた", "gs:wipe:ok", discord.ButtonStyle.success),
-                     button("⚠ 残っていた", "gs:wipe:left", discord.ButtonStyle.danger))
+    return make_view(button("全部消えていた", "gs:wipe:ok", discord.ButtonStyle.success),
+                     button("残っていた", "gs:wipe:left", discord.ButtonStyle.danger))
 
 
 def vd_install_text(tester: dict) -> str:
@@ -136,7 +136,7 @@ def survey_message(answers: dict) -> tuple[str, discord.ui.View]:
         text = ("**アンケートは以上です。ありがとうございました！**\n"
                 "いちばん迷ったところや、ひとこと感想があれば「書く」から（任意）。\n"
                 "最後に、下のチェックリストの「送信してテストを終える」を押してください。")
-        return text, make_view(button("✍ 書く（任意）", "gs:comment"))
+        return text, make_view(button("書く（任意）", "gs:comment"))
     asked = TesterStore.asked_questions(answers)
     index = [q["key"] for q in asked].index(key)
     q = asked[index]
@@ -166,7 +166,7 @@ def lender_survey_message(user_id: int, answers: dict) -> tuple[str, discord.ui.
     if key is None:
         return ("**最後に（任意）**\n貸してみて気づいたこと・こうしてほしいことがあれば書いてください。\n"
                 "なければ「スキップして終わる」で完了です。",
-                make_view(button("✍ 書く", "gs:lc", discord.ButtonStyle.primary), button("スキップして終わる", "gs:ls")))
+                make_view(button("書く", "gs:lc", discord.ButtonStyle.primary), button("スキップして終わる", "gs:ls")))
     index = [q["key"] for q in LENDER_QUESTIONS].index(key)
     q = LENDER_QUESTIONS[index]
     head = (f"<@{user_id}> 貸してくれてありがとうございます！ 貸す側の感想も聞かせてください"
@@ -180,7 +180,7 @@ def lender_survey_message(user_id: int, answers: dict) -> tuple[str, discord.ui.
     return text, make_view(*[button(label, f"gs:l:{key}:{value}", row=i // 5) for i, (value, label) in enumerate(q["options"])])
 
 
-# 予約してから「送信」までを 1 つのチェックリストにまとめる。終わったものに ✅ が付き、必要なものがそろうと送信できる
+# 予約してから「送信」までを 1 つのチェックリストにまとめる。終わったものに ✓ が付き、必要なものがそろうと送信できる
 MISSION_SHORT = {"heavy": "重いワールド", "crowd": "人の多いインスタンス", "photo": "自撮り"}
 CHECK_REQUIRED = ("booked", "started", "entered", "photo", "survey")
 CHECK_LABELS = {
@@ -212,8 +212,8 @@ def checklist_state(session: dict | None, booked: bool) -> dict:
 
 
 def checklist_message(state: dict, booking_line: str = "") -> tuple[str, discord.ui.View]:
-    mark = lambda ok: "✅" if ok else "⬜"  # noqa: E731
-    lines = ["**📋 テストのチェックリスト**"]
+    mark = lambda ok: "✓" if ok else "□"  # noqa: E731
+    lines = ["**テストのチェックリスト**"]
     if booking_line:
         lines.append(booking_line)
     lines += [f"{mark(state[k])} {CHECK_LABELS[k]}" for k in ("booked", "started", "entered", "photo")]
@@ -226,21 +226,21 @@ def checklist_message(state: dict, booking_line: str = "") -> tuple[str, discord
         lines.append("\n**送信しました。テストは完了です。ありがとうございました！**")
     elif ready:
         lines.append("\nそろいました！ 下の「送信してテストを終える」を押してください（運営に届きます）。")
-        items.append(button("📤 送信してテストを終える", "gs:submit", discord.ButtonStyle.success))
+        items.append(button("送信してテストを終える", "gs:submit", discord.ButtonStyle.success))
     else:
         lines.append("\n1〜4 と 6 がそろうと、「送信してテストを終える」ボタンが出ます。")
         if not state["started"]:
             items.append(button("▶ テストを始める", "gs:start", discord.ButtonStyle.primary))
         elif not state["photo"]:
-            items.append(button("📝 数字で入力", "gs:perf"))
+            items.append(button("数字で入力", "gs:perf"))
     return "\n".join(lines), make_view(*items)
 
 
 def play_view(missions: dict) -> discord.ui.View:
-    items = [button(("✅ " if missions.get(k) else "⬜ ") + label, f"gs:m:{k}", row=0) for k, label in MISSIONS.items()]
+    items = [button(("✓ " if missions.get(k) else "□ ") + label, f"gs:m:{k}", row=0) for k, label in MISSIONS.items()]
     items += [
-        button("🆘 困った", "gs:help", discord.ButtonStyle.danger, row=1),
-        button("🏁 遊び終わった", "gs:done", discord.ButtonStyle.success, row=1),
+        button("困った", "gs:help", discord.ButtonStyle.danger, row=1),
+        button("遊び終わった", "gs:done", discord.ButtonStyle.success, row=1),
     ]
     return make_view(*items)
 
@@ -395,7 +395,7 @@ class TesterBot(discord.Client):
 
     def news_text(self, ver: str = "") -> str:
         ver = ver or version.VERSION
-        lines = [f"🆕 **Geaspec {ver}** になりました", ""]
+        lines = [f"**Geaspec {ver}** になりました", ""]
         lines += [f"・{c}" for c in version.CHANGES.get(ver, [])]
         if ver == version.VERSION:
             lines += ["", f"ダウンロード（運営・貸し手ベータ向け）: {version.RELEASE_URL}"]
@@ -606,7 +606,7 @@ class TesterBot(discord.Client):
             return
         await thread.send(f"<@{member.id}> 予約サイトに入るための、あなた専用のリンクです（{invite.LINK_DAYS}日有効・"
                           f"ほかの人には渡さないでください）\n{self.site_link(tester)}",
-                          view=make_view(button("🔗 サイトを開く", "gs:link")))
+                          view=make_view(button("サイトを開く", "gs:link")))
         await interaction.response.send_message(f"{thread.mention} にリンクを送りました。", ephemeral=True)
 
     # 権限
@@ -695,7 +695,7 @@ class TesterBot(discord.Client):
             return panel, ops_channel, ops_role
         embed = discord.Embed(title="Geaspec テスト", description=panel_text(self.hours(), self.site_url), color=0x5B3CF0)
         await panel.send(embed=embed, view=make_view(
-            button("🙋 テスターに申し込む", "gs:apply", discord.ButtonStyle.primary)))
+            button("テスターに申し込む", "gs:apply", discord.ButtonStyle.primary)))
         self.store.set_setting("panel_channel_id", str(panel.id))
         await ops_channel.send(
             f"準備ができました。{panel.mention} に申し込みボタンを置きました。\n"
@@ -908,7 +908,7 @@ class TesterBot(discord.Client):
             return
         first = self.store.mark_ready(user_id, self.clock())
         await interaction.response.edit_message(view=make_view(
-            button(f"✅ 登録済み（{interaction.user.display_name}）", "gs:noop", disabled=True)))
+            button(f"登録済み（{interaction.user.display_name}）", "gs:noop", disabled=True)))
         thread = await self._existing_thread(tester)
         if first and thread:
             await self.send_ready(thread, self.store.tester(user_id))
@@ -989,11 +989,11 @@ class TesterBot(discord.Client):
                  button("次へ ▶", f"gs:pg:{kind}:{index + 1}", discord.ButtonStyle.primary, row=0,
                         disabled=index == len(pages) - 1)]
         if kind == "lend":
-            items += [button("📥 アプリを入れた", "gs:lenderapp", discord.ButtonStyle.success, row=1),
-                      button("🔗 サイトを開く", "gs:link", row=1)]
+            items += [button("アプリを入れた", "gs:lenderapp", discord.ButtonStyle.success, row=1),
+                      button("サイトを開く", "gs:link", row=1)]
         else:
-            items += [button("🔗 サイトを開く", "gs:link", row=1),
-                      button("🆘 予約で迷った", "gs:bookhelp", discord.ButtonStyle.danger, row=1)]
+            items += [button("サイトを開く", "gs:link", row=1),
+                      button("予約で迷った", "gs:bookhelp", discord.ButtonStyle.danger, row=1)]
         return text, make_view(*items)
 
     async def on_page(self, interaction: discord.Interaction, tester: dict, args: list[str]) -> None:
@@ -1091,7 +1091,7 @@ class TesterBot(discord.Client):
         state = checklist_state(session, True)
         missing = [CHECK_LABELS[k] for k in CHECK_REQUIRED if not state[k]]
         if missing:
-            await self.reply(interaction, "まだ終わっていない項目があります。\n" + "\n".join(f"⬜ {m}" for m in missing))
+            await self.reply(interaction, "まだ終わっていない項目があります。\n" + "\n".join(f"□ {m}" for m in missing))
             return
         self.store.complete(session["id"], self.clock(), stuck=session["stuck"], comment=session["comment"])
         text, view = checklist_message(checklist_state(self.store.session(session["id"]), True),
@@ -1353,8 +1353,8 @@ class TesterBot(discord.Client):
             "　※ もし **自分ではない人のアカウントでログインされていたら**、何も触らずに「困った」を押してください（テストは中止します）\n"
             "パソコンの画面は「Geaspec で貸し出し中」の幕で隠れていますが、それで正常です。\n\n"
             "ワールドに入れたら「ワールドに入れた」を押してください。",
-            view=make_view(button("✅ ワールドに入れた", "gs:entered", discord.ButtonStyle.success),
-                           button("🆘 困った", "gs:help", discord.ButtonStyle.danger),
+            view=make_view(button("ワールドに入れた", "gs:entered", discord.ButtonStyle.success),
+                           button("困った", "gs:help", discord.ButtonStyle.danger),
                            button("つながらなかった", "gs:giveup")))
         await self.notify_ops(f"<@{tester['user_id']}> さんがテストを始めました <#{interaction.channel_id}>")
         await self.show_checklist(tester, interaction.channel)
@@ -1426,7 +1426,7 @@ class TesterBot(discord.Client):
         await interaction.response.edit_message(content="つながらなかったことを記録しました。", view=None)
         await interaction.followup.send(
             "ごめんなさい！運営から連絡します。どこで止まったか教えてもらえると、とても助かります。",
-            view=make_view(button("✍ 書く", "gs:comment", discord.ButtonStyle.primary),
+            view=make_view(button("書く", "gs:comment", discord.ButtonStyle.primary),
                            button("スキップして終わる", "gs:skip")))
         await self.notify_ops(f"<@{tester['user_id']}> さんがつながりませんでした <#{interaction.channel_id}>")
 
@@ -1440,7 +1440,7 @@ class TesterBot(discord.Client):
                     "FPS と Ping の写真がまだなら、あとでこのスレッドに貼ってください。\n\n"
                     "予約の時間がまだ残っていたら、「いま終わる」を押してください。すぐに VRChat を閉じて、"
                     "PC からあなたのログイン情報を消します（押さなくても、時間になれば自動で消えます）。",
-            view=make_view(button("⏹ いま終わる（PC を返す）", "gs:endnow", discord.ButtonStyle.danger)))
+            view=make_view(button("いま終わる（PC を返す）", "gs:endnow", discord.ButtonStyle.danger)))
         text, view = survey_message(json.loads(session["answers"]))
         await interaction.followup.send(text, view=view)
 
@@ -1652,12 +1652,12 @@ class TesterBot(discord.Client):
             saved += 1
         if saved:
             try:
-                await message.add_reaction("📸")
+                await message.add_reaction("✅")
             except discord.HTTPException:
                 pass
             tester = self.store.tester(session["user_id"])
             if not had_photo and session["status"] != "done" and tester:
-                await self.show_checklist(tester, message.channel)  # 「4. 写真」に ✅ を付ける
+                await self.show_checklist(tester, message.channel)  # 「4. 写真」に ✓ を付ける
 
 
     async def save_note(self, message: discord.Message) -> None:
@@ -1669,9 +1669,9 @@ class TesterBot(discord.Client):
         self.store.add_note(tester["user_id"], message.channel.id, text, self.clock())
         role = "貸す人" if tester.get("grp") == "C" else "借りる人"
         quoted = "\n".join("> " + line for line in text[:500].splitlines())
-        await self.notify_ops(f"💬 <@{tester['user_id']}> さん（{role}）がスレッドに書きました {message.channel.mention}\n{quoted}")
+        await self.notify_ops(f"<@{tester['user_id']}> さん（{role}）がスレッドに書きました {message.channel.mention}\n{quoted}")
         try:
-            await message.add_reaction("📝")
+            await message.add_reaction("✅")
         except discord.HTTPException:
             pass
 

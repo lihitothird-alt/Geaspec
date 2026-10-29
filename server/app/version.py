@@ -9,6 +9,7 @@ AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download
 CHANGES: dict[str, list[str]] = {
     "0.7.41": [
         "申し込みのボタンを「PC を借りて遊ぶ」「自分の PC を貸す」にしました（絵文字も外しました）",
+        "Discord のボットのボタンとお知らせから、絵文字をなくしました（チェックリストの印は ✓ と □ にしました）",
     ],
     "0.7.40": [
         "貸し手アプリ（Geaspec Agent）のアイコンを Geaspec のロゴにしました（スタートメニュー・ウィンドウ・画面右下のアイコン）",
