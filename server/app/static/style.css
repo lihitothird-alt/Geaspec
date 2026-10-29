@@ -1202,31 +1202,31 @@ td a.badge:hover { text-decoration: underline; }
 .sched-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 
 /* =====================================================================
-   GPU theme
-   灰色の面を重ねて区切る (Discord と同じ考え方) が、色は青みのない黒鉛色にして、
-   ボタンとリンクだけを、力を上げる印象のやわらかいライムグリーンにする。アイコンはモノクロ。
+   Mint theme
+   灰色の面を重ねて区切る (Discord と同じ考え方) が、灰色はわずかに緑みのある冷たい灰色にして、
+   ボタンとリンクだけをハイテク機器のようなやわらかいミントにする。アイコンはモノクロ。
    色や形はここで上書きしているので、この塊を消せば前の見た目に戻る。
    ===================================================================== */
 :root {
-  --bg: #f4f5f3;
+  --bg: #f3f5f5;
   --bg-grid: transparent;
   --surface: #ffffff;
-  --surface-2: #ebecea;
-  --surface-3: #e1e3e0;
-  --text: #33372f;
-  --text-muted: #6c716a;
-  --link: #4a7a14;
-  --edge: #d3d6d2;
-  --line: #e1e3e0;
+  --surface-2: #eaeded;
+  --surface-3: #e0e4e4;
+  --text: #2f3537;
+  --text-muted: #687073;
+  --link: #1d7a62;
+  --edge: #d1d6d7;
+  --line: #e0e4e4;
   --shadow-c: transparent;
-  --primary: #b0e070;
-  --primary-hover: #9fd65a;
-  --on-primary: #24380f;
-  --accent-text: #5c8f1c;
-  --mint-soft: #edf7de;
-  --mint-ink: #45700f;
-  --hl: #e6f6cf;
-  --focus: #5c8f1c;
+  --primary: #7fd9bf;
+  --primary-hover: #6acdb0;
+  --on-primary: #103a2e;
+  --accent-text: #2a8a70;
+  --mint-soft: #dff4ed;
+  --mint-ink: #136650;
+  --hl: #d3f1e7;
+  --focus: #2a8a70;
   --font-round: var(--font-body);
   --font-num: var(--font-body);
   --radius-s: 6px;
@@ -1239,23 +1239,23 @@ td a.badge:hover { text-decoration: underline; }
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1f211f;
-    --surface: #272927;
-    --surface-2: #2f322f;
-    --surface-3: #383b38;
-    --text: #dfe3dd;
-    --text-muted: #9ea49c;
-    --link: #bde38a;
-    --edge: #444743;
-    --line: #2f312f;
-    --primary: #a8d96c;
-    --primary-hover: #b8e283;
-    --on-primary: #1f300d;
-    --accent-text: #b8e283;
-    --mint-soft: #26341a;
-    --mint-ink: #c0e892;
-    --hl: #2e3d1d;
-    --focus: #b8e283;
+    --bg: #1c2021;
+    --surface: #24292a;
+    --surface-2: #2c3233;
+    --surface-3: #353b3c;
+    --text: #dde3e3;
+    --text-muted: #9aa3a4;
+    --link: #8fdfc7;
+    --edge: #434a4b;
+    --line: #2e3435;
+    --primary: #74d1b5;
+    --primary-hover: #8fdfc7;
+    --on-primary: #0f2e25;
+    --accent-text: #8fdfc7;
+    --mint-soft: #173029;
+    --mint-ink: #93e6cd;
+    --hl: #1c3a31;
+    --focus: #8fdfc7;
     --shadow: none;
     --shadow-l: 0 8px 24px rgba(0, 0, 0, .35);
   }
