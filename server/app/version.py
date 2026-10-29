@@ -9,6 +9,8 @@ AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download
 CHANGES: dict[str, list[str]] = {
     "0.7.42": [
         "サイトに「名前の由来」のページを足しました（いちばん下のリンクから開けます）",
+        "サイトの色を、落ち着いた灰色とミントにしました（紫と太い黒線をやめました）",
+        "貸し手アプリ（Geaspec Agent）のアイコンを丸くしました",
     ],
     "0.7.41": [
         "申し込みのボタンを「PC を借りて遊ぶ」「自分の PC を貸す」にしました（絵文字も外しました）",
