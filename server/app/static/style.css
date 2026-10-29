@@ -1204,7 +1204,7 @@ td a.badge:hover { text-decoration: underline; }
 /* =====================================================================
    GPU theme
    灰色の面を重ねて区切る (Discord と同じ考え方) が、色は青みのない黒鉛色にして、
-   ボタンとリンクだけをグラフィックボードを思わせる明るい緑にする。アイコンはモノクロ。
+   ボタンとリンクだけを、力を上げる印象のやわらかいライムグリーンにする。アイコンはモノクロ。
    色や形はここで上書きしているので、この塊を消せば前の見た目に戻る。
    ===================================================================== */
 :root {
@@ -1215,18 +1215,18 @@ td a.badge:hover { text-decoration: underline; }
   --surface-3: #e1e3e0;
   --text: #33372f;
   --text-muted: #6c716a;
-  --link: #2b8a4e;
+  --link: #4a7a14;
   --edge: #d3d6d2;
   --line: #e1e3e0;
   --shadow-c: transparent;
-  --primary: #86dca0;
-  --primary-hover: #74d191;
-  --on-primary: #1d3a26;
-  --accent-text: #3f9a60;
-  --mint-soft: #e2f7e9;
-  --mint-ink: #146b34;
-  --hl: #d8f7e2;
-  --focus: #3f9a60;
+  --primary: #b0e070;
+  --primary-hover: #9fd65a;
+  --on-primary: #24380f;
+  --accent-text: #5c8f1c;
+  --mint-soft: #edf7de;
+  --mint-ink: #45700f;
+  --hl: #e6f6cf;
+  --focus: #5c8f1c;
   --font-round: var(--font-body);
   --font-num: var(--font-body);
   --radius-s: 6px;
@@ -1245,17 +1245,17 @@ td a.badge:hover { text-decoration: underline; }
     --surface-3: #383b38;
     --text: #dfe3dd;
     --text-muted: #9ea49c;
-    --link: #8fd8a6;
+    --link: #bde38a;
     --edge: #444743;
     --line: #2f312f;
-    --primary: #7fcf98;
-    --primary-hover: #8fd8a6;
-    --on-primary: #1a3322;
-    --accent-text: #8fd8a6;
-    --mint-soft: #16301f;
-    --mint-ink: #7cf0a2;
-    --hl: #1d3d27;
-    --focus: #8fd8a6;
+    --primary: #a8d96c;
+    --primary-hover: #b8e283;
+    --on-primary: #1f300d;
+    --accent-text: #b8e283;
+    --mint-soft: #26341a;
+    --mint-ink: #c0e892;
+    --hl: #2e3d1d;
+    --focus: #b8e283;
     --shadow: none;
     --shadow-l: 0 8px 24px rgba(0, 0, 0, .35);
   }
