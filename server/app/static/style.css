@@ -1202,68 +1202,69 @@ td a.badge:hover { text-decoration: underline; }
 .sched-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 
 /* =====================================================================
-   Discord-like theme
-   Discord と同じ色づかい: 灰色の面を重ねて区切り、ボタンとリンクは Discord の青 (#5865F2)。
-   太い黒線・ずらし影はやめる。色や形はここで上書きしているので、この塊を消せば前の見た目に戻る。
+   GPU theme
+   灰色の面を重ねて区切る (Discord と同じ考え方) が、色は青みのない黒鉛色にして、
+   ボタンとリンクだけをグラフィックボードを思わせる明るい緑にする。アイコンはモノクロ。
+   色や形はここで上書きしているので、この塊を消せば前の見た目に戻る。
    ===================================================================== */
 :root {
-  --bg: #f2f3f5;
+  --bg: #f4f5f3;
   --bg-grid: transparent;
   --surface: #ffffff;
-  --surface-2: #ebedef;
-  --surface-3: #e3e5e8;
-  --text: #2e3338;
-  --text-muted: #5c5e66;
-  --link: #4752c4;
-  --edge: #d4d7dc;
-  --line: #e3e5e8;
+  --surface-2: #ebecea;
+  --surface-3: #e1e3e0;
+  --text: #33372f;
+  --text-muted: #6c716a;
+  --link: #2b8a4e;
+  --edge: #d3d6d2;
+  --line: #e1e3e0;
   --shadow-c: transparent;
-  --primary: #5865f2;
-  --primary-hover: #4752c4;
-  --on-primary: #ffffff;
-  --accent-text: #4752c4;
-  --mint-soft: #e3f6ea;
-  --mint-ink: #1a7f45;
-  --hl: #e0e3ff;
-  --focus: #5865f2;
+  --primary: #86dca0;
+  --primary-hover: #74d191;
+  --on-primary: #1d3a26;
+  --accent-text: #3f9a60;
+  --mint-soft: #e2f7e9;
+  --mint-ink: #146b34;
+  --hl: #d8f7e2;
+  --focus: #3f9a60;
   --font-round: var(--font-body);
   --font-num: var(--font-body);
   --radius-s: 6px;
   --radius: 10px;
   --radius-l: 14px;
   --shadow-s: none;
-  --shadow: 0 1px 2px rgba(6, 6, 7, .06), 0 2px 10px rgba(6, 6, 7, .04);
-  --shadow-l: 0 2px 4px rgba(6, 6, 7, .08), 0 8px 24px rgba(6, 6, 7, .08);
+  --shadow: 0 1px 2px rgba(10, 12, 10, .06), 0 2px 10px rgba(10, 12, 10, .04);
+  --shadow-l: 0 2px 4px rgba(10, 12, 10, .08), 0 8px 24px rgba(10, 12, 10, .08);
   --header-h: 60px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #313338;
-    --surface: #2b2d31;
-    --surface-2: #383a40;
-    --surface-3: #404249;
-    --text: #f2f3f5;
-    --text-muted: #b5bac1;
-    --link: #00a8fc;
-    --edge: #4e5058;
-    --line: #3f4147;
-    --primary: #5865f2;
-    --primary-hover: #4752c4;
-    --on-primary: #ffffff;
-    --accent-text: #949cf7;
-    --mint-soft: #1f3b2b;
-    --mint-ink: #57d68d;
-    --hl: #3c4270;
-    --focus: #949cf7;
+    --bg: #1f211f;
+    --surface: #272927;
+    --surface-2: #2f322f;
+    --surface-3: #383b38;
+    --text: #dfe3dd;
+    --text-muted: #9ea49c;
+    --link: #8fd8a6;
+    --edge: #444743;
+    --line: #2f312f;
+    --primary: #7fcf98;
+    --primary-hover: #8fd8a6;
+    --on-primary: #1a3322;
+    --accent-text: #8fd8a6;
+    --mint-soft: #16301f;
+    --mint-ink: #7cf0a2;
+    --hl: #1d3d27;
+    --focus: #8fd8a6;
     --shadow: none;
-    --shadow-l: 0 8px 24px rgba(0, 0, 0, .3);
+    --shadow-l: 0 8px 24px rgba(0, 0, 0, .35);
   }
 }
 h1, h2, h3 { font-weight: 700; letter-spacing: 0; }
 .num { font-weight: 700; }
 .site-header { background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: 0 1px 0 rgba(6, 6, 7, .04); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .logo { font-weight: 700; font-size: 1.05rem; }
-.logo-mark { color: var(--primary); }
+.logo-mark { color: var(--text); }
 .nav-link, button.nav-link { font-weight: 600; font-size: .92rem; color: var(--text-muted); border-radius: 6px; }
 .nav-link:hover { background: var(--surface-2); color: var(--text); }
 .nav-link[aria-current="page"] { background: var(--surface-3); color: var(--text); box-shadow: none; }
@@ -1296,14 +1297,14 @@ h1, h2, h3 { font-weight: 700; letter-spacing: 0; }
 .tabs a[aria-current="page"] { border-color: transparent; }
 .section.tight { padding-block: 16px 48px; }
 .empty { border: 1px dashed var(--edge); background: var(--surface); }
-.experiment-bar { background: var(--primary); color: #fff; border-bottom: 0; font-size: .8rem; padding: 6px 16px; }
-.experiment-bar strong, .experiment-bar a { color: #fff; }
+.experiment-bar { background: var(--surface-3); color: var(--text-muted); border-bottom: 1px solid var(--line); font-size: .8rem; padding: 6px 16px; }
+.experiment-bar strong, .experiment-bar a { color: var(--text); }
 .hero { background: var(--bg); border-bottom: 0; }
 .hero::before { display: none; }
 .trust li { border: 0; box-shadow: var(--shadow); }
-.trust .ic { border: 0; background: var(--hl); color: var(--primary); }
+.trust .ic { border: 0; background: var(--surface-2); color: var(--text); }
 .price-tag { border: 0; box-shadow: var(--shadow); transform: none; }
-.node .node-ic, .node.quest .node-ic, .node.pc .node-ic { background: var(--hl); color: var(--primary); border: 0; box-shadow: none; }
+.node .node-ic, .node.quest .node-ic, .node.pc .node-ic { background: var(--surface-2); color: var(--text); border: 0; box-shadow: none; }
 .wire .tag { background: var(--surface); color: var(--text-muted); border: 1px solid var(--line); box-shadow: none; }
 .step, .safe-card, .persona li, .faq details, .ticket, .st-body, .auth-card { border: 0; box-shadow: var(--shadow); }
 .ticket::before, .ticket::after { border: 0; }
@@ -1315,3 +1316,5 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 .hud-bar { border-bottom: 1px solid var(--line); }
 .hero { padding: clamp(32px, 5vw, 64px) 0 clamp(16px, 2vw, 24px); }
 .need li { border: 0; box-shadow: var(--shadow); }
+.need .box, .faq summary::before, .flow li::before { background: var(--surface-3); color: var(--text); border: 0; }
+.flow li:not([aria-current="step"])::before { background: var(--surface-3); color: var(--text-muted); }
