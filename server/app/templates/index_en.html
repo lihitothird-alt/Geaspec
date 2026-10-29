@@ -1,13 +1,11 @@
 {% extends "base.html" %}
-{% from "_scenes.html" import scenes %}
-{% block title %}Geaspec — That place. That look. That moment.{% endblock %}
+{% block title %}Geaspec — VRChat in PCVR, without a gaming PC{% endblock %}
 {% block content %}
 <section class="hero" aria-labelledby="hero-title">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <h1 id="hero-title"><span class="ln">That place.</span> <span class="ln">That look.</span> <span class="ln"><mark class="hl">That moment.</mark></span></h1>
-      <p class="hero-sub">The power to make them yours.</p>
-      <p class="lead">In the same VRChat world, Quest and PC players see different things. Keep your Quest and join them in PCVR, streamed from someone's idle gaming PC.</p>
+      <h1 id="hero-title"><span class="ln">No gaming PC?</span><br><span class="ln">Play VRChat in <mark class="hl">PCVR</mark> anyway.</span></h1>
+      <p class="lead">Stream VRChat to your Quest from someone's idle gaming PC — PC-only worlds and avatars, in VR, only for the time you want to play.</p>
       <div class="cta-row">
         <a class="btn lg" href="/slots">See open slots{% if slot_count %} ({{ slot_count }}){% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
       </div>
@@ -18,7 +16,17 @@
     </div>
 
     <div class="hero-visual">
-      {{ scenes("What you see in PCVR: that place, that look, that moment", "That place", "That look", "That moment") }}
+      <figure class="hud">
+        <div class="hud-link" role="img" aria-label="Your VR headset connects over the internet to a gaming PC">
+          <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>Your<br>headset</div>
+          <div class="wire"><span class="tag"><svg class="i"><use href="#i-globe"/></svg>Internet</span></div>
+          <div class="node pc"><span class="node-ic"><svg class="i"><use href="#i-pc"/></svg></span>Gaming<br>PC</div>
+        </div>
+        <dl class="hud-specs">
+          <div><dt>App</dt><dd>Virtual Desktop</dd></div>
+          <div><dt>Latency</dt><dd><span class="num">50–60</span>ms <small>in our tests</small></dd></div>
+        </dl>
+      </figure>
     </div>
   </div>
 </section>

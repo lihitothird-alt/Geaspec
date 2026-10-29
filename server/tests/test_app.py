@@ -138,7 +138,7 @@ def test_landing_page_renders(tmp_path, now):
     app, _ = make_app(tmp_path)
     r = TestClient(app).get("/")
     assert r.status_code == 200
-    assert "その瞬間" in r.text
+    assert "PC版VRChat" in r.text
 
 
 def test_slot_creation_converts_jst_to_utc(setup):
@@ -1649,7 +1649,7 @@ def test_english_top_page(tmp_path, now):
     c = TestClient(app)
     r = c.get("/en")
     assert r.status_code == 200
-    assert '<html lang="en">' in r.text and "That moment." in r.text and "Sign up" in r.text
+    assert '<html lang="en">' in r.text and "Play VRChat in <mark" in r.text and "Sign up" in r.text
     assert "geaspec.contact@gmail.com" in r.text and 'href="/"' in r.text  # 日本語へ戻るリンク
     ja = c.get("/").text
     assert '<html lang="ja">' in ja and 'href="/en"' in ja and "新規登録" in ja

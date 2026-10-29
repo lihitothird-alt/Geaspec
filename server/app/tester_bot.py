@@ -463,10 +463,9 @@ class TesterBot(discord.Client):
 
     def welcome_text(self, panel: str, question: str) -> str:
         return "\n".join([
-            "**その場所で、その姿で、その瞬間を。手に入れる力を、あなたに。**",
-            "同じワールドにいても、Quest と PC では見えている景色が違います。Geaspec は、ゲーミング PC を持つ人の"
-            "空いている時間を予約して、いつもの Quest のまま PCVR の VRChat を遊べるサービスです。"
-            "いまは無料・招待制のテスト中です。",
+            "**Geaspec へようこそ**",
+            "Geaspec は、Quest のプレイヤーとゲーミング PC をつなぐ予約サイトです。PC を持っていなくても、"
+            "VRChat を PCVR で遊べます。いまは無料・招待制のテスト中です。",
             "",
             "**遊ぶのに必要なもの**",
             "・Quest（スタンドアロンの VR ヘッドセット）",

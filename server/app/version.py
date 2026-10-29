@@ -1,16 +1,12 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.41"
+VERSION = "0.7.40"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 # 貸す人の Windows アプリ (サイトと同じ版のもの)
 AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
-    "0.7.41": [
-        "トップページの見出しを「その場所で、その姿で、その瞬間を。手に入れる力を、あなたに。」にしました",
-        "トップページの絵を、PCVR で見える「場所・姿・瞬間」の 3 枚に変えました",
-    ],
     "0.7.40": [
         "貸し手アプリ（Geaspec Agent）のアイコンを Geaspec のロゴにしました（スタートメニュー・ウィンドウ・画面右下のアイコン）",
         "Discord のボットのアイコンも Geaspec のロゴにしました",
