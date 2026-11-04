@@ -1323,3 +1323,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 .schedule-grid td.cell:has(input:checked), .cell-sample.open { background: var(--primary); border-color: var(--primary); }
 .sched-table td.cell.s-booked, .sched-legend .sw.s-booked,
 .schedule-grid td.cell.booked, .cell-sample.booked { background: var(--text); border-color: var(--text); }
+/* 予約一覧: 終わった予約はたたむ */
+.past-bookings { margin-top: 24px; }
+.past-bookings > summary { cursor: pointer; padding: 12px 4px; font-weight: 700; color: var(--text-muted); list-style-position: inside; }
+.past-bookings > summary .small { font-weight: 500; margin-left: 4px; }
+.past-bookings[open] > summary { color: var(--text); }

@@ -736,7 +736,12 @@ def create_app(
         items = db.scalars(
             select(Booking).join(Slot).where(Booking.user_id == user.id).order_by(Slot.start_at.desc())
         ).all()
-        return render(request, db, "bookings.html", bookings=items)
+        # これからの予約だけを上に出す。終わった予約はたたんでおき、支払わずに期限が切れたものは出さない
+        now = clock.utcnow()
+        live = (BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED, BookingStatus.ACTIVE)
+        upcoming = [b for b in reversed(items) if b.status in live and b.slot.end_at > now]
+        past = [b for b in items if b not in upcoming and b.status != BookingStatus.EXPIRED]
+        return render(request, db, "bookings.html", upcoming=upcoming, past=past)
 
     @app.get("/bookings/{booking_id}", response_class=HTMLResponse)
     def booking_detail(booking_id: int, request: Request, paid: int = 0, db: Session = Depends(get_db)):

@@ -4,34 +4,44 @@
 <div class="wrap">
   <header class="page-head">
     <h1>予約一覧</h1>
-    <p class="muted">予約をタップすると、接続手順と VPN キーを確認できます。</p>
+    <p class="muted">予約をタップすると、接続手順を確認できます。</p>
   </header>
 </div>
-<section class="wrap section tight" aria-label="予約">
-  {% if not bookings %}
+{% macro booking_item(b) -%}
+  {% set wd = b.slot.start_at|wday %}
+  <li>
+    <a class="slot link-card{% if b.status in ("cancelled", "expired", "completed") %} is-dim{% endif %}" href="/bookings/{{ b.id }}">
+      <div>
+        <div class="slot-time">
+          <span class="date">{{ b.slot.start_at|jst("%m/%d") }}<span class="{% if wd == '土' %}wd-sat{% elif wd == '日' %}wd-sun{% endif %}">（{{ wd }}）</span></span>
+          <span class="num">{{ b.slot.start_at|jst("%H:%M") }}〜{{ b.slot.end_at|jst("%H:%M") }}</span>
+          <span class="badge {{ b.status }}">{{ b.status_label }}</span>
+        </div>
+        <div class="slot-meta"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>{{ b.slot.host.name }}<span aria-hidden="true">・</span>予約 #{{ b.id }}</div>
+      </div>
+      <svg class="i go" aria-hidden="true"><use href="#i-arrow"/></svg>
+    </a>
+  </li>
+{%- endmacro %}
+<section class="wrap section tight" aria-label="これからの予約">
+  {% if upcoming %}
+  <ul class="slot-list bookings-list">
+    {% for b in upcoming %}{{ booking_item(b) }}{% endfor %}
+  </ul>
+  {% else %}
     <div class="empty">
       <svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg>
-      <p><strong>予約はまだありません。</strong></p>
+      <p><strong>これからの予約はありません。</strong></p>
       <p><a class="btn" href="/slots">空き枠を見る</a></p>
     </div>
   {% endif %}
-  <ul class="slot-list bookings-list">
-  {% for b in bookings %}
-    {% set wd = b.slot.start_at|wday %}
-    <li>
-      <a class="slot link-card{% if b.status in ("cancelled", "expired", "completed") %} is-dim{% endif %}" href="/bookings/{{ b.id }}">
-        <div>
-          <div class="slot-time">
-            <span class="date">{{ b.slot.start_at|jst("%m/%d") }}<span class="{% if wd == '土' %}wd-sat{% elif wd == '日' %}wd-sun{% endif %}">（{{ wd }}）</span></span>
-            <span class="num">{{ b.slot.start_at|jst("%H:%M") }}〜{{ b.slot.end_at|jst("%H:%M") }}</span>
-            <span class="badge {{ b.status }}">{{ b.status_label }}</span>
-          </div>
-          <div class="slot-meta"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>{{ b.slot.host.name }}<span aria-hidden="true">・</span>予約 #{{ b.id }}</div>
-        </div>
-        <svg class="i go" aria-hidden="true"><use href="#i-arrow"/></svg>
-      </a>
-    </li>
-  {% endfor %}
-  </ul>
+  {% if past %}
+  <details class="past-bookings">
+    <summary>終わった予約（{{ past|length }} 件）<span class="muted small">・写真の受け取りはここから</span></summary>
+    <ul class="slot-list bookings-list">
+      {% for b in past %}{{ booking_item(b) }}{% endfor %}
+    </ul>
+  </details>
+  {% endif %}
 </section>
 {% endblock %}
