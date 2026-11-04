@@ -54,7 +54,7 @@ SITE_GATE_OPEN_PREFIXES = (
     "/manifest.webmanifest", "/sw.js",
 )
 # 検索エンジンに載せるページ (だれでも見られる案内だけ。アカウントや予約、管理のページは載せない)
-INDEXABLE_PATHS = ("/", "/en", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
+INDEXABLE_PATHS = ("/", "/vrchat", "/en", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
 LEGAL_PAGES = {"tokushoho": "特定商取引法に基づく表記", "terms": "利用規約", "privacy": "プライバシーポリシー",
                "platforms": "VRChat・Steam などの規約について"}
 
@@ -257,14 +257,26 @@ def create_app(
 
     # --- 公開ページ ---------------------------------------------------------
 
-    @app.get("/", response_class=HTMLResponse)
-    def index(request: Request, ref: str = "", db: Session = Depends(get_db)):
+    def landing(request: Request, db: Session, ref: str, template: str):
         # 広告などの流入元 (例: /?ref=himari-ryokan)。登録時にユーザーへ記録する
         if ref and REF_RE.match(ref):
             request.session["ref"] = ref
         slots = services.available_slots(db, clock.utcnow(), settings.hold_minutes)
         min_price = min((s.price_yen for s in slots), default=None)
-        return render(request, db, "index.html", slot_count=len(slots), min_price=min_price)
+        # 登録されている PC の VRAM のいちばん大きいもの (承認済み・受付中だけ)
+        hosts = db.scalars(select(Host).where(Host.active.is_(True), Host.pending.is_(False))).all()
+        max_vram = max((h.vram_gb for h in hosts if h.vram_gb), default=None)
+        return render(request, db, template, slot_count=len(slots), min_price=min_price, max_vram=max_vram)
+
+    @app.get("/", response_class=HTMLResponse)
+    def index(request: Request, ref: str = "", db: Session = Depends(get_db)):
+        """Geaspec 全体のトップ (VRAM 増強)。いま使える用途は PC版VRChat。"""
+        return landing(request, db, ref, "index.html")
+
+    @app.get("/vrchat", response_class=HTMLResponse)
+    def vrchat(request: Request, ref: str = "", db: Session = Depends(get_db)):
+        """PC版VRChat を遊びたい人向けのページ (もとのトップページ)。"""
+        return landing(request, db, ref, "vrchat.html")
 
     @app.get("/download/agent")
     def download_agent():

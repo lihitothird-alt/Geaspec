@@ -1,29 +1,29 @@
 {% extends "base.html" %}
+{% block title %}{{ settings.service_name }} | ネット越しに VRAM増強{% endblock %}
+{% block description %}近くのだれかのゲーミングPCの GPU を、インターネット越しに必要な時間だけ借りて、VRAM を増強できます。いまは Quest で遊ぶ PC版VRChat に対応しています。{% endblock %}
 {% block content %}
 <section class="hero" aria-labelledby="hero-title">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <h1 id="hero-title"><span class="ln">ゲーミングPCが</span><span class="ln">なくても、</span><br><span class="ln"><mark class="hl">PC版VRChat</mark>を。</span></h1>
-      <p class="lead">Quest ひとつで、だれかのゲーミングPCに<span class="nowrap">インターネット越しに接続。</span><span class="nowrap">遊びたい時間だけ。</span></p>
+      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>ネット越しの外付け GPU</p>
+      <h1 id="hero-title"><span class="ln">手元の機材に、</span><br><span class="ln"><mark class="hl">VRAM増強</mark>を。</span></h1>
+      <p class="lead">近くのだれかのゲーミングPCの GPU を、<span class="nowrap">インターネット越しに、</span><span class="nowrap">必要な時間だけ</span>借りられます。いまは <strong>PC版VRChat</strong> に対応しています。</p>
       <div class="cta-row">
-        <a class="btn lg" href="/slots">空き枠を見る{% if slot_count %}（{{ slot_count }} 件）{% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-        {% if not free_mode and min_price %}<p class="price-tag">1枠 <span class="num">{{ min_price|yen }}</span>〜</p>{% endif %}
+        <a class="btn lg" href="/vrchat">PC版VRChat で使う<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <a class="btn lg ghost" href="#uses">使いみちを見る</a>
       </div>
-      <ul class="trust" aria-label="安心の理由">
-        <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-user"/></svg></span>自分の VRChat アカウントで</li>
-        <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-trash"/></svg></span>終わったらデータを自動で削除</li>
-      </ul>
     </div>
 
     <div class="hero-visual">
       <figure class="hud">
-        <div class="hud-link" role="img" aria-label="あなたの VR ヘッドセットから、インターネット越しにゲーミングPCに接続するイメージ">
-          <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>あなたの<br>ヘッドセット</div>
+        <div class="hud-link" role="img" aria-label="あなたの機材から、インターネット越しに、だれかのゲーミングPCの GPU を借りるイメージ">
+          <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>あなたの<br>機材</div>
           <div class="wire"><span class="tag"><svg class="i"><use href="#i-globe"/></svg>ネット</span></div>
-          <div class="node pc"><span class="node-ic"><svg class="i"><use href="#i-pc"/></svg></span>ゲーミング<br>PC</div>
+          <div class="node pc"><span class="node-ic"><svg class="i"><use href="#i-pc"/></svg></span>だれかの<br>GPU</div>
         </div>
         <dl class="hud-specs">
-          <div><dt>接続アプリ</dt><dd>Virtual Desktop</dd></div>
+          {% if max_vram %}<div><dt>VRAM</dt><dd>最大 <span class="num">{{ max_vram }}</span>GB <small>登録中の PC</small></dd></div>{% endif %}
+          <div><dt>いま使える用途</dt><dd>PC版VRChat</dd></div>
           <div><dt>遅延</dt><dd><span class="num">50〜60</span>ms <small>検証時</small></dd></div>
         </dl>
       </figure>
@@ -31,45 +31,56 @@
   </div>
 </section>
 
-<section class="section" aria-labelledby="how">
+<section class="section" aria-labelledby="uses">
   <div class="wrap">
     <div class="section-head">
-      <h2 id="how">使い方</h2>
+      <h2 id="uses">使いみち</h2>
+      <p>VRAM が足りないと、できないことがあります。借りれば、その時間だけ増やせます。</p>
+    </div>
+    <ul class="uses">
+      <li class="use-card ready">
+        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-quest"/></svg></span><span class="badge confirmed">使えます</span></div>
+        <h3>VR で遊ぶ</h3>
+        <p>PC版VRChat。Quest ひとつで、人の多いワールドや作りこまれたアバターも。</p>
+        <a class="use-link" href="/vrchat">くわしく見る<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </li>
+      <li class="use-card">
+        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span><span class="badge completed">準備中</span></div>
+        <h3>画像生成・AI</h3>
+        <p>画像生成や、手元で動かす AI に。VRAM が多いほど、大きなモデルが動きます。</p>
+      </li>
+      <li class="use-card">
+        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span><span class="badge completed">準備中</span></div>
+        <h3>3D・動画</h3>
+        <p>3D のレンダリングや、動画の書き出しに。</p>
+      </li>
+    </ul>
+    <p class="muted small uses-note">準備中の使いみちを試したい方は、<a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a> に「やりたいこと」と「ほしい VRAM の量」を送ってください。始めるときにお知らせします。</p>
+  </div>
+</section>
+
+<section class="section flush-top" aria-labelledby="why">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="why">大事なのは、GPU の速さより VRAM</h2>
+      <p>VRAM は、GPU 専用のメモリです。足りないと、VRChat ではワールドやアバターが重くなり、AI ではモデルがそもそも動きません。</p>
     </div>
     <ol class="steps three">
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg></div><h3>予約する</h3><p>空き枠を選ぶだけ。{% if free_mode %}実験中は無料です。{% endif %}</p></li>
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-play"/></svg></div><h3>つないで遊ぶ</h3><p>Virtual Desktop で PC につなぎ、<strong>自分の</strong> VRChat アカウントでログイン。</p></li>
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg></div><h3>自動で終了</h3><p>時間になると終わり、ログイン情報は自動で消えます。</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></div><h3>VRAM でえらぶ</h3><p>予約の一覧に、PC ごとの GPU と VRAM が出ます。</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-globe"/></svg></div><h3>ネット越しにつなぐ</h3><p>自分の機材から、借りた PC の GPU を使います。</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg></div><h3>終われば元どおり</h3><p>時間になると自動で終了。ログイン情報は消え、貸した PC も元に戻ります。</p></li>
     </ol>
   </div>
 </section>
 
-<section class="section flush-top" aria-labelledby="need">
+<section class="section flush-top" aria-labelledby="lend">
   <div class="wrap">
-    <div class="section-head">
-      <h2 id="need">必要なもの</h2>
-    </div>
-    <ul class="need">
-      <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>Meta Quest</strong><span>2 / 3 / 3S / Pro</span></li>
-      <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>Virtual Desktop</strong><span>Meta のストアで購入</span></li>
-      <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>VRChat アカウント</strong><span>ご自身のもの</span></li>
-    </ul>
-  </div>
-</section>
-
-<section class="section flush-top" aria-labelledby="faq">
-  <div class="wrap faq-layout">
-    <div class="section-head">
-      <h2 id="faq">よくある質問</h2>
-    </div>
-    <div class="faq">
-      <details><summary>遅延はどのくらいですか？</summary><div class="answer"><p>検証では 50〜60ms 程度でした。光回線と 5GHz 帯以上の Wi-Fi をおすすめします。</p></div></details>
-      <details><summary>データ通信量はどのくらいですか？</summary><div class="answer"><p>画質によって 1 時間あたり数十 GB になることがあります。通信量に上限のある回線ではご注意ください。</p></div></details>
-      {% if free_mode %}
-      <details><summary>お金はかかりますか？</summary><div class="answer"><p>いいえ。いまは実験中なので、すべて無料です。</p></div></details>
-      {% else %}
-      <details><summary>支払い方法は？</summary><div class="answer"><p>クレジットカードと PayPal に対応しています。</p></div></details>
-      {% endif %}
+    <div class="lend-band">
+      <div>
+        <h2 id="lend">使っていない GPU を貸す</h2>
+        <p>ゲーミングPCの空いている時間を貸し出せます。貸し出し中はキーボードとマウスを止め、終わったら自動で片づけます。</p>
+      </div>
+      <a class="btn ghost" href="/guide?for=lend">貸す人の手順</a>
     </div>
   </div>
 </section>

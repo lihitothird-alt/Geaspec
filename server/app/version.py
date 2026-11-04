@@ -1,12 +1,17 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.44"
+VERSION = "0.7.45"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 # 貸す人の Windows アプリ (サイトと同じ版のもの)
 AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.45": [
+        "トップページを「VRAM増強」の案内にしました。いま使えるのは PC版VRChat で、画像生成・AI や 3D・動画は準備中です",
+        "これまでのトップページ（PC版VRChat の案内）は「PC版VRChat」のページとして、そのまま残しています（上のメニューからも開けます）",
+        "空き枠の一覧で、PC ごとの VRAM を目立つように表示しました",
+    ],
     "0.7.44": [
         "予約一覧は、これからの予約だけを上に出すようにしました。終わった予約は「終わった予約」にたたみ、支払わずに期限が切れた予約は出しません",
     ],

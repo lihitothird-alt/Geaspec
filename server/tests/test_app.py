@@ -136,9 +136,15 @@ def db(app):
 
 def test_landing_page_renders(tmp_path, now):
     app, _ = make_app(tmp_path)
-    r = TestClient(app).get("/")
+    c = TestClient(app)
+    r = c.get("/")
     assert r.status_code == 200
-    assert "PC版VRChat" in r.text
+    # トップは VRAM 増強。いま使える用途として PC版VRChat のページへつなぐ
+    assert "VRAM増強" in r.text and 'href="/vrchat"' in r.text and "準備中" in r.text
+    # もとのトップページは /vrchat にそのまま残っている
+    v = c.get("/vrchat")
+    assert v.status_code == 200
+    assert "PC版VRChat</mark>を。" in v.text and 'href="/slots"' in v.text and "必要なもの" in v.text
 
 
 def test_slot_creation_converts_jst_to_utc(setup):
@@ -662,7 +668,7 @@ def test_site_login_rejects_open_redirect(tmp_path, now, monkeypatch):
 def test_only_public_pages_are_indexed(tmp_path, now):
     app, _ = make_app(tmp_path)
     c = TestClient(app)
-    for path in ("/", "/en", "/about", "/guide"):
+    for path in ("/", "/vrchat", "/en", "/about", "/guide"):
         r = c.get(path)
         assert "x-robots-tag" not in r.headers, path
         assert 'name="robots"' not in r.text and f'rel="canonical" href="http://localhost:8000{path}"' in r.text, path
@@ -1355,6 +1361,9 @@ def test_lender_pc_specs_are_shown_to_borrowers(tmp_path, now):
     signup(user, "user@example.com")
     line = "NVIDIA GeForce RTX 4070（12GB）・AMD Ryzen 7 7700 8-Core・メモリ 32GB"
     assert line in user.get("/slots").text
+    # VRAM は一覧で目立たせ、トップには登録中の PC でいちばん大きい VRAM を出す
+    assert '<span class="chip vram">VRAM 12GB</span>' in user.get("/slots").text
+    assert '最大 <span class="num">12</span>GB' in user.get("/").text
     assert agent.post("/api/agent/specs", json={"gpu": "x" * 500, "ram_gb": -1}).json() == {"ok": True}
     assert "x" * 100 in user.get("/slots").text and "x" * 101 not in user.get("/slots").text
 

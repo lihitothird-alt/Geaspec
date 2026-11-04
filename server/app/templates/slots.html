@@ -77,7 +77,7 @@
               {% set chain_span = (chain_ends[s.id] + (s.play_end_at - s.end_at) - now) if now_slot else (chain_ends[s.id] - s.start_at) %}
               <span class="chip chain">連続可能 最大{{ (chain_span.total_seconds() // 60)|int|minutes_text }}（〜{{ chain_ends[s.id]|jst("%H:%M") }}）</span>{% endif %}
             </div>
-            <div class="slot-meta"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>{{ s.host.name }}</div>
+            <div class="slot-meta"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>{{ s.host.name }}{% if s.host.vram_gb %}<span class="chip vram">VRAM {{ s.host.vram_gb }}GB</span>{% endif %}</div>
             {% if s.host.spec_text %}<div class="slot-meta spec-line">{{ s.host.spec_text }}</div>{% endif %}
             {% if not simple and s.host.owner_id in lenders %}{% set l = lenders[s.host.owner_id] %}
             <div class="slot-meta lender-line">

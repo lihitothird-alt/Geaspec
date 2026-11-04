@@ -1328,3 +1328,31 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 .past-bookings > summary { cursor: pointer; padding: 12px 4px; font-weight: 700; color: var(--text-muted); list-style-position: inside; }
 .past-bookings > summary .small { font-weight: 500; margin-left: 4px; }
 .past-bookings[open] > summary { color: var(--text); }
+
+/* トップ (VRAM 増強): 使いみちのカード・貸す人の帯 */
+.uses { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.use-card {
+  display: flex; flex-direction: column; gap: 8px; padding: 20px;
+  border-radius: var(--radius); background: var(--surface); border: 1.5px solid var(--line);
+}
+.use-card.ready { border-color: var(--primary); }
+.use-card:not(.ready) { background: var(--surface-2); }
+.use-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.use-ic { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--text); }
+.use-card:not(.ready) .use-ic { background: var(--surface); color: var(--text-muted); }
+.use-ic .i { width: 24px; height: 24px; }
+.use-card h3 { margin: 0; font-size: 1.15rem; }
+.use-card p { margin: 0; color: var(--text-muted); font-size: .95rem; }
+.use-link { margin-top: auto; padding-top: 6px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: var(--link); }
+.use-link .i { width: 18px; height: 18px; }
+.uses-note { margin: 16px 0 0; }
+.lend-band {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px 32px; flex-wrap: wrap;
+  padding: 24px; border-radius: var(--radius); background: var(--surface); border: 1.5px solid var(--line);
+}
+.lend-band h2 { margin: 0 0 6px; font-size: 1.3rem; }
+.lend-band p { margin: 0; color: var(--text-muted); max-width: 40em; }
+.chip.vram { background: var(--mint-soft); color: var(--mint-ink); }
+@media (max-width: 760px) {
+  .uses { grid-template-columns: 1fr; }
+}

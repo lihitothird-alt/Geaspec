@@ -63,6 +63,15 @@ class Host(Base):
     slots: Mapped[list["Slot"]] = relationship(back_populates="host")
 
     @property
+    def vram_gb(self) -> int | None:
+        """GPU 専用メモリ (VRAM) の GB。アプリが調べられなかった PC は None。"""
+        try:
+            v = json.loads(self.specs or "{}").get("vram_gb")
+        except (ValueError, AttributeError):
+            return None
+        return v if isinstance(v, int) and v > 0 else None
+
+    @property
     def spec_text(self) -> str:
         """「RTX 4070（12GB）・Ryzen 7 7700・メモリ 32GB」のような 1 行。"""
         try:
