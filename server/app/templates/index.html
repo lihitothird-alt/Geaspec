@@ -9,17 +9,35 @@
       <p class="lead">Geaspec は、だれかのパソコンの力を借りられるサービスです。<span class="nowrap">使いたいものを選んでください。</span></p>
     </div>
     <div class="hero-visual">
-      <figure class="hud multi">
-        <figcaption class="pool-cap">1 つの仕事を、何台ものパソコンで手分け</figcaption>
-        <div class="multi-you"><svg class="i" aria-hidden="true"><use href="#i-user"/></svg><span><strong>あなた</strong><small>「会議の録音をまとめて」</small></span></div>
-        <svg class="multi-lines" viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><path d="M150 0 L50 40 M150 0 L150 40 M150 0 L250 40"/></svg>
-        <ul class="multi-pcs">
-          <li><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span class="who">A さんのパソコン</span><span class="task">文字起こし</span></li>
-          <li><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span class="who">B さんのパソコン</span><span class="task">要約</span></li>
-          <li><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span class="who">C さんのパソコン</span><span class="task">見直し</span></li>
-        </ul>
-        <svg class="multi-lines" viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><path d="M50 0 L150 40 M150 0 L150 40 M250 0 L150 40"/></svg>
-        <p class="multi-result"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>確かめた議事録が届く</p>
+      <figure class="hud hflow">
+        <figcaption class="hflow-cap">1 つの仕事を、何台ものパソコンで手分け</figcaption>
+        <ol class="hflow-steps">
+          <li class="hflow-step">
+            <span class="hflow-no" aria-hidden="true">1</span>
+            <div class="hflow-body">
+              <p class="hflow-title">あなたが頼む</p>
+              <p class="hflow-ask"><svg class="i" aria-hidden="true"><use href="#i-mail"/></svg>会議の録音をまとめて</p>
+            </div>
+          </li>
+          <li class="hflow-step">
+            <span class="hflow-no" aria-hidden="true">2</span>
+            <div class="hflow-body">
+              <p class="hflow-title">3 台のパソコンが同時に作業</p>
+              <ul class="hflow-pcs">
+                <li><span class="pc-top"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span class="live" aria-hidden="true"></span></span><span class="task">文字起こし</span><span class="who">A さん</span><span class="bar" aria-hidden="true"><i style="width: 85%"></i></span></li>
+                <li><span class="pc-top"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span class="live" aria-hidden="true"></span></span><span class="task">要約</span><span class="who">B さん</span><span class="bar" aria-hidden="true"><i style="width: 60%"></i></span></li>
+                <li><span class="pc-top"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span class="live" aria-hidden="true"></span></span><span class="task">見直し</span><span class="who">C さん</span><span class="bar" aria-hidden="true"><i style="width: 40%"></i></span></li>
+              </ul>
+            </div>
+          </li>
+          <li class="hflow-step">
+            <span class="hflow-no" aria-hidden="true">3</span>
+            <div class="hflow-body">
+              <p class="hflow-title">確かめて届く</p>
+              <p class="hflow-result"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>議事録<span>確認済み</span></p>
+            </div>
+          </li>
+        </ol>
       </figure>
     </div>
   </div>

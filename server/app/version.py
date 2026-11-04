@@ -9,6 +9,7 @@ AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download
 CHANGES: dict[str, list[str]] = {
     "0.7.48": [
         "トップページを、Geaspec AI と Geaspec VR を選ぶ入口だけにしました。ゲーム開発はやめました",
+        "トップの図を、「1 あなたが頼む → 2 3 台のパソコンが同時に作業 → 3 確かめて届く」の番号つきの流れにして、見やすくしました",
         "Geaspec AI に「頼む」「依頼一覧」「貸し出し」のページを作りました（準備中）。始まったら知らせてほしい人は、メールアドレスを登録できます",
         "左上の Geaspec のマークを押すと、どのページからでもトップに戻ります。横の「AI」「VR」の印は、それぞれのサイトの入口です",
         "Geaspec VR の上のメニューを「予約」「予約一覧」「貸し出し」にしました",

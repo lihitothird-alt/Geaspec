@@ -1594,28 +1594,6 @@ a:hover { text-decoration-color: currentColor; }
 .guide-toc a:hover { background: var(--surface-2); border-left-color: var(--primary); }
 .host-cta { margin-top: 20px; }
 
-/* トップの図: 1 つの仕事を何台ものパソコンで手分けする */
-.multi { padding-bottom: 18px; }
-.multi-you {
-  display: flex; align-items: center; gap: 10px; margin: 12px auto 0; width: max-content; max-width: calc(100% - 36px);
-  padding: 10px 16px; border-radius: 999px; background: var(--surface-2);
-}
-.multi-you .i { width: 22px; height: 22px; flex: none; }
-.multi-you span { display: grid; line-height: 1.35; }
-.multi-you small { color: var(--text-muted); font-size: .82rem; }
-.multi-lines { display: block; width: calc(100% - 36px); height: 28px; margin: 4px auto; }
-.multi-lines path { fill: none; stroke: var(--primary); stroke-width: 2; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
-.multi-pcs { list-style: none; margin: 0 18px; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.multi-pcs li { display: grid; justify-items: center; gap: 4px; padding: 12px 6px; border-radius: var(--radius); background: var(--surface-2); text-align: center; }
-.multi-pcs .i { width: 30px; height: 30px; }
-.multi-pcs .who { font-size: .76rem; color: var(--text-muted); }
-.multi-pcs .task { font-weight: 700; font-size: .9rem; }
-.multi-result {
-  display: flex; align-items: center; justify-content: center; gap: 8px; margin: 4px 18px 0; padding: 12px;
-  border-radius: var(--radius); background: var(--mint-soft); color: var(--mint-ink); font-weight: 700;
-}
-.multi-result .i { width: 18px; height: 18px; }
-
 /* ロゴ (トップへ) と、横のサイトの印 (そのサイトの入口へ) */
 .logo-wrap { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
 a.logo-sub { text-decoration: none; line-height: 1.6; margin-left: 2px; }
@@ -1644,3 +1622,53 @@ a.svc:focus-visible { outline: 3px solid var(--svc); outline-offset: 3px; }
 .svc-go { margin-top: auto; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--svc-ink); }
 .svc-go .i { width: 18px; height: 18px; }
 .hero.hub { padding-bottom: clamp(24px, 4vw, 40px); }
+
+/* トップの図 (2): 番号つきの縦の流れ。1 頼む → 2 何台もが同時に作業 → 3 確かめて届く */
+.hflow { padding: 22px 22px 24px; }
+.hflow-cap { margin: 0 0 16px; font-size: .92rem; font-weight: 700; color: var(--text-muted); }
+.hflow-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+.hflow-step { position: relative; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: start; }
+.hflow-step:not(:last-child)::after {
+  content: ""; position: absolute; left: 14px; top: 34px; bottom: -16px; width: 2px;
+  background: linear-gradient(var(--primary), color-mix(in srgb, var(--primary) 30%, transparent));
+}
+.hflow-no {
+  width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--primary); color: var(--on-primary); font-weight: 800; font-size: .92rem;
+}
+.hflow-title { margin: 4px 0 10px; font-weight: 800; font-size: 1.02rem; color: var(--text); line-height: 1.4; }
+.hflow-ask {
+  display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px;
+  border-radius: var(--radius); background: var(--surface-2); color: var(--text); font-size: .95rem; font-weight: 600;
+}
+.hflow-ask .i { width: 18px; height: 18px; color: var(--text-muted); flex: none; }
+.hflow-pcs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.hflow-pcs li {
+  display: grid; justify-items: start; gap: 3px; padding: 10px 10px 12px; border-radius: var(--radius);
+  background: var(--surface); border: 1.5px solid var(--line); min-width: 0;
+}
+.hflow-pcs .i { width: 24px; height: 24px; color: var(--text); margin-bottom: 2px; }
+.hflow-pcs .task { font-weight: 800; font-size: .9rem; white-space: nowrap; }
+.hflow-pcs .who { font-size: .8rem; color: var(--text-muted); }
+.hflow-pcs .bar { width: 100%; height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; margin-top: 4px; }
+.hflow-pcs .bar i { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.hflow-result {
+  display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 14px; border-radius: var(--radius);
+  background: var(--mint-soft); color: var(--mint-ink); font-weight: 800; font-size: 1rem;
+}
+.hflow-result .i { width: 20px; height: 20px; flex: none; }
+.hflow-result span { margin-left: auto; font-size: .78rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--surface); }
+@media (max-width: 420px) {
+  .hflow { padding: 18px 16px 20px; }
+  .hflow-pcs { gap: 6px; }
+  .hflow-pcs li { padding: 9px 8px 10px; }
+  .hflow-pcs .task { font-size: .84rem; }
+}
+.hflow-pcs .pc-top { display: flex; width: 100%; align-items: center; justify-content: space-between; }
+.hflow-pcs .pc-top .i { width: 28px; height: 28px; }
+.hflow-pcs .live { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 3px var(--mint-soft); animation: pulse 1.4s ease-in-out infinite; }
+.hflow-pcs .who { white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .hflow-pcs .live { animation: none; } }
+@media (max-width: 420px) { .hflow-pcs .who { font-size: .72rem; } }
+.hflow-pcs li { overflow: hidden; }
+.hflow-pcs .task, .hflow-pcs .who { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
