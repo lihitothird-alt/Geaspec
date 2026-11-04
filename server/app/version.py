@@ -1,12 +1,17 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.50"
+VERSION = "0.7.51"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 # 貸す人の Windows アプリ (サイトと同じ版のもの)
 AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.51": [
+        "トップの図を、日本地図の上で近くのパソコンどうしが GPU を分け合う絵にしました",
+        "トップの「分け合う」の一文を「使っていない時間の GPU を、必要な人と分け合う。」にしました",
+        "ログアウトを、そのサイトの色の枠で囲んで見つけやすくしました",
+    ],
     "0.7.50": [
         "Geaspec VR のメニューを「予約する」「自分の予約」に、Geaspec AI と Studio のメニューを「頼む」「自分の依頼」に変えて、違いがわかるようにしました",
         "Geaspec VR のよくある質問から、Geaspec AI とのちがいの質問を外しました（VR を使う人には関係ないため）",
