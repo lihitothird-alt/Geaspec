@@ -354,25 +354,26 @@ class ScheduleModel:
 # 画面 (tkinter は Windows 版 Python に標準で入っている)
 # ---------------------------------------------------------------------------
 
+# サイトと同じ色: 落ち着いた灰色の面に、ミントをひとつだけ使う (文字のミントは読めるよう濃いめ)
 COLORS = {
-    "bg": "#f7f5ff",
+    "bg": "#f3f5f5",
     "card": "#ffffff",
-    "ink": "#1c1733",
-    "muted": "#554e6e",
-    "line": "#ddd6f3",
-    "primary": "#5b3cf0",
+    "ink": "#2f3537",
+    "muted": "#687073",
+    "line": "#e0e4e4",
+    "primary": "#1d7a62",
     "ok": "#13a07a",
-    "busy": "#5b3cf0",
+    "busy": "#3a7bd5",
     "warn": "#c77700",
     "bad": "#c41f4b",
     "warn_bg": "#fff3c2",
     # カレンダーのマス
     "cell_empty": "#ffffff",
-    "cell_open": "#3ee0b5",
-    "cell_booked": "#5b3cf0",
-    "cell_holding": "#ffd84a",
-    "cell_past": "#ece8f7",
-    "cell_fixed": "#d9f9ef",
+    "cell_open": "#7fd9bf",
+    "cell_booked": "#2f3537",
+    "cell_holding": "#f3d27a",
+    "cell_past": "#e6e9e9",
+    "cell_fixed": "#dff4ed",
 }
 
 
@@ -407,8 +408,8 @@ def virtual_screen(root) -> tuple[int, int, int, int]:
 
 
 COVER = {
-    "bg": "#110e21", "text": "#ece9ff", "muted": "#8a83a8", "accent": "#a996ff",
-    "primary": "#5b3cf0", "track": "#241e3d", "yellow": "#ffd84a", "mint": "#3ee0b5",
+    "bg": "#1c2021", "text": "#e6ecec", "muted": "#9aa3a4", "accent": "#8fdfc7",
+    "primary": "#7fd9bf", "track": "#2c3233", "yellow": "#f3d27a", "mint": "#7fd9bf",
 }
 ENDING_SOON_SECONDS = 5 * 60
 
@@ -432,7 +433,7 @@ def cover_content(state: str, ends_at: dt.datetime | None, total_seconds: float,
         }
     if ends_at is None:
         return {
-            "mode": "preparing", "pill": "Geaspec で貸し出し中", "pill_bg": COVER["primary"], "pill_fg": COVER["text"],
+            "mode": "preparing", "pill": "Geaspec で貸し出し中", "pill_bg": COVER["primary"], "pill_fg": COVER["bg"],
             "big": "準備しています" + "." * dots, "lines": ("まもなく始まります", ""),
             "footer": "このパソコンは利用中のため操作できません",
         }
@@ -443,7 +444,7 @@ def cover_content(state: str, ends_at: dt.datetime | None, total_seconds: float,
     return {
         "mode": "ending" if ending else "running",
         "pill": "まもなく終了します" if ending else "Geaspec で貸し出し中",
-        "pill_bg": color, "pill_fg": COVER["bg"] if ending else COVER["text"],
+        "pill_bg": color, "pill_fg": COVER["bg"],
         "countdown": countdown_text(left), "countdown_fg": COVER["yellow"] if ending else COVER["text"],
         "end_label": f"{ends_at:%H:%M} に終了", "progress": progress, "bar": color,
         "lines": ("写真の撮り忘れはありませんか？", "終わる時間になると、自動で終了します") if ending else
@@ -708,7 +709,7 @@ class AgentWindow:
             else:
                 self.bring_to_front()
             if self.home is not None:
-                self.home.schedule.load()  # 予約が入ったマスを紫にする
+                self.home.schedule.load()  # 予約が入ったマスを濃い色にする
         self.drain_logs()
         if self.closing and not self.c.running():
             self.tray.stop()
