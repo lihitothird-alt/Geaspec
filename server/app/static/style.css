@@ -1831,3 +1831,15 @@ body.theme-ai::before, body.theme-gamedev::before { display: none; }
 .jm-home .jm-stand { fill: none; stroke: var(--text); stroke-width: 2.4; stroke-linecap: round; }
 .jm-home.lend .jm-screen, .jm-home.lend .jm-tower { fill: var(--primary); stroke: var(--mint-ink); }
 .jm-home.lend .jm-stand { stroke: var(--mint-ink); }
+/* スマホの「使い方」: 丸と丸の間を同じ長さの線でつなぐ (文の長さで間がばらつかないように) */
+@media (max-width: 760px) {
+  .vr-route { gap: 0; }
+  .vr-route::before { display: none; }
+  .vr-route li { position: relative; min-height: 64px; padding-bottom: 24px; }
+  .vr-route li:not(:last-child)::after {
+    content: ""; position: absolute; left: 31px; top: 70px; bottom: 6px; width: 2px;
+    background: repeating-linear-gradient(180deg, var(--primary) 0 8px, transparent 8px 14px);
+  }
+  .vr-route li:last-child { padding-bottom: 0; }
+  .vr-route p { max-width: none; }
+}
