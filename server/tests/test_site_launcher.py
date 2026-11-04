@@ -200,6 +200,26 @@ def test_cloudflare_tunnel_is_set_up_once_with_keys_in_the_data_folder(tmp_path,
     assert "tunnel: abc-123" in config and "hostname: geaspec.com" in config and "http://localhost:8000" in config
     assert started[0][-1] == "run" and "--config" in started[0]
 
+    # Geaspec VR の住所 (vr.geaspec.com) も同じトンネルにつなぐ
+    calls.clear()
+    assert cf.route_dns(Path("cloudflared"), data, "vr.geaspec.com", run=run) is True
+    assert calls[-1][-4:] == ["dns", "--overwrite-dns", "abc-123", "vr.geaspec.com"]
+    cf.start_tunnel(Path("cloudflared"), data, "geaspec.com", 8000, popen=lambda args, **kw: object(),
+                    extra_hosts=("vr.geaspec.com",))
+    config = (data / "cloudflared" / "config.yml").read_text()
+    assert config.index("hostname: geaspec.com") < config.index("hostname: vr.geaspec.com") < config.index("http_status:404")
+
+
+def test_vr_address_follows_the_domain(tmp_path):
+    import site_launcher as s
+
+    assert s.vr_domain_for({"domain": "geaspec.com"}) == "vr.geaspec.com"
+    assert s.vr_domain_for({"domain": "geaspec.com", "vr_subdomain": ""}) == ""
+    assert s.vr_domain_for({}) == ""
+    config = {"secret_key": "k", "admin_email": "a@example.com"}
+    assert s.site_environment(config, "https://geaspec.com", tmp_path, "https://vr.geaspec.com")["VR_BASE_URL"] == "https://vr.geaspec.com"
+    assert s.site_environment(config, "https://geaspec.com", tmp_path)["VR_BASE_URL"] == ""
+
 
 def test_cloudflare_diagnosis_says_which_step_is_missing(tmp_path):
     import cloudflare_tunnel as cf
