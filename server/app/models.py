@@ -239,3 +239,17 @@ class Feedback(Base):
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
     answers: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+
+
+class WaitlistEntry(Base):
+    """準備中のサービス (Geaspec AI・ゲーム開発) が始まったら知らせてほしい人。頼む側 (guest) と貸す側 (host)。"""
+
+    __tablename__ = "waitlist"
+    __table_args__ = (UniqueConstraint("email", "service", "role"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), index=True)
+    service: Mapped[str] = mapped_column(String(20))  # "ai" | "gamedev"
+    role: Mapped[str] = mapped_column(String(10))  # "guest" (頼みたい) | "host" (パソコンを貸したい)
+    note: Mapped[str] = mapped_column(String(1000), default="")  # やりたいこと・パソコンの性能など
+    created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)

@@ -63,6 +63,25 @@ STANDARD_USER_STEPS = (
 )
 
 
+STEAM_ACCOUNT_INTRO = (
+    "借りた人は、VR の中で Steam の画面を開けてしまうことがあります（アプリがメニューを止めますが、念のため）。",
+    "ふだん使っている Steam アカウントのままでは貸さないでください。",
+)
+STEAM_ACCOUNT_STEPS = (
+    "Steam で、貸し出し専用の新しいアカウントを作る（無料）。クレジットカードやウォレットのお金は入れない",
+    "そのアカウントで VRChat だけを入れる（ほかのゲームやフレンドは入れない）",
+    "Steam ファミリーで、ふだんのアカウントを「大人」、貸し出し専用のアカウントを「子ども」にして、"
+    "ストア・コミュニティ・チャットを止め、ライブラリは VRChat だけにする",
+    "VRChat のプロパティで「ゲーム中に Steam オーバーレイを有効にする」をオフにする",
+    "この PC の Steam に、貸し出し専用のアカウントでログインする",
+)
+
+
+def nbsp(text: str) -> str:
+    """Tk は空白のところで行を折り返すので、日本語の文の中の「Steam で」などで切れないよう、空白を詰める。"""
+    return text.replace(" ", "\u00a0")
+
+
 def open_uri(uri: str) -> None:
     """steam:// などを、その PC で開く。"""
     if sys.platform == "win32":
@@ -104,7 +123,7 @@ def open_user_settings(root) -> None:
     tk.Label(body, text="貸し出し用のユーザーを作る", font=(family, 14, "bold"), fg=COLORS["ink"],
              bg=COLORS["bg"], anchor="w").pack(fill="x")
     for i, line in enumerate(STANDARD_USER_INTRO):
-        tk.Label(body, text=line, font=(family, 10, "bold" if i else "normal"),
+        tk.Label(body, text=nbsp(line), font=(family, 10, "bold" if i else "normal"),
                  fg=COLORS["bad"] if i else COLORS["muted"], bg=COLORS["bg"], anchor="w", justify="left",
                  wraplength=460).pack(fill="x", pady=(8 if i == 0 else 4, 0))
     steps = tk.Frame(body, bg=COLORS["card"], highlightbackground=COLORS["line"], highlightthickness=1)
@@ -114,7 +133,7 @@ def open_user_settings(root) -> None:
         row.pack(fill="x", padx=14, pady=(10 if n == 1 else 4, 10 if n == len(STANDARD_USER_STEPS) else 0))
         tk.Label(row, text=str(n), width=2, font=(family, 10, "bold"), fg=COLORS["on_mint"], bg=COLORS["mint"]).pack(
             side="left", anchor="n")
-        tk.Label(row, text=line, font=(family, 10), fg=COLORS["ink"], bg=COLORS["card"], anchor="w", justify="left",
+        tk.Label(row, text=nbsp(line), font=(family, 10), fg=COLORS["ink"], bg=COLORS["card"], anchor="w", justify="left",
                  wraplength=400).pack(side="left", padx=(10, 0), fill="x")
     buttons = tk.Frame(body, bg=COLORS["bg"])
     buttons.pack(fill="x", pady=(16, 0))
@@ -125,6 +144,56 @@ def open_user_settings(root) -> None:
             os.startfile("ms-settings:otherusers")  # noqa: S606 - Windows の設定画面を開くだけ
 
     ttk.Button(buttons, text="Windows の設定を開く", style="Primary.TButton", command=go).pack(side="left")
+    ttk.Button(buttons, text="閉じる", command=top.destroy).pack(side="left", padx=10)
+    place_center(top, over=root)
+    top.grab_set()
+
+
+def open_steam_account(root, controller, on_done=None) -> None:
+    """貸し出し専用の Steam アカウントの作り方を見せ、いまログインしているアカウントを貸し出し専用として記録する。"""
+    import tkinter as tk
+    from tkinter import ttk
+
+    family = pick_font_family(root)
+    account = h.steam_logged_in_account(h.steam_root())
+    top = tk.Toplevel(root)
+    top.title("貸し出し専用の Steam アカウント")
+    top.configure(bg=COLORS["bg"])
+    top.transient(root)
+    top.resizable(False, False)
+    body = tk.Frame(top, bg=COLORS["bg"])
+    body.pack(fill="both", expand=True, padx=24, pady=20)
+    tk.Label(body, text="貸し出し専用の Steam アカウント", font=(family, 14, "bold"), fg=COLORS["ink"],
+             bg=COLORS["bg"], anchor="w").pack(fill="x")
+    for i, line in enumerate(STEAM_ACCOUNT_INTRO):
+        tk.Label(body, text=nbsp(line), font=(family, 10, "bold" if i else "normal"),
+                 fg=COLORS["bad"] if i else COLORS["muted"], bg=COLORS["bg"], anchor="w", justify="left",
+                 wraplength=460).pack(fill="x", pady=(8 if i == 0 else 4, 0))
+    steps = tk.Frame(body, bg=COLORS["card"], highlightbackground=COLORS["line"], highlightthickness=1)
+    steps.pack(fill="x", pady=(14, 0))
+    for n, line in enumerate(STEAM_ACCOUNT_STEPS, 1):
+        row = tk.Frame(steps, bg=COLORS["card"])
+        row.pack(fill="x", padx=14, pady=(10 if n == 1 else 4, 10 if n == len(STEAM_ACCOUNT_STEPS) else 0))
+        tk.Label(row, text=str(n), width=2, font=(family, 10, "bold"), fg=COLORS["on_mint"], bg=COLORS["mint"]).pack(
+            side="left", anchor="n")
+        tk.Label(row, text=nbsp(line), font=(family, 10), fg=COLORS["ink"], bg=COLORS["card"], anchor="w", justify="left",
+                 wraplength=400).pack(side="left", padx=(10, 0), fill="x")
+    now = f"いま Steam にログインしているアカウント: {account}" if account else "Steam にログインしていません"
+    tk.Label(body, text=now, font=(family, 10, "bold"), fg=COLORS["ink"], bg=COLORS["bg"], anchor="w").pack(
+        fill="x", pady=(14, 0))
+    buttons = tk.Frame(body, bg=COLORS["bg"])
+    buttons.pack(fill="x", pady=(12, 0))
+
+    def confirm() -> None:
+        controller.confirm_steam_account(account)
+        top.destroy()
+        if on_done:
+            on_done()
+
+    ok = ttk.Button(buttons, text="このアカウントは貸し出し専用です", style="Primary.TButton", command=confirm)
+    ok.pack(side="left")
+    if not account:
+        ok.state(["disabled"])
     ttk.Button(buttons, text="閉じる", command=top.destroy).pack(side="left", padx=10)
     place_center(top, over=root)
     top.grab_set()
@@ -227,6 +296,15 @@ class AgentController:
         self.reload()
         return user
 
+    def confirm_steam_account(self, account: str | None) -> None:
+        """いま Steam にログインしているアカウントを、貸し出し専用として記録する。"""
+        if not account:
+            return
+        data = {**h.load_config_file(self.config_path), "lending_steam_account": account}
+        h.save_config_file(self.config_path, data)
+        self.reload()
+        self._disk_checked_at = -1e9  # すぐに確かめ直す
+
     def lending_summary(self) -> str:
         return h.lending_user_summary(self.cfg.wipe_targets)
 
@@ -302,9 +380,9 @@ class AgentController:
         if now - getattr(self, "_disk_checked_at", -1e9) >= self.DISK_CHECK_SEC:
             root = h.steam_root()
             self._disk = (self.cfg.streamer_path.is_file(), root is not None, h.is_steam_app_installed(root),
-                          h.is_admin_account())
+                          h.is_admin_account(), h.steam_logged_in_account(root))
             self._disk_checked_at = now
-        streamer_ok, steam_ok, vrchat_ok, admin = self._disk
+        streamer_ok, steam_ok, vrchat_ok, admin, steam_account = self._disk
         st = h.STATUS
         items = []
         site = "予約サイトにつながっている"
@@ -325,6 +403,19 @@ class AgentController:
         items.append((f"{label} Streamer が入っている", "ok" if streamer_ok else "ng", "この PC に入れてください"))
         items.append(("Steam が入っている", "ok" if steam_ok else "ng", "この PC に入れてください"))
         items.append(("VRChat が入っている", "ok" if vrchat_ok else "ng", "Steam で入れる"))
+        # ふだんの Steam アカウントで貸すと、借りた人が VR の中から Steam を触れてしまう
+        confirmed = self.config.get("lending_steam_account", "")
+        label = "貸し出し専用の Steam アカウントを使っている"
+        if not steam_ok:
+            items.append((label, "ng", "先に Steam を入れてください"))
+        elif not steam_account:
+            items.append((label, "ng", "Steam にログインしてください"))
+        elif not confirmed:
+            items.append((label, "ng", "確かめる（作り方）"))
+        elif confirmed.lower() != steam_account.lower():
+            items.append((label, "ng", f"いまは {steam_account} でログインしています"))
+        else:
+            items.append((label, "ok", ""))
         items.append(("貸し出し用の標準ユーザーを使っている", {False: "ok", True: "ng", None: "wait"}[admin],
                       "別に作ってください（やり方）" if admin else "確認中"))
         return items
@@ -1181,6 +1272,8 @@ class HomeView:
         "画面を幕でかくして、パソコンの中を見せません",
         "終わったら VRChat から自動でログアウトして、借りた人のデータを消します",
         "借りる人は、標準ユーザーの外（あなたのファイル）には入れません",
+        "VR の中の Steam のメニューを止めます。VRChat 以外のゲームが起動されたら閉じます",
+        "PC のスピーカーとマイクを消音し、借りた人には VRChat の音だけを届けます",
     )
 
     def __init__(self, window: AgentWindow) -> None:
@@ -1347,6 +1440,8 @@ class HomeView:
         """その行で直せるもの (押すと開く)。"""
         if label.startswith("貸し出し用の標準ユーザー"):
             return lambda: open_user_settings(self.w.root)
+        if label.startswith("貸し出し専用の Steam"):
+            return lambda: open_steam_account(self.w.root, self.w.c, self.update_status)
         if label.startswith("VRChat"):
             return lambda: open_uri("steam://store/438100")
         return None

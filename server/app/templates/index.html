@@ -1,118 +1,66 @@
 {% extends "base.html" %}
-{% block title %}{{ settings.service_name }}（ギアスペック） | みんなのパソコンで、あなただけの AI 組織を{% endblock %}
-{% block description %}やりたいことを頼むだけで、何台もの PC が手分けして AI の仕事を進め、確かめた結果だけが届きます。使っていない PC で手伝うこともできます（AI の仕事は準備中）。{% endblock %}
+{% block title %}{{ settings.service_name }}（ギアスペック） | 頼むだけで、何台ものパソコンが動き出す{% endblock %}
+{% block description %}頼むだけで、何台ものパソコンが動き出す。Geaspec は、だれかのパソコンの力を借りられるサービスです。AI の仕事（準備中）と、PC版VRChat から選べます。{% endblock %}
 {% block content %}
-<section class="hero" aria-labelledby="hero-title">
+<section class="hero hub" aria-labelledby="hero-title">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>AI に仕事を頼めるサービス</p>
-      <h1 id="hero-title"><span class="ln">みんなのパソコンで、</span><br><span class="ln">あなただけの</span><span class="ln"><mark class="hl">AI 組織</mark>を。</span></h1>
-      <p class="lead">やりたいことを頼むだけ。<span class="nowrap">何台ものパソコンが手分けして進め、</span><span class="nowrap">確かめた結果が届きます。</span></p>
-      <div class="cta-row">
-        <a class="btn lg" href="/ai">AI に頼みたい<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-        <a class="btn lg ghost" href="#host">パソコンで手伝いたい</a>
-      </div>
+      <h1 id="hero-title"><span class="ln">頼むだけで、</span><br><span class="ln">何台ものパソコンが</span><span class="ln"><mark class="hl">動き出す</mark>。</span></h1>
+      <p class="lead">Geaspec は、だれかのパソコンの力を借りられるサービスです。<span class="nowrap">使いたいものを選んでください。</span></p>
     </div>
-
     <div class="hero-visual">
-      <figure class="hud multi">
-        <figcaption class="pool-cap">1 つの仕事を、何台ものパソコンで手分け</figcaption>
-        <div class="multi-you"><svg class="i" aria-hidden="true"><use href="#i-user"/></svg><span><strong>あなた</strong><small>「会議の録音をまとめて」</small></span></div>
-        <svg class="multi-lines" viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><path d="M150 0 L50 40 M150 0 L150 40 M150 0 L250 40"/></svg>
-        <ul class="multi-pcs">
-          <li><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span class="who">A さんのパソコン</span><span class="task">文字起こし</span></li>
-          <li><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span class="who">B さんのパソコン</span><span class="task">要約</span></li>
-          <li><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span class="who">C さんのパソコン</span><span class="task">見直し</span></li>
-        </ul>
-        <svg class="multi-lines" viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><path d="M50 0 L150 40 M150 0 L150 40 M250 0 L150 40"/></svg>
-        <p class="multi-result"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>確かめた議事録が届く</p>
+      <figure class="hud hflow">
+        <figcaption class="hflow-cap">1 つの仕事を、何台ものパソコンで手分け</figcaption>
+        <ol class="hflow-steps">
+          <li class="hflow-step">
+            <span class="hflow-no" aria-hidden="true">1</span>
+            <div class="hflow-body">
+              <p class="hflow-title">あなたが頼む</p>
+              <p class="hflow-ask"><svg class="i" aria-hidden="true"><use href="#i-mail"/></svg>会議の録音をまとめて</p>
+            </div>
+          </li>
+          <li class="hflow-step">
+            <span class="hflow-no" aria-hidden="true">2</span>
+            <div class="hflow-body">
+              <p class="hflow-title">3 台のパソコンが同時に作業</p>
+              <ul class="hflow-pcs">
+                <li><span class="pc-top"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span class="live" aria-hidden="true"></span></span><span class="task">文字起こし</span><span class="who">A さん</span><span class="bar" aria-hidden="true"><i style="width: 85%"></i></span></li>
+                <li><span class="pc-top"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span class="live" aria-hidden="true"></span></span><span class="task">要約</span><span class="who">B さん</span><span class="bar" aria-hidden="true"><i style="width: 60%"></i></span></li>
+                <li><span class="pc-top"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span class="live" aria-hidden="true"></span></span><span class="task">見直し</span><span class="who">C さん</span><span class="bar" aria-hidden="true"><i style="width: 40%"></i></span></li>
+              </ul>
+            </div>
+          </li>
+          <li class="hflow-step">
+            <span class="hflow-no" aria-hidden="true">3</span>
+            <div class="hflow-body">
+              <p class="hflow-title">確かめて届く</p>
+              <p class="hflow-result"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>議事録<span>確認済み</span></p>
+            </div>
+          </li>
+        </ol>
       </figure>
     </div>
   </div>
 </section>
 
-<section class="section" aria-labelledby="why">
-  <div class="wrap">
-    <div class="section-head">
-      <h2 id="why">頼む人にとっては</h2>
-    </div>
-    <ul class="uses">
-      <li class="use-card ready">
-        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-mail"/></svg></span></div>
-        <h3>頼むだけ</h3>
-        <p>高い PC も、難しい設定もいりません。やりたいことと、ほしい結果の形を伝えるだけです。</p>
-      </li>
-      <li class="use-card ready">
-        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-pc"/></svg></span></div>
-        <h3>何台もで、同時に</h3>
-        <p>1 台では時間がかかる仕事も、何台もの PC で手分けして進めます。見直しも何度でも。</p>
-      </li>
-      <li class="use-card ready">
-        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span></div>
-        <h3>確かめてから届く</h3>
-        <p>大事な仕事は 2 台に頼んで、答えが合っているか確かめてから届けます。</p>
-      </li>
-    </ul>
-    <p class="muted small uses-note">頼んだ中身は、引き受けた人の PC から見えます。名前や住所など見られて困るものは、頼む前に消しておいてください。</p>
-  </div>
-</section>
-
 <section class="section flush-top" aria-labelledby="services">
   <div class="wrap">
-    <div class="section-head">
-      <h2 id="services">Geaspec のサービス</h2>
-      <p>用途ごとに、別のサイトに分けています。</p>
-    </div>
+    <h2 id="services" class="visually-hidden">サービスを選ぶ</h2>
     <div class="svc-list">
-      <article class="svc svc-ai" id="ai" aria-labelledby="svc-ai">
-        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span><span class="badge completed">準備中</span></div>
-        <h3 id="svc-ai">Geaspec AI</h3>
-        <p>要約・分類・文字起こしから、大きめのモデルまで。AI の仕事を何台もの PC に分けて頼み、何体もの AI で見直しを何度も回します。</p>
-        <a class="btn svc-btn" href="/ai">Geaspec AI を見る<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      </article>
-      <article class="svc svc-gamedev" id="gamedev" aria-labelledby="svc-gamedev">
-        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span><span class="badge completed">準備中</span></div>
-        <h3 id="svc-gamedev">Geaspec ゲーム開発</h3>
-        <p>ゲームの仕組みの設計、オブジェクトの生成、色の設定、軽量化の開発を、役割を分けた AI の組織に頼みます。</p>
-        <a class="btn svc-btn" href="/gamedev">ゲーム開発を見る<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      </article>
-      <article class="svc svc-vr" id="vr" aria-labelledby="svc-vr">
+      <a class="svc svc-ai svc-main" href="/ai">
+        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-robot"/></svg></span><span class="badge completed">準備中</span></div>
+        <h3>Geaspec AI</h3>
+        <p>AI の仕事を、何台ものパソコンで手分け。録音のまとめ、文章の分類、画像づくりなど。</p>
+        <span class="svc-go">Geaspec AI へ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></span>
+      </a>
+      <a class="svc svc-vr" href="{{ vr_home }}">
         <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-quest"/></svg></span><span class="badge confirmed">使えます</span></div>
-        <h3 id="svc-vr">Geaspec VR</h3>
-        <p>VR だけは別の仕組みです。Quest からホストの PC にその場でつないで、PC版VRChat を遊びます。予約は Geaspec VR のサイトで行います。</p>
-        <a class="btn svc-btn" href="{{ vr_home }}">Geaspec VR を開く<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      </article>
+        <h3>Geaspec VR</h3>
+        <p>Quest ひとつで、PC版VRChat。だれかのゲーミングPCに、遊びたい時間だけつなぎます。</p>
+        <span class="svc-go">Geaspec VR へ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></span>
+      </a>
     </div>
-  </div>
-</section>
-
-<section class="section flush-top" aria-labelledby="host">
-  <div class="wrap">
-    <div class="section-head">
-      <h2 id="host">パソコンを持っている人は</h2>
-      <p>使っていない時間のパソコンで、仕事を引き受けられます。</p>
-    </div>
-    <ul class="uses">
-      <li class="use-card ready">
-        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-clock"/></svg></span></div>
-        <h3>条件はあなたが決める</h3>
-        <p>受ける時間帯、仕事の種類、上限の時間。合う仕事だけが自動で入ります。</p>
-      </li>
-      <li class="use-card ready">
-        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-gear"/></svg></span></div>
-        <h3>やり方も自由</h3>
-        <p>使うソフトや手順は自分で選べます。入れるだけで動く標準のやり方も用意する予定です。</p>
-      </li>
-      <li class="use-card ready">
-        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-lock"/></svg></span></div>
-        <h3>パソコンは触られない</h3>
-        <p>頼んだ人があなたの PC を操作することはありません。届くのは仕事だけです。</p>
-      </li>
-    </ul>
-    <div class="cta-row host-cta">
-      <a class="btn ghost" href="/guide?for=lend">いまは Geaspec VR で PC を貸せます</a>
-    </div>
-    <p class="muted small uses-note">AI の仕事を頼むこと、引き受けることは準備中です。料金も決まっていません。始まったら知らせてほしい方は、<a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a> へ「頼みたい」か「手伝いたい」かと、やりたいことを送ってください。</p>
+    <p class="muted small uses-note">パソコンを持っている人は、それぞれのサイトの「貸し出し」から、貸す側にもなれます。</p>
   </div>
 </section>
 {% endblock %}

@@ -82,7 +82,7 @@ jobs:
           $zip = "$env:RUNNER_TEMP\python-embed.zip"
           Invoke-WebRequest "https://www.python.org/ftp/python/$env:EMBED_PYTHON/python-$env:EMBED_PYTHON-embed-amd64.zip" -OutFile $zip
           Expand-Archive $zip "$out\python"
-          python -m pip install psutil openvr pillow pystray six --only-binary=:all: --python-version 3.12 --platform win_amd64 --target "$out\lib"
+          python -m pip install psutil openvr pillow pystray six pycaw==20240210 comtypes --only-binary=:all: --python-version 3.12 --platform win_amd64 --target "$out\lib"
           Copy-Item host_agent.py, geaspec_gui.py, vr_timer.py, tray.py $out
           # 予約サイトのアドレスが決まっていれば組み込む (貸し手はログインするだけでよくなる)
           if (Test-Path server_url.txt) { Copy-Item server_url.txt $out; Write-Host "予約サイト: $(Get-Content server_url.txt)" }
@@ -119,6 +119,12 @@ jobs:
           # VR の中のタイマーの部品 (SteamVR がなくても読み込めること・文字の画像を作れること)
           & "$out\python\python.exe" -c "import sys; sys.path.insert(0, r'$out'); import openvr, vr_timer, pathlib, tempfile; p = vr_timer.render('残り 42分', vr_timer.WATCH_SIZE, pathlib.Path(tempfile.gettempdir()) / 'w.png'); print('vr timer ok', p)"
           if ($LASTEXITCODE -ne 0) { throw "VR timer import failed" }
+          # 貸し出し中に PC の音を止める部品 (pycaw) が、同梱した Python で動くか確かめる
+          & "$out\python\python.exe" -c "import sys; sys.path.insert(0, r'$out'); import comtypes, pycaw.pycaw, pycaw.constants, host_agent; print('audio parts ok')"
+          if ($LASTEXITCODE -ne 0) { throw "audio guard import failed" }
+          # 音の機器を数える (CI の PC には音の機器がないことがあるので、失敗しても止めない)
+          & "$out\python\python.exe" -c "import sys; sys.path.insert(0, r'$out'); import host_agent; print('audio endpoints', len(host_agent.PycawAudio().endpoints()))"
+          if ($LASTEXITCODE -ne 0) { Write-Warning "Audio endpoint test failed on the runner"; $global:LASTEXITCODE = 0 }
           # 画面を実際に作れるか (CI の環境によっては作れないので失敗しても止めない)
           & "$out\python\python.exe" -c "import tkinter; r = tkinter.Tk(); r.update(); r.destroy(); print('tk window ok')"
           if ($LASTEXITCODE -ne 0) { Write-Warning "Tk window test failed on the runner"; $global:LASTEXITCODE = 0 }

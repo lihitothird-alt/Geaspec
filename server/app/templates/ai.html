@@ -1,77 +1,48 @@
 {% extends "base.html" %}
-{% block title %}AI | {{ settings.service_name }}（ギアスペック）{% endblock %}
-{% block description %}AI の仕事を、何台ものホストの PC に分けて頼めます。VRAM に合わせて仕事を振り分け、検証役が結果を確かめます（準備中）。{% endblock %}
+{% from "_waitlist.html" import waitlist_form %}
+{% block title %}Geaspec AI | AI の仕事を、何台ものパソコンで手分け{% endblock %}
+{% block description %}やりたいことを頼むだけで、何台ものパソコンが手分けして AI の仕事を進め、確かめた結果が届きます（準備中）。{% endblock %}
 {% block content %}
 <div class="wrap">
   <header class="page-head big">
     <p class="eyebrow"><span class="dot" aria-hidden="true"></span>準備中</p>
-    <h1>AI の仕事を、何台もの PC で</h1>
-    <p class="muted">何体もの AI に役割を分けて、見直しを何度もくり返す。この使い方は、AI を動かす回数が多くなります。Geaspec では、その仕事を何台ものホストの PC に分けて頼めます。</p>
+    <h1>AI の仕事を、何台ものパソコンで手分け</h1>
+    <p class="muted">やりたいことを頼むだけ。何台ものパソコンが手分けして進め、確かめた結果が届きます。</p>
   </header>
 </div>
 
-<section class="wrap section tight" aria-labelledby="tiers">
-  <div class="section-head">
-    <h2 id="tiers">VRAM に合わせて振り分ける</h2>
-    <p>司令塔が、仕事の重さに合わせて、向いている PC に配ります。</p>
-  </div>
-  <ul class="tier-list">
-    {% for name, lo, hi, use in tiers %}<li><strong>{{ name }}</strong><span>{{ use }}</span></li>{% endfor %}
-  </ul>
-  <p class="muted small uses-note">VRAM は、何台分を合わせても 1 つの大きなメモリにはなりません。台数が増えると、同時に動ける AI の数と、それぞれが扱える文章の長さが増えます。</p>
-</section>
-
-<section class="wrap section flush-top" aria-labelledby="how">
-  <div class="section-head">
-    <h2 id="how">何を決めて、どう頼むか</h2>
-  </div>
+<section class="wrap section tight" aria-labelledby="examples">
+  <h2 id="examples" class="sub-head">たとえば、こんなこと</h2>
   <ul class="uses">
-    <li class="use-card ready">
-      <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-mail"/></svg></span></div>
-      <h3>ゲストが決めること</h3>
-      <p>仕事の中身、渡すデータ、返してほしい結果の形（例：「この文章を 300 字に要約して、この形式で返す」）。</p>
-    </li>
-    <li class="use-card ready">
-      <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-pc"/></svg></span></div>
-      <h3>ホストが決めること</h3>
-      <p>受ける仕事の条件と、やり方。使うモデルやソフト、手順は、自分の PC に合ったものでかまいません。</p>
-    </li>
-    <li class="use-card ready">
-      <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-gear"/></svg></span></div>
-      <h3>Geaspec が用意すること</h3>
-      <p>仕事の振り分けと検証。設定したくないホスト向けの、入れるだけで動く標準のやり方。</p>
-    </li>
+    <li class="use-card ready"><div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-mail"/></svg></span></div>
+      <h3>録音をまとめる</h3><p>会議や授業の録音を、文字に起こして要点をまとめます。</p></li>
+    <li class="use-card ready"><div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-list"/></svg></span></div>
+      <h3>たくさんの文章を分ける</h3><p>アンケートの答えやお問い合わせを、内容ごとに分けて数えます。</p></li>
+    <li class="use-card ready"><div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span></div>
+      <h3>画像をたくさん作る</h3><p>何台ものパソコンで、同時にたくさんの画像を作ります。</p></li>
   </ul>
 </section>
 
-<section class="wrap section flush-top" aria-labelledby="check">
-  <div class="lend-band">
-    <div>
-      <h2 id="check">結果は、検証役が確かめる</h2>
-      <p>やり方はホストごとにちがうので、結果は検証役がチェックします。大事な仕事は 2 台に頼んで、答えが一致するかを確かめます。結果の形を細かく決めておくほど、チェックを自動にできます。</p>
-    </div>
-  </div>
+<section class="wrap section flush-top" aria-labelledby="flow">
+  <h2 id="flow" class="sub-head">使い方</h2>
+  <ol class="steps three">
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></div><h3>やりたいことを選ぶ</h3><p>ほしい結果の形（文字・表・画像など）も選びます。</p></li>
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-mail"/></svg></div><h3>ファイルを渡す</h3><p>見られて困るもの（名前・住所など）は、渡す前に消してください。</p></li>
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></div><h3>結果が届く</h3><p>何台ものパソコンが手分けして進め、確かめた結果が届きます。</p></li>
+  </ol>
 </section>
 
-<section class="wrap section flush-top" aria-labelledby="privacy">
-  <div class="section-head">
-    <h2 id="privacy">手元に残すもの、外に出すもの</h2>
-    <p>ホストに渡した仕事の中身は、ホストから見える前提で扱います。</p>
-  </div>
-  <div class="split-list">
-    <div class="use-card">
-      <h3>ゲストの手元で行う</h3>
-      <p>名前・住所・連絡先などの個人情報や、社外秘の情報を含む処理。</p>
+<section class="wrap section flush-top" aria-label="登録">
+  {{ waitlist_form("ai", "guest", user, "/ai", "やりたいこと", "例：毎週の会議の録音をまとめたい") }}
+  <details class="more">
+    <summary>くわしいしくみ</summary>
+    <div class="more-body">
+      <p>まとめ役が仕事を小さく分けて、それぞれのパソコンに配ります。大事な仕事は 2 台に頼んで、答えが合っているか確かめてから届けます。</p>
+      <ul class="tier-list">
+        {% for name, lo, hi, use in tiers %}<li><strong>{{ name }}</strong><span>{{ use }}</span></li>{% endfor %}
+      </ul>
+      <p class="muted small">VRAM（パソコンの GPU のメモリ）は、何台分を合わせても 1 つの大きなメモリにはなりません。台数が増えると、同時に動ける AI の数と、それぞれが扱える文章の長さが増えます。</p>
     </div>
-    <div class="use-card ready">
-      <h3>ホストに頼める</h3>
-      <p>公開されている情報の要約、名前などを消した文章の分類、テスト用のデータなど、切り分けられる部分。</p>
-    </div>
-  </div>
-</section>
-
-<section class="wrap section flush-top" aria-labelledby="status">
-  <h2 id="status" class="visually-hidden">いまの状況</h2>
-  <div class="notice"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg><p>AI の仕事の依頼は準備中で、料金も決まっていません。ホストは Windows のゲーミング PC のほか、Mac にも対応する予定です。関心のある方は <a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a> へ、ゲストかホストか、やりたいことを書いて送ってください。</p></div>
+  </details>
 </section>
 {% endblock %}

@@ -4,3 +4,6 @@ openvr>=2.0
 Pillow>=10.1
 # 画面右下 (通知領域) のアイコン
 pystray>=0.19
+# 貸し出し中の音: PC のスピーカーとマイクを消音し、VRChat 以外のアプリの音を止める (Windows の音の設定を変える部品)
+pycaw==20240210; sys_platform == "win32"
+comtypes>=1.2; sys_platform == "win32"

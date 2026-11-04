@@ -57,7 +57,7 @@ else:  # テスト・dry-run 用に Windows 以外でも import できるよう�
     winreg = None  # type: ignore[assignment]
 
 AGENT_NAME = "GeaspecAgent"
-AGENT_VERSION = "0.7.47"
+AGENT_VERSION = "0.7.48"
 log = logging.getLogger(AGENT_NAME)
 
 # ---------------------------------------------------------------------------
@@ -564,6 +564,309 @@ def is_steam_app_installed(root: Path | None, app_id: int = VRCHAT_APP_ID) -> bo
     return any((d / "steamapps" / f"appmanifest_{app_id}.acf").is_file() for d in steam_library_dirs(root))
 
 
+# 貸し出し中に、VR の中から Steam (ストア・ライブラリ・フレンド) を触られないようにする。
+# SteamVR のメニュー (ダッシュボード) は VR のコントローラーで開くので、キーボードとマウスを止めても防げない。
+# 貸し出しの間だけ steamvr.vrsettings を書き換えてメニューを止め、終わったら元の値に戻す。
+STEAMVR_LOCK_SETTINGS = (
+    ("dashboard", "enableDashboard", False),  # システムボタンでメニューを開かない
+    ("dashboard", "arcadeMode", True),  # メニューが出ても、ライブラリ・ストア・デスクトップを出さない
+    ("steamvr", "enableHomeApp", False),  # SteamVR Home (ストアに行ける部屋) を出さない
+    ("steamvr", "startDashboardFromAppLaunch", False),
+    ("notifications", "DoNotDisturb", True),  # Steam の通知 (フレンドなど) を VR の中に出さない
+)
+_NOT_SET = "__geaspec_not_set__"
+# Steam のゲームのフォルダ (steamapps/common の下) のうち、貸し出し中に動いてよいもの
+ALLOWED_STEAM_APP_DIRS = ("vrchat", "steamvr", "steamworks shared")
+
+
+def steamvr_settings_path(root: Path) -> Path:
+    return root / "config" / "steamvr.vrsettings"
+
+
+def _read_json_file(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8-sig") or "{}")
+    if not isinstance(data, dict):
+        raise ValueError(f"{path.name} の形がおかしいです")
+    return data
+
+
+def _write_json_file(path: Path, data: dict) -> None:
+    """途中で止まっても壊れないよう、別の名前に書いてから置き換える。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".geaspec-tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=3), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+class SteamVRLock:
+    """貸し出しの間だけ SteamVR のメニューを止める。元の値はアプリのフォルダに残し、終わったら戻す。
+
+    アプリが途中で落ちても、次の前処理 (prepare_session) で戻す。
+    """
+
+    def __init__(self, home: Path, root_finder: Callable[[], Path | None] = steam_root) -> None:
+        self.backup = home / "steamvr_backup.json"
+        self.root_finder = root_finder
+
+    def _path(self) -> Path | None:
+        root = self.root_finder()
+        return steamvr_settings_path(root) if root else None
+
+    def apply(self) -> list[str]:
+        path = self._path()
+        if path is None:
+            return ["Steam が見つからないため、SteamVR のメニューを止められませんでした"]
+        try:
+            data = _read_json_file(path)
+            if not self.backup.exists():
+                saved = {}
+                for section, key, _ in STEAMVR_LOCK_SETTINGS:
+                    sec = data.get(section)
+                    saved[f"{section}.{key}"] = sec.get(key, _NOT_SET) if isinstance(sec, dict) else _NOT_SET
+                _write_json_file(self.backup, {"path": str(path), "values": saved})
+            for section, key, value in STEAMVR_LOCK_SETTINGS:
+                if not isinstance(data.get(section), dict):
+                    data[section] = {}
+                data[section][key] = value
+            _write_json_file(path, data)
+        except (OSError, ValueError) as exc:
+            return [f"SteamVR のメニューを止められませんでした: {exc}"]
+        log.info("SteamVR のメニュー (ダッシュボード) を止めました: %s", path)
+        return []
+
+    def is_applied(self) -> bool:
+        path = self._path()
+        try:
+            data = _read_json_file(path) if path else {}
+        except (OSError, ValueError):
+            return False
+        return all(isinstance(data.get(s), dict) and data[s].get(k) == v for s, k, v in STEAMVR_LOCK_SETTINGS)
+
+    def restore(self) -> list[str]:
+        if not self.backup.exists():
+            return []
+        try:
+            saved = _read_json_file(self.backup)
+            path = Path(saved["path"])
+            data = _read_json_file(path)
+            for name, old in saved.get("values", {}).items():
+                section, key = name.split(".", 1)
+                sec = data.get(section)
+                if not isinstance(sec, dict):
+                    sec = data[section] = {}
+                if old == _NOT_SET:
+                    sec.pop(key, None)
+                else:
+                    sec[key] = old
+                if not sec:
+                    data.pop(section, None)
+            _write_json_file(path, data)
+            self.backup.unlink()
+        except (OSError, ValueError, KeyError) as exc:
+            return [f"SteamVR のメニューの設定を元に戻せませんでした: {exc}"]
+        log.info("SteamVR のメニューの設定を元に戻しました")
+        return []
+
+
+# 貸し出し中の音: ヘッドセットに送るのは VRChat の音だけにする。
+# Virtual Desktop は、この PC で鳴っている音をまとめてヘッドセットに送るので、ほかのアプリの音も聞こえてしまう。
+# また、VD の接続が切れると VRChat の音が PC のスピーカーに戻り、貸し手の部屋で鳴ってしまう。
+# そこで、貸し出しの間は「VD の音の出入り口」以外 (PC のスピーカー・イヤホン・マイク) を消音し、
+# VRChat・VD・SteamVR 以外のアプリの音も止める。終わったら元に戻す。
+VD_AUDIO_NAMES = ("virtual desktop",)
+AUDIO_ALLOWED_PROCESSES = frozenset({
+    "vrchat.exe", "start_protected_game.exe", "virtualdesktop.streamer.exe", "virtualdesktop.service.exe",
+    "vrserver.exe", "vrcompositor.exe", "vrmonitor.exe",
+})
+
+
+@dataclass
+class AudioEndpoint:
+    id: str
+    name: str
+
+
+@dataclass
+class AudioSessionInfo:
+    key: str
+    pid: int
+    name: str
+
+
+class PycawAudio:
+    """Windows の音の設定を、pycaw (Windows Core Audio) で読み書きする。"""
+
+    def __init__(self) -> None:
+        import comtypes  # noqa: F401 - Windows だけにある
+        from pycaw.pycaw import AudioUtilities
+
+        self.utils = AudioUtilities
+        self._devices: dict = {}
+        self._sessions: dict = {}
+
+    @staticmethod
+    def _com() -> None:
+        # 画面とは別のスレッドから呼ぶので、そのスレッドで COM を使えるようにする
+        import comtypes
+
+        try:
+            comtypes.CoInitialize()
+        except OSError:
+            pass
+
+    def endpoints(self) -> list[AudioEndpoint]:
+        from pycaw.constants import AudioDeviceState
+
+        self._com()
+        self._devices = {}
+        found = []
+        for dev in self.utils.GetAllDevices():
+            if dev.state != AudioDeviceState.Active:
+                continue
+            self._devices[dev.id] = dev
+            found.append(AudioEndpoint(str(dev.id), str(dev.FriendlyName or "")))
+        return found
+
+    def get_mute(self, endpoint_id: str) -> bool:
+        return bool(self._devices[endpoint_id].EndpointVolume.GetMute())
+
+    def set_mute(self, endpoint_id: str, mute: bool) -> None:
+        self._devices[endpoint_id].EndpointVolume.SetMute(int(mute), None)
+
+    def sessions(self) -> list[AudioSessionInfo]:
+        self._com()
+        self._sessions = {}
+        found = []
+        for i, session in enumerate(self.utils.GetAllSessions()):
+            pid = int(session.ProcessId or 0)
+            try:
+                name = session.Process.name() if session.Process else ""
+            except psutil.Error:
+                name = ""
+            key = f"{pid}:{i}"
+            self._sessions[key] = session
+            found.append(AudioSessionInfo(key, pid, name))
+        return found
+
+    def set_session_mute(self, key: str, mute: bool) -> None:
+        self._sessions[key].SimpleAudioVolume.SetMute(int(mute), None)
+
+
+class AudioGuard:
+    """貸し出しの間、ヘッドセットに VRChat の音だけが届き、PC のスピーカーとマイクは使われないようにする。
+
+    元の消音の状態はアプリのフォルダに残し、終わったら (アプリが落ちたら次の前処理で) 戻す。
+    """
+
+    def __init__(self, home: Path, backend_factory: Callable[[], object] = PycawAudio) -> None:
+        self.backup = home / "audio_backup.json"
+        self.backend_factory = backend_factory
+        self._backend = None
+        self._muted_sessions: dict[int, str] = {}
+
+    def _get_backend(self):
+        if self._backend is None:
+            self._backend = self.backend_factory()
+        return self._backend
+
+    @staticmethod
+    def is_vd(name: str) -> bool:
+        return any(v in name.lower() for v in VD_AUDIO_NAMES)
+
+    def apply(self) -> list[str]:
+        """消音する (何度呼んでもよい。新しくつながったイヤホンなども消音する)。"""
+        try:
+            backend = self._get_backend()
+            saved = _read_json_file(self.backup).get("endpoints", {}) if self.backup.exists() else {}
+            changed = False
+            for ep in backend.endpoints():
+                if self.is_vd(ep.name):
+                    continue
+                if ep.id not in saved:
+                    saved[ep.id] = {"name": ep.name, "mute": backend.get_mute(ep.id)}
+                    changed = True
+                backend.set_mute(ep.id, True)
+            if changed:
+                _write_json_file(self.backup, {"endpoints": saved})
+            own = os.getpid()
+            for session in backend.sessions():
+                if session.pid == own or session.name.lower() in AUDIO_ALLOWED_PROCESSES:
+                    continue
+                backend.set_session_mute(session.key, True)
+                if session.pid not in self._muted_sessions:
+                    self._muted_sessions[session.pid] = session.name or "Windows の音"
+                    log.info("貸し出し中なので音を止めました: %s", self._muted_sessions[session.pid])
+        except Exception as exc:  # noqa: BLE001 - 音の設定は PC ごとに違うので、何があっても貸し出しは止めない
+            return [f"PC の音を止められませんでした: {exc}"]
+        return []
+
+    def restore(self) -> list[str]:
+        problems = []
+        if self._muted_sessions:
+            try:
+                backend = self._get_backend()
+                for session in backend.sessions():
+                    if session.pid in self._muted_sessions:
+                        backend.set_session_mute(session.key, False)
+            except Exception as exc:  # noqa: BLE001
+                problems.append(f"アプリの音を元に戻せませんでした: {exc}")
+            self._muted_sessions.clear()
+        if not self.backup.exists():
+            return problems
+        try:
+            saved = _read_json_file(self.backup).get("endpoints", {})
+            backend = self._get_backend()
+            present = {ep.id for ep in backend.endpoints()}
+            for endpoint_id, before in saved.items():
+                if endpoint_id in present:
+                    backend.set_mute(endpoint_id, bool(before.get("mute")))
+            self.backup.unlink()
+            log.info("PC のスピーカーとマイクの消音を元に戻しました")
+        except Exception as exc:  # noqa: BLE001
+            problems.append(f"PC のスピーカーとマイクを元に戻せませんでした: {exc}")
+        return problems
+
+
+def other_steam_games(libraries: list[Path], processes=None) -> list[tuple[int, str]]:
+    """貸し出し中に動いている、VRChat (と SteamVR) 以外の Steam のゲーム [(プロセス番号, 名前)]。"""
+    commons = [os.path.normcase(str(lib / "steamapps" / "common")) + os.sep for lib in libraries]
+    found = []
+    for proc in processes if processes is not None else psutil.process_iter(["pid", "name", "exe"]):
+        info = getattr(proc, "info", proc)
+        exe = info.get("exe")
+        if not exe:
+            continue
+        path = os.path.normcase(str(exe))
+        for common in commons:
+            if path.startswith(common):
+                folder = path[len(common):].split(os.sep, 1)[0]
+                if folder.lower() not in ALLOWED_STEAM_APP_DIRS:
+                    found.append((int(info.get("pid") or 0), str(info.get("name") or folder)))
+                break
+    return found
+
+
+def steam_logged_in_account(root: Path | None) -> str | None:
+    """Steam に最後にログインしたアカウント名 (config/loginusers.vdf)。わからなければ None。"""
+    if root is None:
+        return None
+    try:
+        text = (root / "config" / "loginusers.vdf").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    accounts = []
+    for block in re.findall(r'"\d{5,20}"\s*\{([^{}]*)\}', text):
+        fields = dict(re.findall(r'"(\w+)"\s+"([^"]*)"', block))
+        if fields.get("AccountName"):
+            accounts.append((fields.get("MostRecent") == "1", fields["AccountName"]))
+    recent = [name for most, name in accounts if most]
+    if recent:
+        return recent[0]
+    return accounts[0][1] if len(accounts) == 1 else None
+
+
 def is_admin_account() -> bool | None:
     """このユーザーが管理者のグループに入っているか (わからなければ None)。
 
@@ -692,6 +995,9 @@ class HostAgent:
         # 終了処理で、VRChat を閉じた後・削除する前に呼ぶ (スクリーンショットの送信用)
         self.before_wipe: Callable[[], None] | None = None
         self.input_blocker = InputBlocker()
+        self.steamvr_lock = SteamVRLock(self.home)
+        self.audio_guard = AudioGuard(self.home)
+        self._closed_games: set[str] = set()
         if not cfg.wipe_targets:
             cfg.wipe_targets = default_wipe_targets(cfg.keep_screenshots)
 
@@ -720,6 +1026,10 @@ class HostAgent:
                 previous.get("session_id"),
             )
         self._terminate_all()
+        # 前の貸し出しの途中でアプリが落ちていたら、SteamVR のメニューの設定を元に戻しておく
+        if self._guards_steam():
+            self.warnings += self.steamvr_lock.restore()
+            self.warnings += self.audio_guard.restore()
         self._wipe_all()
         self._write_state("prepared")
         log.info("=== 前処理が完了しました ===")
@@ -729,6 +1039,15 @@ class HostAgent:
     def start_session(self) -> None:
         log.info("=== セッションを開始します ===")
         self._authorize_borrower()
+        # SteamVR が動き出す前に、VR の中のメニュー (Steam のストアやライブラリに行ける) を止める。
+        # 止められないまま貸すと、借りた人が貸し手の Steam を触れてしまうので、貸し出しを始めない
+        if self._guards_steam():
+            kill_processes(STEAMVR_PROCESSES, self.cfg.kill_timeout_sec, False)
+            problems = self.steamvr_lock.apply()
+            if problems:
+                raise AgentError(problems[0] + "。安全のため、貸し出しを始めませんでした")
+            # PC のスピーカーとマイクを消音し、VRChat 以外のアプリの音を止める
+            self.warnings += self.audio_guard.apply()
         label = STREAMERS[self.cfg.streamer]["label"]
         exe = self.cfg.streamer_path
         if self.cfg.dry_run:
@@ -830,6 +1149,11 @@ class HostAgent:
             # VRChat が閉じられたら、少し待ってからもう一度起動する (借り手は VRChat の中だけで過ごす)
             if not self.cfg.dry_run and now - last_vrchat_check >= self.cfg.vrchat_check_sec:
                 last_vrchat_check = now
+                if self._guards_steam():
+                    self._close_other_games()
+                    for problem in self.audio_guard.apply():
+                        if problem not in self.warnings:
+                            self.warnings.append(problem)
                 if is_process_running(VRCHAT_PROCESSES[:1]):
                     vrchat_seen, vrchat_gone_at = True, None
                 elif vrchat_seen:
@@ -847,6 +1171,29 @@ class HostAgent:
 
     # --- 5. 終了処理 -----------------------------------------------------
 
+    def _guards_steam(self) -> bool:
+        """Steam を守る処理 (メニューを止める・ほかのゲームを閉じる) をするか。Windows の本番だけ。"""
+        return sys.platform == "win32" and not self.cfg.dry_run
+
+    def _close_other_games(self) -> None:
+        """VRChat 以外の Steam のゲームが起動されたら、すぐに閉じて記録に残す。"""
+        root = steam_root()
+        if root is None:
+            return
+        for pid, name in other_steam_games(steam_library_dirs(root)):
+            try:
+                psutil.Process(pid).kill()
+            except (psutil.Error, ValueError):
+                pass
+            if name not in self._closed_games:
+                self._closed_games.add(name)
+                msg = f"VRChat 以外のゲーム（{name}）が起動されたので閉じました"
+                log.warning(msg)
+                self.warnings.append(msg)
+        if not self.steamvr_lock.is_applied():
+            log.warning("SteamVR のメニューの設定が変えられていました。止め直します")
+            self.warnings += self.steamvr_lock.apply()
+
     def cleanup_session(self) -> None:
         """何度呼ばれても 1 回だけ実行する (Ctrl+C とウィンドウ閉じが重なっても安全)。"""
         with self._cleanup_lock:
@@ -856,6 +1203,10 @@ class HostAgent:
             self.input_blocker.stop()
             self.warnings += set_task_manager_locked(False, self.cfg.dry_run)
             self._terminate_all()
+            # SteamVR を閉じてから、メニューの設定を元に戻す (動いている間に戻すと、閉じるときに上書きされる)
+            if self._guards_steam():
+                self.warnings += self.steamvr_lock.restore()
+                self.warnings += self.audio_guard.restore()
             if self.before_wipe:
                 try:
                     self.before_wipe()
@@ -1519,6 +1870,8 @@ CONFIG_KEYS = {
     "lending_user": str,
     # この PC を見分ける ID (ログインし直しても同じ PC として扱うため)
     "machine_id": str,
+    # 貸し出し専用として確かめた Steam のアカウント名 (ふだんのアカウントで貸さないため)
+    "lending_steam_account": str,
 }
 
 

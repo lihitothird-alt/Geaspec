@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_waitlist.html" import waitlist_form %}
+{% set name = "Geaspec AI" %}
+{% block title %}{{ "依頼一覧" if page == "requests" else "貸し出し" }} | {{ name }}{% endblock %}
+{% block content %}
+<div class="wrap">
+  <header class="page-head big">
+    <p class="eyebrow"><span class="dot" aria-hidden="true"></span>準備中</p>
+    {% if page == "requests" %}
+    <h1>依頼一覧</h1>
+    <p class="muted">始まると、頼んだ仕事と、いま何台のパソコンで進めているかがここに出ます。</p>
+    {% else %}
+    <h1>パソコンを貸す</h1>
+    <p class="muted">使っていない時間のパソコンで、{{ name }}の仕事を引き受けます。</p>
+    {% endif %}
+  </header>
+</div>
+
+<section class="wrap section tight" aria-label="{{ '依頼一覧' if page == 'requests' else '貸し出し' }}">
+  {% if page == "requests" %}
+  <div class="empty">
+    <svg class="i" aria-hidden="true"><use href="#i-list"/></svg>
+    <p><strong>まだ依頼はありません。</strong></p>
+    <p class="muted">{{ name }}は準備中です。始まったらお知らせします。</p>
+  </div>
+  {{ waitlist_form(service, "guest", user, "/" ~ service ~ "/requests", "やりたいこと", "") }}
+  {% else %}
+  <ul class="uses">
+    <li class="use-card ready"><div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-clock"/></svg></span></div>
+      <h3>条件はあなたが決める</h3><p>受ける時間帯、仕事の種類、上限の時間。合う仕事だけが自動で入ります。</p></li>
+    <li class="use-card ready"><div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-gear"/></svg></span></div>
+      <h3>やり方も自由</h3><p>使うソフトや手順は自分で選べます。入れるだけで動く標準のやり方も用意する予定です。</p></li>
+    <li class="use-card ready"><div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-lock"/></svg></span></div>
+      <h3>パソコンは触られない</h3><p>頼んだ人があなたのパソコンを操作することはありません。届くのは仕事だけです。</p></li>
+  </ul>
+  {{ waitlist_form(service, "host", user, "/" ~ service ~ "/host", "パソコンの性能", "例：RTX 4070（12GB）・夜だけ") }}
+  {% endif %}
+</section>
+{% endblock %}
