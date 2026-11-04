@@ -51,19 +51,6 @@ def day_label(value: dt.datetime) -> str:
     return f"{value:%m/%d}（{WEEKDAYS[value.weekday()]}）"
 
 
-def next_lending_text(st, now: dt.datetime) -> tuple[str, str]:
-    """「次の貸し出し」の欄の (日時, 残りのひとこと)。"""
-    if st.state in ("session", "cleaning") and st.session_ends_at:
-        return f"いま貸し出し中（{st.session_ends_at:%H:%M} まで）", "終わると自動で片づけます"
-    if st.next_starts_at:
-        end = f"{st.next_ends_at:%H:%M}" if st.next_ends_at else ""
-        left = (st.next_starts_at - now).total_seconds()
-        wait = f"あと {until_text(left)}で始まります" if left > 60 else "まもなく始まります"
-        return f"{day_label(st.next_starts_at)} {st.next_starts_at:%H:%M}〜{end}", \
-            wait + "。時間になると自動で準備します。PC はつけたままにしてください"
-    return "まだ予約はありません", "Web サイトで貸し出す時間を決めると、予約が入ったときにここに出ます"
-
-
 def validate_settings(server: str, token: str) -> str | None:
     if not server.startswith(("https://", "http://")):
         return "予約サイトの URL は http:// か https:// で始めてください"
@@ -227,39 +214,61 @@ class AgentController:
     DISK_CHECK_SEC = 30.0
 
     def readiness(self, now: float | None = None) -> list[tuple[str, str, str]]:
-        """[(項目, ok / ng / wait, できていないときのひとこと)]。すべて自動で確かめる。
+        """貸し出せる状態かのチェックリスト [(項目, ok / ng / wait, できていないときのひとこと)]。すべて自動で確かめる。
 
+        ログインと貸し出し専用ユーザーは、できていなければホームではなく設定の画面が出るので、ここには入れない。
         ファイルを見る項目 (Steam など) は 30 秒ごとにだけ確かめ直す (画面は 0.5 秒ごとに呼ぶため)。
         """
         now = time.monotonic() if now is None else now
         if now - getattr(self, "_disk_checked_at", -1e9) >= self.DISK_CHECK_SEC:
             root = h.steam_root()
-            self._disk = (self.cfg.streamer_path.is_file(), root is not None, h.is_steam_app_installed(root))
+            self._disk = (self.cfg.streamer_path.is_file(), root is not None, h.is_steam_app_installed(root),
+                          h.is_admin_account())
             self._disk_checked_at = now
-        streamer_ok, steam_ok, vrchat_ok = self._disk
+        streamer_ok, steam_ok, vrchat_ok, admin = self._disk
         st = h.STATUS
-        items = [
-            ("Geaspec にログイン", "ng" if self.needs_setup() else "ok", "「その他」→「ログインし直す」から"),
-            ("貸し出し専用の Windows ユーザー", "ok" if self.is_lending_user() else "ng", "このユーザーを登録してください"),
-        ]
+        items = []
         if st.state in ("idle", "session", "cleaning"):
             items.append(("予約サイトとつながっている", "ok", ""))
         elif st.state == "auth_error":
-            items.append(("予約サイトとつながっている", "ng", "「その他」→「ログインし直す」から"))
+            items.append(("予約サイトとつながっている", "ng", "「その他」→「ログインし直す」"))
         elif st.state == "unreachable":
-            items.append(("予約サイトとつながっている", "ng", "インターネットにつながっているか確認してください"))
+            items.append(("予約サイトとつながっている", "ng", "インターネットを確認してください"))
         else:
-            items.append(("予約サイトとつながっている", "wait", "確かめています"))
+            items.append(("予約サイトとつながっている", "wait", "確認中"))
         if st.last_poll_at is None:
-            items.append(("運営の承認", "wait", "確かめています"))
+            items.append(("運営の承認", "wait", "確認中"))
         else:
             approval = {"pending": ("wait", "運営の確認を待っています"), "paused": ("ng", "運営が受付を止めています")}
             items.append(("運営の承認", *approval.get(st.host_state, ("ok", ""))))
         label = h.STREAMERS.get(self.cfg.streamer, {}).get("label", "Virtual Desktop")
-        items.append((f"{label} Streamer", "ok" if streamer_ok else "ng", "Streamer をこの PC に入れてください"))
-        items.append(("Steam", "ok" if steam_ok else "ng", "Steam をこの PC に入れてください"))
-        items.append(("VRChat", "ok" if vrchat_ok else "ng", "Steam で VRChat を入れてください"))
+        items.append((f"{label} Streamer", "ok" if streamer_ok else "ng", "この PC に入れてください"))
+        items.append(("Steam", "ok" if steam_ok else "ng", "この PC に入れてください"))
+        items.append(("VRChat", "ok" if vrchat_ok else "ng", "Steam で入れてください"))
+        items.append(("標準ユーザーで貸し出す", {False: "ok", True: "ng", None: "wait"}[admin],
+                      "Windows の設定で「標準ユーザー」に" if admin else "確認中"))
         return items
+
+    def home_summary(self, items: list[tuple[str, str, str]], now: dt.datetime) -> tuple[str, str, str, str]:
+        """ホームのいちばん上に出す (見出しの上の小さな文字, 見出し, 説明, 色)。ほかの場所と同じことは書かない。"""
+        st = h.STATUS
+        if st.state == "session":
+            end = f"{st.session_ends_at:%H:%M} まで" if st.session_ends_at else "準備中"
+            return "いまの状態", f"貸し出し中（{end}）", "終わると自動でログアウトして、データを片づけます", "busy"
+        if st.state == "cleaning":
+            return "いまの状態", "片づけ中", "借りた人のデータを消しています。電源は切らないでください", "warn"
+        missing = [label for label, state, _ in items if state == "ng"]
+        if missing:
+            return "いまの状態", f"準備があと {len(missing)} つ必要です", "下の ! の項目を確認してください", "bad"
+        if any(state == "wait" for _, state, _ in items):
+            return "いまの状態", "確認しています", "少し待つと表示が変わります", "muted"
+        if st.next_starts_at:
+            end = f"{st.next_ends_at:%H:%M}" if st.next_ends_at else ""
+            left = (st.next_starts_at - now).total_seconds()
+            when = f"あと {until_text(left)}で" if left > 60 else "まもなく"
+            return ("次の貸し出し", f"{day_label(st.next_starts_at)} {st.next_starts_at:%H:%M}〜{end}",
+                    f"{when}自動で始まります。PC はつけたままにしてください", "ok")
+        return "いまの状態", "貸し出しの準備ができています", "Web サイトで貸し出す時間を決めると、予約を受けられます", "ok"
 
     # --- 画面に出す文章 ---------------------------------------------------
 
@@ -1053,12 +1062,17 @@ class SetupView:
 
 
 class HomeView:
-    """ホーム: 現在時刻、次の貸し出し、貸し出せる状態かのチェックリストだけを出す。
+    """ホーム: いまどうなっているか (1 枚)、準備のチェック、利用中の守り だけを出す。
 
-    貸し出す時間を決めるのは Web サイト (このアプリではしない)。
+    貸し出す時間を決めるのは Web サイト (このアプリではしない)。同じことを 2 か所に書かない。
     """
 
     MARKS = {"ok": ("✓", "ok"), "ng": ("!", "bad"), "wait": ("…", "muted")}
+    GUARDS = (
+        "キーボードとマウスの操作を止める（VR の操作はそのまま）",
+        "画面を幕でかくして、パソコンの中を見せない",
+        "終わったら VRChat から自動でログアウトして、データを消す",
+    )
 
     def __init__(self, window: AgentWindow) -> None:
         tk = window.tk
@@ -1067,58 +1081,57 @@ class HomeView:
         self.w = window
         frame = self.frame = tk.Frame(window.content, bg=COLORS["bg"])
         frame.pack(fill="both", expand=True)
-
-        # --- 状態と現在時刻 ---
-        top = tk.Frame(frame, bg=COLORS["bg"])
-        top.pack(fill="x", padx=18, pady=(0, 12))
-        clock = tk.Frame(top, bg=COLORS["bg"])
-        clock.pack(side="right", anchor="n")
-        light = pick_light_family(window.root, window.font[0])
-        self.clock = tk.Label(clock, text="", font=(light, 26), fg=COLORS["ink"], bg=COLORS["bg"])
-        self.clock.pack(anchor="e")
-        self.date = tk.Label(clock, text="", font=window.font_small, fg=COLORS["muted"], bg=COLORS["bg"])
-        self.date.pack(anchor="e")
-        state = tk.Frame(top, bg=COLORS["bg"])
-        state.pack(side="left", fill="x", expand=True, anchor="n")
-        row = tk.Frame(state, bg=COLORS["bg"])
-        row.pack(fill="x", pady=(6, 2))
-        self.dot = tk.Canvas(row, width=14, height=14, bg=COLORS["bg"], highlightthickness=0)
-        self.dot.pack(side="left", padx=(0, 8))
-        self.dot_item = self.dot.create_oval(2, 2, 12, 12, fill=COLORS["warn"], outline="")
-        self.status_title = tk.Label(row, text="", font=window.font_title, fg=COLORS["ink"], bg=COLORS["bg"])
-        self.status_title.pack(side="left")
-        self.status_detail = tk.Label(state, text="", font=window.font, fg=COLORS["muted"], bg=COLORS["bg"],
-                                      justify="left", anchor="w", wraplength=360)
-        self.status_detail.pack(fill="x", padx=(22, 0))
-
-        # --- 次の貸し出し と チェックリスト / 動きの記録 (同じ場所を切り替える) ---
         self.middle = tk.Frame(frame, bg=COLORS["bg"])
         self.middle.pack(fill="both", expand=True)
         self.main = tk.Frame(self.middle, bg=COLORS["bg"])
         self.main.pack(fill="both", expand=True)
 
-        nxt = self.card(self.main, "次の貸し出し")
-        self.next_when = tk.Label(nxt, text="", font=(window.font[0], 15, "bold"), fg=COLORS["ink"], bg=COLORS["card"],
-                                  anchor="w")
-        self.next_when.pack(fill="x", padx=16)
-        self.next_left = tk.Label(nxt, text="", font=window.font, fg=COLORS["muted"], bg=COLORS["card"], anchor="w",
-                                  justify="left", wraplength=560)
-        self.next_left.pack(fill="x", padx=16, pady=(2, 14))
+        # --- いまの状態 (1 枚だけ) ---
+        hero = self.card(self.main)
+        top = tk.Frame(hero, bg=COLORS["card"])
+        top.pack(fill="x", padx=18, pady=(14, 0))
+        self.kicker = tk.Label(top, text="", font=window.font_small, fg=COLORS["muted"], bg=COLORS["card"])
+        self.kicker.pack(side="left")
+        light = pick_light_family(window.root, window.font[0])
+        self.clock = tk.Label(top, text="", font=(light, 11), fg=COLORS["muted"], bg=COLORS["card"])
+        self.clock.pack(side="right")
+        row = tk.Frame(hero, bg=COLORS["card"])
+        row.pack(fill="x", padx=18, pady=(2, 0))
+        self.dot = tk.Canvas(row, width=14, height=14, bg=COLORS["card"], highlightthickness=0)
+        self.dot.pack(side="left", padx=(0, 8))
+        self.dot_item = self.dot.create_oval(2, 2, 12, 12, fill=COLORS["warn"], outline="")
+        self.headline = tk.Label(row, text="", font=(window.font[0], 16, "bold"), fg=COLORS["ink"], bg=COLORS["card"],
+                                 anchor="w")
+        self.headline.pack(side="left", fill="x")
+        self.sub = tk.Label(hero, text="", font=window.font, fg=COLORS["muted"], bg=COLORS["card"], anchor="w",
+                            justify="left", wraplength=520)
+        self.sub.pack(fill="x", padx=(40, 18), pady=(2, 16))
 
-        checks = self.card(self.main, "貸し出しの準備（自動で確かめています）")
+        # --- 準備 (自動で確かめる) ---
+        checks = self.card(self.main, "貸し出しの準備（自動で確認）")
         self.check_rows: list[tuple] = []
         for _ in range(len(window.c.readiness())):
             r = tk.Frame(checks, bg=COLORS["card"])
-            r.pack(fill="x", padx=16, pady=2)
+            r.pack(fill="x", padx=18, pady=1)
             mark = tk.Label(r, text="", width=2, font=window.font_bold, bg=COLORS["card"])
             mark.pack(side="left")
             name = tk.Label(r, text="", font=window.font, fg=COLORS["ink"], bg=COLORS["card"], anchor="w")
             name.pack(side="left")
-            hint = tk.Label(r, text="", font=window.font_small, fg=COLORS["muted"], bg=COLORS["card"], anchor="e")
+            hint = tk.Label(r, text="", font=window.font_small, fg=COLORS["bad"], bg=COLORS["card"], anchor="e")
             hint.pack(side="right")
             self.check_rows.append((mark, name, hint))
-        tk.Frame(checks, height=10, bg=COLORS["card"]).pack()
+        tk.Frame(checks, height=12, bg=COLORS["card"]).pack()
 
+        # --- 利用中の守り (いつも自動で行う) ---
+        guard = self.card(self.main, "貸し出し中は、自動でこうします")
+        for text in self.GUARDS:
+            r = tk.Frame(guard, bg=COLORS["card"])
+            r.pack(fill="x", padx=18, pady=1)
+            tk.Label(r, text="✓", width=2, font=window.font_bold, fg=COLORS["ok"], bg=COLORS["card"]).pack(side="left")
+            tk.Label(r, text=text, font=window.font, fg=COLORS["ink"], bg=COLORS["card"], anchor="w").pack(side="left")
+        tk.Frame(guard, height=12, bg=COLORS["card"]).pack()
+
+        # --- 動きの記録 (同じ場所に切り替えて出す) ---
         self.log_frame = tk.Frame(self.middle, bg=COLORS["line"])
         self.log_text = tk.Text(
             self.log_frame, wrap="word", font=window.font, bg=COLORS["card"], fg=COLORS["ink"],
@@ -1132,60 +1145,53 @@ class HomeView:
 
         # --- 操作: 貸し出す時間は Web サイトで決める。ふだん使わないものは「その他」 ---
         actions = tk.Frame(frame, bg=COLORS["bg"])
-        actions.pack(fill="x", padx=18, pady=(6, 14))
+        actions.pack(fill="x", padx=18, pady=(2, 14))
         ttk.Button(actions, text="貸し出す時間を決める（Web サイト）", style="Primary.TButton",
                    command=window.open_lend_page).pack(side="left")
         more = ttk.Menubutton(actions, text="その他", width=6)
         self.menu = tk.Menu(more, tearoff=False, font=window.font, bg=COLORS["card"], fg=COLORS["ink"],
                             activebackground=COLORS["hover"], activeforeground=COLORS["ink"], relief="flat", bd=1)
-        self.menu.add_command(label=f"PC ユーザー: {h.current_windows_user()}", state="disabled")
-        self.menu.add_separator()
+        self.menu.add_command(label="動きの記録", command=self.toggle_log)
+        self.log_index = self.menu.index("end")
         self.menu.add_command(label="消すものを確認", command=window.show_targets)
         self.menu.add_command(label="今すぐ削除", command=window.cleanup_now)
         self.cleanup_index = self.menu.index("end")
         self.menu.add_command(label="ログインし直す", command=self.relogin)
+        self.menu.add_separator()
+        self.menu.add_command(label=f"PC ユーザー: {h.current_windows_user()}", state="disabled")
         more["menu"] = self.menu
         more.pack(side="right")
-        self.log_button = ttk.Button(actions, text="動きの記録", style="Link.TButton", command=self.toggle_log)
-        self.log_button.pack(side="right", padx=4)
         if not window.tray.active:  # アイコンで動き続けられないときだけ、閉じると止まることを書いておく
             tk.Label(frame, text="ウィンドウを閉じると Agent も終了し、予約を受け付けなくなります。",
                      font=window.font_small, fg=COLORS["muted"], bg=COLORS["bg"], anchor="w").pack(
                 fill="x", padx=18, pady=(0, 10))
         self.update_status()
 
-    def card(self, parent, title: str):
+    def card(self, parent, title: str = ""):
         tk = self.w.tk
         box = tk.Frame(parent, bg=COLORS["card"], highlightbackground=COLORS["line"], highlightthickness=1)
         box.pack(fill="x", padx=18, pady=(0, 12))
-        tk.Label(box, text=title, font=self.w.font_small, fg=COLORS["muted"], bg=COLORS["card"], anchor="w").pack(
-            fill="x", padx=16, pady=(12, 4))
+        if title:
+            tk.Label(box, text=title, font=self.w.font_small, fg=COLORS["muted"], bg=COLORS["card"], anchor="w").pack(
+                fill="x", padx=18, pady=(12, 6))
         return box
 
     def update_status(self) -> None:
         c = self.w.c
         now = dt.datetime.now()
-        self.clock.configure(text=f"{now:%H:%M:%S}")
-        self.date.configure(text=f"{day_label(now)} 現在")
-        title, detail, tone = c.status_text(now)
-        st = h.STATUS
-        if st.state in ("idle", "session", "cleaning") and st.host_state == "ok":
-            # 予約の日時は下の「次の貸し出し」に出すので、ここは短い状態だけにする
-            title = STATE_LABELS[st.state][0]
-            detail = {"idle": "予約の時間を待っています", "session": "借りる人が使っています",
-                      "cleaning": "データを片づけています"}[st.state]
-        self.status_title.configure(text=title)
-        self.status_detail.configure(text=detail)
-        self.dot.itemconfigure(self.dot_item, fill=COLORS.get(tone, COLORS["warn"]))
+        items = c.readiness()
+        kicker, headline, sub, tone = c.home_summary(items, now)
+        self.kicker.configure(text=kicker)
+        self.clock.configure(text=f"現在 {day_label(now)} {now:%H:%M:%S}")
+        self.headline.configure(text=headline)
+        self.sub.configure(text=sub)
+        self.dot.itemconfigure(self.dot_item, fill=COLORS.get(tone, COLORS["muted"]))
         self.menu.entryconfigure(self.cleanup_index, state="disabled" if c.in_session() else "normal")
-        when, left = next_lending_text(h.STATUS, now)
-        self.next_when.configure(text=when)
-        self.next_left.configure(text=left)
-        for (mark, name, hint), (label, state, tip) in zip(self.check_rows, c.readiness()):
-            symbol, tone = self.MARKS[state]
-            mark.configure(text=symbol, fg=COLORS[tone])
+        for (mark, name, hint), (label, state, tip) in zip(self.check_rows, items):
+            symbol, color = self.MARKS[state]
+            mark.configure(text=symbol, fg=COLORS[color])
             name.configure(text=label)
-            hint.configure(text="" if state == "ok" else tip)
+            hint.configure(text="" if state == "ok" else tip, fg=COLORS["bad" if state == "ng" else "muted"])
 
     def append_log(self, lines: list[str]) -> None:
         if not lines:
@@ -1206,11 +1212,11 @@ class HomeView:
         if self.log_frame.winfo_ismapped():
             self.log_frame.pack_forget()
             self.main.pack(fill="both", expand=True)
-            self.log_button.configure(text="動きの記録")
+            self.menu.entryconfigure(self.log_index, label="動きの記録")
         else:
             self.main.pack_forget()
             self.log_frame.pack(fill="both", expand=True, padx=18, pady=(0, 4))
-            self.log_button.configure(text="ホームに戻る")
+            self.menu.entryconfigure(self.log_index, label="ホームに戻る")
             self.log_text.see("end")
 
     def relogin(self) -> None:

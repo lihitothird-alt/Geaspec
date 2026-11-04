@@ -118,6 +118,8 @@ class AgentConfig:
     streamer_path: Path = Path(DEFAULT_VD_PATH)
     # サーバーモードで渡される借り手の Meta ユーザー名 (Virtual Desktop の接続許可用)
     borrower_meta_username: str | None = None
+    # 利用中は、この PC のキーボードとマウスを止める (VR の操作には影響しない)
+    block_input: bool = True
     launch_delay_sec: float = 2.0
     # 借り手が VRChat を閉じたら、この秒数のあとにもう一度起動する (VRChat の外に出られないようにする)
     vrchat_restart_after_sec: float = 10.0
@@ -562,6 +564,101 @@ def is_steam_app_installed(root: Path | None, app_id: int = VRCHAT_APP_ID) -> bo
     return any((d / "steamapps" / f"appmanifest_{app_id}.acf").is_file() for d in steam_library_dirs(root))
 
 
+def is_admin_account() -> bool | None:
+    """このユーザーが管理者のグループに入っているか (わからなければ None)。
+
+    標準ユーザーなら、ほかのユーザー (貸し手本人) のフォルダは Windows が見せない。UAC で権限を下げて
+    動いていても管理者のアカウントなら True にする (whoami /groups に Administrators の SID が出る)。
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        out = subprocess.run(["whoami", "/groups"], capture_output=True, text=True, timeout=10,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return "S-1-5-32-544" in out if out else None
+
+
+class InputBlocker:
+    """利用中は、この PC のキーボードとマウスの操作を受け付けない。
+
+    低レベルのフック (WH_KEYBOARD_LL / WH_MOUSE_LL) で入力を捨てるので、管理者権限はいらない。
+    借り手が Virtual Desktop でパソコンの画面を開いて操作しようとしても届かない。VR のコントローラーは
+    SteamVR を通るので、遊ぶのには影響しない。Ctrl+Alt+Del だけは Windows の決まりで止められない
+    (貸し手が PC の前でどうしても止めたいときは、そこからサインアウトできる)。
+    """
+
+    WH_KEYBOARD_LL, WH_MOUSE_LL, WM_QUIT = 13, 14, 0x0012
+
+    def __init__(self) -> None:
+        self.thread: threading.Thread | None = None
+        self.thread_id = 0
+        self.ready = threading.Event()
+        self.active = False
+
+    def start(self) -> bool:
+        """止め始める。止められたら True (Windows 以外や失敗したときは False)。"""
+        if sys.platform != "win32" or self.thread is not None:
+            return self.active
+        self.ready.clear()
+        self.thread = threading.Thread(target=self._run, name="geaspec-input-block", daemon=True)
+        self.thread.start()
+        self.ready.wait(5)
+        return self.active
+
+    def stop(self) -> None:
+        thread = self.thread
+        if thread is None:
+            return
+        if self.thread_id:
+            ctypes.windll.user32.PostThreadMessageW(self.thread_id, self.WM_QUIT, 0, 0)
+        thread.join(5)
+        self.thread = None
+        self.thread_id = 0
+
+    def _run(self) -> None:
+        from ctypes import wintypes
+
+        user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32
+        lresult = ctypes.c_ssize_t
+        hook_proc = ctypes.WINFUNCTYPE(lresult, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+        user32.CallNextHookEx.argtypes = (wintypes.HHOOK, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+        user32.CallNextHookEx.restype = lresult
+        user32.SetWindowsHookExW.argtypes = (ctypes.c_int, hook_proc, wintypes.HINSTANCE, wintypes.DWORD)
+        user32.SetWindowsHookExW.restype = wintypes.HHOOK
+        kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+
+        def swallow(code, wparam, lparam):
+            if code >= 0:
+                return 1  # この入力は捨てる
+            return user32.CallNextHookEx(None, code, wparam, lparam)
+
+        proc = hook_proc(swallow)  # 参照を持っておく (消えるとフックが落ちる)
+        module = kernel32.GetModuleHandleW(None)
+        hooks = [user32.SetWindowsHookExW(kind, proc, module, 0) for kind in (self.WH_KEYBOARD_LL, self.WH_MOUSE_LL)]
+        self.thread_id = kernel32.GetCurrentThreadId()
+        self.active = all(hooks)
+        if not self.active:
+            log.warning("キーボードとマウスを止められませんでした")
+        else:
+            log.info("利用中は、この PC のキーボードとマウスを止めます")
+        self.ready.set()
+        try:
+            msg = wintypes.MSG()
+            while self.active and user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+                user32.TranslateMessage(ctypes.byref(msg))
+                user32.DispatchMessageW(ctypes.byref(msg))
+        finally:
+            for hook in hooks:
+                if hook:
+                    user32.UnhookWindowsHookEx(hook)
+            if self.active:
+                log.info("キーボードとマウスを元に戻しました")
+            self.active = False
+            del proc
+
+
 def is_process_running(names: Iterable[str]) -> bool:
     wanted = {n.lower() for n in names}
     for proc in psutil.process_iter(["name"]):
@@ -594,6 +691,7 @@ class HostAgent:
         self._cleaned_up = False
         # 終了処理で、VRChat を閉じた後・削除する前に呼ぶ (スクリーンショットの送信用)
         self.before_wipe: Callable[[], None] | None = None
+        self.input_blocker = InputBlocker()
         if not cfg.wipe_targets:
             cfg.wipe_targets = default_wipe_targets(cfg.keep_screenshots)
 
@@ -649,6 +747,9 @@ class HostAgent:
         self._launch_vrchat()
         # 借り手が VD でパソコンの画面を開いても、タスクマネージャーから他のアプリを触れないようにする
         self.warnings += set_task_manager_locked(True, self.cfg.dry_run)
+        # パソコンの画面を開いても、キーボードとマウスで操作できないようにする
+        if self.cfg.block_input and not self.cfg.dry_run and not self.input_blocker.start() and sys.platform == "win32":
+            self.warnings.append("キーボードとマウスを止められませんでした")
 
         self.started_at = dt.datetime.now()
         self._write_state("running")
@@ -752,6 +853,7 @@ class HostAgent:
             if self._cleaned_up:
                 return
             log.info("=== 終了処理を開始します ===")
+            self.input_blocker.stop()
             self.warnings += set_task_manager_locked(False, self.cfg.dry_run)
             self._terminate_all()
             if self.before_wipe:

@@ -227,40 +227,51 @@ class ReadinessTest(unittest.TestCase):
         (other / "steamapps").mkdir(parents=True)
         return other
 
-    def test_checklist_reports_each_condition(self):
+    def controller(self):
         c = g.AgentController(config_path=self.root / "config.json", home=self.root / "home")
         c.save_settings("https://x.example", "pcvr_0123456789", "")
         c.register_lending_user()
+        return c
+
+    def test_checklist_reports_each_condition(self):
+        c = self.controller()
         steam = self.steam(with_vrchat=False)
-        with mock.patch.object(h, "steam_root", return_value=steam):
+        with mock.patch.object(h, "steam_root", return_value=steam), mock.patch.object(h, "is_admin_account", return_value=True):
             items = {label: (state, tip) for label, state, tip in c.readiness(now=0)}
-        self.assertEqual(items["Geaspec にログイン"][0], "ok")
-        self.assertEqual(items["貸し出し専用の Windows ユーザー"][0], "ok")
+        self.assertNotIn("Geaspec にログイン", items)  # できていなければ設定の画面が出るので、ホームには出さない
         self.assertEqual(items["予約サイトとつながっている"][0], "wait")
         self.assertEqual(items["運営の承認"][0], "wait")
         self.assertEqual(items["Steam"][0], "ok")
-        self.assertEqual(items["VRChat"], ("ng", "Steam で VRChat を入れてください"))
+        self.assertEqual(items["VRChat"], ("ng", "Steam で入れてください"))
         self.assertEqual(items["Virtual Desktop Streamer"][0], "ng")
+        self.assertEqual(items["標準ユーザーで貸し出す"], ("ng", "Windows の設定で「標準ユーザー」に"))
 
         h.STATUS.state, h.STATUS.last_poll_at, h.STATUS.host_state = "unreachable", self.NOW, "pending"
         (steam / "steamapps" / "appmanifest_438100.acf").write_text("")
-        with mock.patch.object(h, "steam_root", return_value=steam):
+        with mock.patch.object(h, "steam_root", return_value=steam), mock.patch.object(h, "is_admin_account", return_value=False):
             cached = {label: state for label, state, _ in c.readiness(now=10)}
             fresh = {label: state for label, state, _ in c.readiness(now=40)}
         self.assertEqual(cached["VRChat"], "ng")  # ファイルは 30 秒ごとにだけ見直す
-        self.assertEqual(fresh["VRChat"], "ok")
+        self.assertEqual((fresh["VRChat"], fresh["標準ユーザーで貸し出す"]), ("ok", "ok"))
         self.assertEqual((fresh["予約サイトとつながっている"], fresh["運営の承認"]), ("ng", "wait"))
 
-    def test_next_lending_text(self):
-        st = h.AgentStatus()
-        self.assertEqual(g.next_lending_text(st, self.NOW)[0], "まだ予約はありません")
+    def test_home_summary_says_one_thing_at_a_time(self):
+        c = self.controller()
+        ready = [("Steam", "ok", ""), ("VRChat", "ok", "")]
+        st = h.STATUS
+        self.assertEqual(c.home_summary(ready, self.NOW)[1], "貸し出しの準備ができています")
+        self.assertEqual(c.home_summary(ready + [("VRChat", "ng", "x"), ("Steam", "ng", "y")], self.NOW)[1],
+                         "準備があと 2 つ必要です")
+        self.assertEqual(c.home_summary(ready + [("運営の承認", "wait", "")], self.NOW)[1], "確認しています")
         st.state = "idle"
         st.next_starts_at, st.next_ends_at = self.NOW + dt.timedelta(hours=2, minutes=15), self.NOW + dt.timedelta(hours=4)
-        when, left = g.next_lending_text(st, self.NOW)
-        self.assertEqual(when, "11/04（水） 22:15〜00:00")
-        self.assertTrue(left.startswith("あと 2時間15分で始まります"))
+        kicker, headline, sub, tone = c.home_summary(ready, self.NOW)
+        self.assertEqual((kicker, headline, tone), ("次の貸し出し", "11/04（水） 22:15〜00:00", "ok"))
+        self.assertTrue(sub.startswith("あと 2時間15分で自動で始まります"))
         st.state, st.session_ends_at = "session", self.NOW + dt.timedelta(minutes=30)
-        self.assertEqual(g.next_lending_text(st, self.NOW)[0], "いま貸し出し中（20:30 まで）")
+        self.assertEqual(c.home_summary(ready, self.NOW)[1], "貸し出し中（20:30 まで）")
+        st.state = "cleaning"
+        self.assertEqual(c.home_summary(ready, self.NOW)[1], "片づけ中")
 
 
 class CoverTest(unittest.TestCase):
