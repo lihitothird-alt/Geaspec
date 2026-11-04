@@ -9,6 +9,7 @@ AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download
 CHANGES: dict[str, list[str]] = {
     "0.7.50": [
         "Geaspec VR のメニューを「予約する」「自分の予約」に、Geaspec AI と Studio のメニューを「頼む」「自分の依頼」に変えて、違いがわかるようにしました",
+        "Geaspec VR のよくある質問から、Geaspec AI とのちがいの質問を外しました（VR を使う人には関係ないため）",
     ],
     "0.7.49": [
         "トップの見出しを「みんなで使う、みんなのパソコン。」にしました。「使っていない時間のパソコンを、必要な人と分け合う」と添えて、「パソコンを使いたい」「パソコンを貸したい」から選べるようにしました",
