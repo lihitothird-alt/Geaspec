@@ -1,5 +1,7 @@
 {%- set en = page_lang == "en" -%}
 {%- set path = request.url.path -%}
+{#- Geaspec VR のページ (VR の紹介・予約): 淡い青にして、別の場所に来たとわかるようにする -#}
+{%- set vr_area = not en and (path == "/vrchat" or path.startswith("/slots") or path.startswith("/bookings")) -%}
 <!doctype html>
 <html lang="{{ 'en' if en else 'ja' }}">
 <head>
@@ -21,7 +23,7 @@
   <meta name="twitter:card" content="summary">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#24292a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="{{ '#212a31' if vr_area else '#24292a' }}" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="/static/icons/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/static/icons/icon-192.png" type="image/png" sizes="192x192">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,7 +41,7 @@
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "{{ settings.service_name }}", "alternateName": ["ギアスペック"], "url": "{{ settings.base_url }}/"}</script>
   {% endif %}
 </head>
-<body class="{% block body_class %}{% endblock %}">
+<body class="{% block body_class %}{% endblock %}{% if vr_area %} theme-vr{% endif %}">
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></symbol>
@@ -87,7 +89,8 @@
   {% endif %}
   <header class="site-header">
     <div class="wrap header-inner">
-      <a class="logo" href="{{ '/en' if en else '/' }}">{{ logo_mark() }}<span class="logo-text">{{ settings.service_name }}</span></a>
+      {% if vr_area %}<a class="logo" href="/vrchat">{{ logo_mark() }}<span class="logo-text">{{ settings.service_name }}<span class="logo-sub">VR</span></span></a>
+      {% else %}<a class="logo" href="{{ '/en' if en else '/' }}">{{ logo_mark() }}<span class="logo-text">{{ settings.service_name }}</span></a>{% endif %}
 
       <nav class="nav-desktop" aria-label="メインメニュー">
         {% if not en %}<a class="nav-link" href="/gpus"{% if path == "/gpus" %} aria-current="page"{% endif %}>GPU をさがす</a>

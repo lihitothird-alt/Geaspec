@@ -146,6 +146,9 @@ def test_landing_page_renders(tmp_path, now):
     # もとのトップページは /vrchat にそのまま残っている
     v = c.get("/vrchat")
     assert v.status_code == 200
+    # Geaspec VR のページは淡い青 (ロゴも Geaspec VR)。トップはミントのまま
+    assert 'class=" theme-vr"' in v.text and '<span class="logo-sub">VR</span>' in v.text
+    assert "theme-vr" not in r.text and "theme-vr" in c.get("/slots").text
     assert "PC版VRChat</mark>を。" in v.text and "<title>Geaspec VR | PC版VRChat" in v.text and 'href="/slots"' in v.text and "必要なもの" in v.text
 
 
