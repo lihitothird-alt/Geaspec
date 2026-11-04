@@ -362,10 +362,13 @@ COLORS = {
     "muted": "#687073",
     "line": "#e0e4e4",
     "primary": "#1d7a62",
-    "ok": "#13a07a",
-    "busy": "#3a7bd5",
-    "warn": "#c77700",
-    "bad": "#c41f4b",
+    "mint": "#7fd9bf",
+    "on_mint": "#103a2e",
+    "hover": "#eceff0",
+    "ok": "#2fae8a",
+    "busy": "#1d7a62",
+    "warn": "#d9a520",
+    "bad": "#d0464f",
     "warn_bg": "#fff3c2",
     # カレンダーのマス
     "cell_empty": "#ffffff",
@@ -385,6 +388,49 @@ def pick_font_family(root) -> str:
         if name in families:
             return name
     return font.nametofont("TkDefaultFont").actual("family")
+
+
+def pick_light_family(root, fallback: str) -> str:
+    """幕の大きな数字に使う細い書体 (なければふだんの書体)。"""
+    from tkinter import font
+
+    families = set(font.families(root))
+    for name in ("Segoe UI Light", "Yu Gothic UI Light", "Segoe UI Semilight", "Yu Gothic UI Semilight"):
+        if name in families:
+            return name
+    return fallback
+
+
+# Geaspec のロゴ (サイトの SVG と同じ形、88×48 の座標)。幕のいちばん上に描く
+LOGO_FRAME = ((10, 4), (78, 4), (84, 10), (84, 38), (78, 44), (50, 44), (44, 39), (38, 44), (10, 44), (4, 38), (4, 10))
+LOGO_GEARS = (
+    ((30, 24), "41.18 21.32 44.44 22.64 44.44 25.36 41.18 26.68 40.62 28.40 42.48 31.38 40.88 33.59 37.47 32.74 "
+               "36.01 33.81 35.76 37.31 33.16 38.15 30.90 35.46 29.10 35.46 26.84 38.15 24.24 37.31 23.99 33.81 "
+               "22.53 32.74 19.12 33.59 17.52 31.38 19.38 28.40 18.82 26.68 15.56 25.36 15.56 22.64 18.82 21.32 "
+               "19.38 19.60 17.52 16.62 19.12 14.41 22.53 15.26 23.99 14.19 24.24 10.69 26.84 9.85 29.10 12.54 "
+               "30.90 12.54 33.16 9.85 35.76 10.69 36.01 14.19 37.47 15.26 40.88 14.41 42.48 16.62 40.62 19.60"),
+    ((58, 24), "69.46 24.90 72.15 27.16 71.31 29.76 67.81 30.01 66.74 31.47 67.59 34.88 65.38 36.48 62.40 34.62 "
+               "60.68 35.18 59.36 38.44 56.64 38.44 55.32 35.18 53.60 34.62 50.62 36.48 48.41 34.88 49.26 31.47 "
+               "48.19 30.01 44.69 29.76 43.85 27.16 46.54 24.90 46.54 23.10 43.85 20.84 44.69 18.24 48.19 17.99 "
+               "49.26 16.53 48.41 13.12 50.62 11.52 53.60 13.38 55.32 12.82 56.64 9.56 59.36 9.56 60.68 12.82 "
+               "62.40 13.38 65.38 11.52 67.59 13.12 66.74 16.53 67.81 17.99 71.31 18.24 72.15 20.84 69.46 23.10"),
+)
+
+
+def draw_logo(canvas, cx: float, cy: float, width: float, color: str, bg: str) -> None:
+    """キャンバスの (cx, cy) を中心に、幅 width でロゴを描く。"""
+    k = width / 88
+    x0, y0 = cx - 44 * k, cy - 24 * k
+
+    def pt(x: float, y: float) -> tuple[float, float]:
+        return x0 + x * k, y0 + y * k
+
+    frame = [c for x, y in LOGO_FRAME + LOGO_FRAME[:1] for c in pt(x, y)]
+    canvas.create_line(*frame, fill=color, width=max(1.0, 2.6 * k), joinstyle="round", capstyle="round")
+    for (hx, hy), points in LOGO_GEARS:
+        nums = [float(v) for v in points.split()]
+        canvas.create_polygon(*[c for x, y in zip(nums[0::2], nums[1::2]) for c in pt(x, y)], fill=color, outline="")
+        canvas.create_oval(*pt(hx - 4.2, hy - 4.2), *pt(hx + 4.2, hy + 4.2), fill=bg, outline="")
 
 
 def should_cover(state: str) -> bool:
@@ -408,8 +454,8 @@ def virtual_screen(root) -> tuple[int, int, int, int]:
 
 
 COVER = {
-    "bg": "#1c2021", "text": "#e6ecec", "muted": "#9aa3a4", "accent": "#8fdfc7",
-    "primary": "#7fd9bf", "track": "#2c3233", "yellow": "#f3d27a", "mint": "#7fd9bf",
+    "bg": "#1c2021", "text": "#e6ecec", "muted": "#8f989a", "accent": "#8fdfc7",
+    "primary": "#7fd9bf", "track": "#30373a", "yellow": "#f3d27a", "mint": "#7fd9bf", "logo": "#e6ecec",
 }
 ENDING_SOON_SECONDS = 5 * 60
 
@@ -474,6 +520,7 @@ class CoverWindow:
         self.canvas = tk.Canvas(top, bg=COVER["bg"], highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
         self.family = window.font[0]
+        self.light = pick_light_family(window.root, self.family)
         self.visible = False
         self.styled = False
         self.size = (0, 0)
@@ -503,52 +550,52 @@ class CoverWindow:
         c.create_rectangle(x1 + r, y1, x2 - r, y2, fill=fill, outline="")
 
     def _draw(self, content: dict) -> None:
-        """1080p を基準に、画面の大きさに合わせて描く (全部のモニターをまとめた範囲の中央)。"""
+        """1080p を基準に、画面の大きさに合わせて描く (全部のモニターをまとめた範囲の中央)。
+
+        ロゴ・状態・残り時間・ひとこと、の順に、真ん中に縦に並べるだけにする (色はミントと黄色の 2 つだけ)。
+        """
         c = self.canvas
         c.delete("all")
         w, hgt = self.size
         k = max(0.5, min(w / 1920, hgt / 1080))
         cx = w / 2
 
-        def font(px: float, bold: bool = False):
-            return (self.family, -max(8, int(px * k)), "bold") if bold else (self.family, -max(8, int(px * k)))
+        def font(px: float, bold: bool = False, light: bool = False):
+            family = self.light if light else self.family
+            return (family, -max(8, int(px * k)), "bold") if bold else (family, -max(8, int(px * k)))
 
-        y = hgt * 0.45 - 260 * k
-        # 状態の札
-        pill = c.create_text(cx, 0, text=content["pill"], font=font(36, True), fill=content["pill_fg"])
-        bx1, _, bx2, _ = c.bbox(pill)
-        pill_h = 36 * k + 24 * k
-        self._round_rect(bx1 - 32 * k, y, bx2 + 32 * k, y + pill_h, content["pill_bg"])
-        c.tag_raise(pill)
-        c.coords(pill, cx, y + pill_h / 2)
-        y += pill_h + 40 * k
+        ending = content["mode"] == "ending"
+        accent = COVER["yellow"] if ending else COVER["accent"]
+        y = hgt * 0.5 - 300 * k
+        draw_logo(c, cx, y + 30 * k, 112 * k, COVER["logo"], COVER["bg"])
+        y += 60 * k + 48 * k
+        c.create_text(cx, y + 14 * k, text=content["pill"], font=font(28, True), fill=accent)
+        y += 28 * k + 36 * k
         if "countdown" in content:
-            c.create_text(cx, y + 16 * k, text="のこり", font=font(32), fill=COVER["muted"])
-            y += 32 * k + 8 * k
-            c.create_text(cx, y + 100 * k, text=content["countdown"], font=font(200, True), fill=content["countdown_fg"])
-            y += 200 * k + 8 * k
-            c.create_text(cx, y + 18 * k, text=content["end_label"], font=font(36), fill=COVER["accent"])
-            y += 36 * k + 32 * k
-            bw, bh = 640 * k, 12 * k
+            c.create_text(cx, y + 90 * k, text=content["countdown"], font=font(180, light=True),
+                          fill=content["countdown_fg"])
+            y += 180 * k + 28 * k
+            bw, bh = 520 * k, max(2, 4 * k)
             self._round_rect(cx - bw / 2, y, cx + bw / 2, y + bh, COVER["track"])
-            if content["progress"] > 0.02:
-                self._round_rect(cx - bw / 2, y, cx - bw / 2 + bw * content["progress"], y + bh, content["bar"])
-            y += bh + 64 * k
+            if content["progress"] > 0.01:
+                self._round_rect(cx - bw / 2, y, cx - bw / 2 + bw * content["progress"], y + bh, accent)
+            y += bh + 20 * k
+            c.create_text(cx, y + 14 * k, text=content["end_label"], font=font(26), fill=COVER["muted"])
+            y += 26 * k + 64 * k
         else:
-            y += 40 * k
             # 文字は中央に固定し、点だけを右に足す (点が増えても文字が左右に動かないように)
             words = content["big"].rstrip(".")
-            item = c.create_text(cx, y + 28 * k, text=words, font=font(56, True), fill=COVER["text"])
-            c.create_text(c.bbox(item)[2], y + 28 * k, text="." * (len(content["big"]) - len(words)),
-                          font=font(56, True), fill=COVER["text"], anchor="w")
-            y += 56 * k + 64 * k
+            item = c.create_text(cx, y + 30 * k, text=words, font=font(60, light=True), fill=COVER["text"])
+            c.create_text(c.bbox(item)[2], y + 30 * k, text="." * (len(content["big"]) - len(words)),
+                          font=font(60, light=True), fill=COVER["text"], anchor="w")
+            y += 60 * k + 56 * k
         first, second = content["lines"]
         if first:
-            c.create_text(cx, y + 18 * k, text=first, font=font(36), fill=COVER["text"])
-            y += 36 * k * 1.4
+            c.create_text(cx, y + 16 * k, text=first, font=font(32), fill=COVER["text"])
+            y += 32 * k * 1.5
         if second:
-            c.create_text(cx, y + 14 * k, text=second, font=font(28), fill=COVER["muted"])
-        c.create_text(cx, hgt - 56 * k, text=content["footer"], font=font(22), fill=COVER["muted"])
+            c.create_text(cx, y + 13 * k, text=second, font=font(24), fill=COVER["muted"])
+        c.create_text(cx, hgt - 56 * k, text=content["footer"], font=font(20), fill=COVER["muted"])
 
     def show(self, state: str, ends_at: dt.datetime | None, total_seconds: float) -> None:
         if not self.visible:
@@ -614,23 +661,49 @@ class AgentWindow:
         self.font_title = (family, 16, "bold")
         self.font_brand = (family, 13, "bold")
 
+        # ボタンや入力欄も Windows の標準の見た目ではなく、サイトと同じ色にそろえる (clam は色を変えられる)
         style = ttk.Style(root)
         try:
-            style.theme_use("vista" if sys.platform == "win32" else "clam")
+            style.theme_use("clam")
         except tk.TclError:
             pass
-        style.configure("TButton", font=self.font, padding=(12, 6))
-        style.configure("Primary.TButton", font=self.font_bold)
-        style.configure("Big.TButton", font=(family, 12, "bold"), padding=(18, 10))
-        style.configure("TCheckbutton", font=self.font, background=COLORS["bg"])
+        flat = {"borderwidth": 1, "relief": "flat", "focuscolor": COLORS["mint"]}
+        style.configure("TButton", font=self.font, padding=(12, 6), background=COLORS["card"], foreground=COLORS["ink"],
+                        bordercolor=COLORS["line"], lightcolor=COLORS["card"], darkcolor=COLORS["card"], **flat)
+        style.map("TButton", background=[("disabled", COLORS["bg"]), ("active", COLORS["hover"])],
+                  foreground=[("disabled", COLORS["muted"])], bordercolor=[("focus", COLORS["mint"])])
+        for name, size, pad in (("Primary.TButton", 10, (14, 6)), ("Big.TButton", 12, (20, 10))):
+            style.configure(name, font=(family, size, "bold"), padding=pad, background=COLORS["mint"],
+                            foreground=COLORS["on_mint"], bordercolor=COLORS["mint"], lightcolor=COLORS["mint"],
+                            darkcolor=COLORS["mint"])
+            style.map(name, background=[("disabled", COLORS["line"]), ("active", "#6acdb0")],
+                      bordercolor=[("active", "#6acdb0")], foreground=[("disabled", COLORS["muted"])])
+        # 文字だけのボタン (補助の操作)
+        style.configure("Link.TButton", font=self.font, padding=(6, 4), background=COLORS["bg"],
+                        foreground=COLORS["primary"], bordercolor=COLORS["bg"], lightcolor=COLORS["bg"],
+                        darkcolor=COLORS["bg"], relief="flat", borderwidth=0)
+        style.map("Link.TButton", background=[("active", COLORS["hover"])], bordercolor=[("active", COLORS["hover"])],
+                  foreground=[("disabled", COLORS["muted"])])
+        style.configure("TCheckbutton", font=self.font, background=COLORS["bg"], foreground=COLORS["ink"],
+                        indicatorbackground=COLORS["card"], indicatorforeground=COLORS["primary"])
+        style.map("TCheckbutton", background=[("active", COLORS["bg"])])
+        for name in ("TEntry", "TSpinbox"):
+            style.configure(name, fieldbackground=COLORS["card"], foreground=COLORS["ink"], bordercolor=COLORS["line"],
+                            lightcolor=COLORS["card"], darkcolor=COLORS["card"], arrowcolor=COLORS["muted"],
+                            background=COLORS["card"], padding=4)
+            style.map(name, bordercolor=[("focus", COLORS["mint"])], lightcolor=[("focus", COLORS["mint"])])
+        style.configure("TScrollbar", background=COLORS["line"], troughcolor=COLORS["bg"], bordercolor=COLORS["bg"],
+                        lightcolor=COLORS["line"], darkcolor=COLORS["line"], arrowcolor=COLORS["muted"], relief="flat")
+        style.configure("TMenubutton", font=self.font, padding=(10, 4), background=COLORS["bg"],
+                        foreground=COLORS["primary"], bordercolor=COLORS["bg"], lightcolor=COLORS["bg"],
+                        darkcolor=COLORS["bg"], arrowcolor=COLORS["primary"], relief="flat")
+        style.map("TMenubutton", background=[("active", COLORS["hover"])])
 
         header = tk.Frame(root, bg=COLORS["bg"])
-        header.pack(fill="x", padx=18, pady=(12, 4))
-        tk.Label(header, text="Geaspec", font=self.font_brand, fg=COLORS["primary"], bg=COLORS["bg"]).pack(side="left")
-        tk.Label(header, text=f" Agent {h.AGENT_VERSION}", font=self.font, fg=COLORS["muted"], bg=COLORS["bg"]).pack(side="left")
-        tk.Label(
-            header, text=f"PC ユーザー: {h.current_windows_user()}", font=self.font, fg=COLORS["muted"], bg=COLORS["bg"]
-        ).pack(side="right")
+        header.pack(fill="x", padx=18, pady=(14, 6))
+        tk.Label(header, text="Geaspec", font=self.font_brand, fg=COLORS["ink"], bg=COLORS["bg"]).pack(side="left")
+        tk.Label(header, text=f"  Agent {h.AGENT_VERSION}", font=self.font_small, fg=COLORS["muted"],
+                 bg=COLORS["bg"]).pack(side="left", pady=(3, 0))
 
         # ここに「はじめての設定」か「ホーム（状態とカレンダー）」のどちらかを入れる
         self.content = tk.Frame(root, bg=COLORS["bg"])
@@ -1040,25 +1113,19 @@ class HomeView:
 
         # --- 状態 ---
         card = tk.Frame(frame, bg=COLORS["card"], highlightbackground=COLORS["line"], highlightthickness=1)
-        card.pack(fill="x", padx=18, pady=(4, 8))
+        card.pack(fill="x", padx=18, pady=(0, 14))
         row = tk.Frame(card, bg=COLORS["card"])
-        row.pack(fill="x", padx=16, pady=(12, 2))
-        self.dot = tk.Canvas(row, width=16, height=16, bg=COLORS["card"], highlightthickness=0)
+        row.pack(fill="x", padx=16, pady=(14, 2))
+        self.dot = tk.Canvas(row, width=14, height=14, bg=COLORS["card"], highlightthickness=0)
         self.dot.pack(side="left", padx=(0, 10))
-        self.dot_item = self.dot.create_oval(2, 2, 14, 14, fill=COLORS["warn"], outline="")
+        self.dot_item = self.dot.create_oval(2, 2, 12, 12, fill=COLORS["warn"], outline="")
         self.status_title = tk.Label(row, text="", font=window.font_title, fg=COLORS["ink"], bg=COLORS["card"])
         self.status_title.pack(side="left")
         self.status_detail = tk.Label(
             card, text="", font=window.font, fg=COLORS["muted"], bg=COLORS["card"], justify="left", anchor="w",
             wraplength=600,
         )
-        self.status_detail.pack(fill="x", padx=(42, 16), pady=(0, 12))
-        web = tk.Frame(card, bg=COLORS["card"])
-        web.pack(fill="x", padx=(42, 16), pady=(0, 12))
-        ttk.Button(web, text="貸し出す時間を決める（Web サイト）", style="Primary.TButton",
-                   command=window.open_lend_page).pack(side="left")
-        tk.Label(web, text="下のカレンダーでも決められます", font=window.font_small, fg=COLORS["muted"],
-                 bg=COLORS["card"]).pack(side="left", padx=10)
+        self.status_detail.pack(fill="x", padx=(40, 16), pady=(0, 14))
 
         # --- カレンダー / 動きの記録 (同じ場所を切り替える) ---
         self.middle = tk.Frame(frame, bg=COLORS["bg"])
@@ -1075,20 +1142,28 @@ class HomeView:
         self.log_text.pack(side="left", fill="both", expand=True, padx=1, pady=1)
         self.append_log(window.log_lines)
 
-        # --- その他の操作 ---
+        # --- その他の操作 (ふだん使わないものは「その他」にまとめる) ---
         actions = tk.Frame(frame, bg=COLORS["bg"])
-        actions.pack(fill="x", padx=18, pady=(6, 4))
-        self.log_button = ttk.Button(actions, text="動きの記録", command=self.toggle_log)
+        actions.pack(fill="x", padx=12, pady=(4, 10))
+        self.log_button = ttk.Button(actions, text="動きの記録", style="Link.TButton", command=self.toggle_log)
         self.log_button.pack(side="left")
-        ttk.Button(actions, text="消すものを確認", command=window.show_targets).pack(side="left", padx=6)
-        self.cleanup_button = ttk.Button(actions, text="今すぐ削除", command=window.cleanup_now)
-        self.cleanup_button.pack(side="left")
-        ttk.Button(actions, text="ログインし直す", command=self.relogin).pack(side="right")
-        tk.Label(
-            frame, text=("ウィンドウを閉じても、画面右下のアイコンで動き続けます。終了するときは、アイコンを右クリック →「終了」。"
-                         if window.tray.active else "ウィンドウを閉じると Agent も終了し、予約を受け付けなくなります。"),
-            font=window.font_small, fg=COLORS["muted"], bg=COLORS["bg"], anchor="w",
-        ).pack(fill="x", padx=18, pady=(0, 10))
+        ttk.Button(actions, text="Web サイトで時間を決める", style="Link.TButton",
+                   command=window.open_lend_page).pack(side="left")
+        more = ttk.Menubutton(actions, text="その他", width=6)
+        self.menu = tk.Menu(more, tearoff=False, font=window.font, bg=COLORS["card"], fg=COLORS["ink"],
+                            activebackground=COLORS["hover"], activeforeground=COLORS["ink"], relief="flat", bd=1)
+        self.menu.add_command(label=f"PC ユーザー: {h.current_windows_user()}", state="disabled")
+        self.menu.add_separator()
+        self.menu.add_command(label="消すものを確認", command=window.show_targets)
+        self.menu.add_command(label="今すぐ削除", command=window.cleanup_now)
+        self.cleanup_index = self.menu.index("end")
+        self.menu.add_command(label="ログインし直す", command=self.relogin)
+        more["menu"] = self.menu
+        more.pack(side="right")
+        if not window.tray.active:  # アイコンで動き続けられないときだけ、閉じると止まることを書いておく
+            tk.Label(frame, text="ウィンドウを閉じると Agent も終了し、予約を受け付けなくなります。",
+                     font=window.font_small, fg=COLORS["muted"], bg=COLORS["bg"], anchor="w").pack(
+                fill="x", padx=18, pady=(0, 10))
         self.update_status()
 
     def update_status(self) -> None:
@@ -1097,7 +1172,7 @@ class HomeView:
         self.status_title.configure(text=title)
         self.status_detail.configure(text=detail)
         self.dot.itemconfigure(self.dot_item, fill=COLORS.get(tone, COLORS["warn"]))
-        self.cleanup_button.state(["disabled"] if c.in_session() else ["!disabled"])
+        self.menu.entryconfigure(self.cleanup_index, state="disabled" if c.in_session() else "normal")
 
     def append_log(self, lines: list[str]) -> None:
         if not lines:
@@ -1157,25 +1232,23 @@ class ScheduleView:
         frame.pack(fill="both", expand=True)
 
         bar = tk.Frame(frame, bg=COLORS["bg"])
-        bar.pack(fill="x", padx=18, pady=(0, 4))
+        bar.pack(fill="x", padx=18, pady=(0, 2))
         tk.Label(bar, text="貸し出す時間", font=window.font_title, bg=COLORS["bg"], fg=COLORS["ink"]).pack(side="left")
-        ttk.Button(bar, text="次の週 ▶", command=lambda: self.move(7)).pack(side="right")
-        ttk.Button(bar, text="今日", command=lambda: self.move(0)).pack(side="right", padx=4)
-        ttk.Button(bar, text="◀ 前の週", command=lambda: self.move(-7)).pack(side="right")
+        self.range_label = tk.Label(bar, text="", font=window.font, bg=COLORS["bg"], fg=COLORS["muted"])
+        self.range_label.pack(side="left", padx=(12, 0), pady=(4, 0))
+        ttk.Button(bar, text="›", width=2, command=lambda: self.move(7)).pack(side="right")
+        ttk.Button(bar, text="今日", width=4, command=lambda: self.move(0)).pack(side="right", padx=4)
+        ttk.Button(bar, text="‹", width=2, command=lambda: self.move(-7)).pack(side="right")
 
         info = tk.Frame(frame, bg=COLORS["bg"])
-        info.pack(fill="x", padx=18, pady=(0, 4))
-        self.range_label = tk.Label(info, text="", font=window.font_bold, bg=COLORS["bg"], fg=COLORS["ink"])
-        self.range_label.pack(side="left")
-        for key, label in (("past", "過ぎた時間"), ("holding", "支払い待ち"), ("booked", "予約あり"), ("open", "受付中")):
+        info.pack(fill="x", padx=18, pady=(2, 6))
+        tk.Label(info, text="マスを押すか、なぞって選びます（1 マス = 1 時間）", font=window.font_small, bg=COLORS["bg"],
+                 fg=COLORS["muted"]).pack(side="left")
+        for key, label in (("booked", "予約あり"), ("open", "受付中")):
             tk.Label(info, text=label, font=window.font_small, bg=COLORS["bg"], fg=COLORS["muted"]).pack(side="right", padx=(3, 10))
-            sample = tk.Canvas(info, width=16, height=12, bg=COLORS["bg"], highlightthickness=0)
-            sample.create_rectangle(1, 1, 15, 11, fill=COLORS[f"cell_{key}"], outline=COLORS["line"])
+            sample = tk.Canvas(info, width=12, height=12, bg=COLORS["bg"], highlightthickness=0)
+            sample.create_rectangle(1, 1, 11, 11, fill=COLORS[f"cell_{key}"], outline="")
             sample.pack(side="right")
-        tk.Label(
-            frame, text="貸せる時間のマスをクリックしてください（なぞるとまとめて選べます）。1 マス = 1 時間です。",
-            font=window.font_small, bg=COLORS["bg"], fg=COLORS["muted"], anchor="w",
-        ).pack(fill="x", padx=18)
 
         # 曜日の見出し (スクロールしない) と、時間のマス (縦にスクロール)
         grid_w = self.LEFT + 7 * self.CELL_W
@@ -1208,8 +1281,8 @@ class ScheduleView:
         tk.Label(footer, text="円", font=font, bg=COLORS["bg"], fg=COLORS["ink"]).pack(side="left")
         self.save_button = ttk.Button(footer, text="保存", style="Primary.TButton", command=self.save)
         self.save_button.pack(side="right")
-        ttk.Button(footer, text="前の週と同じにする", command=self.copy_previous).pack(side="right", padx=6)
-        ttk.Button(footer, text="すべて外す", command=self.clear_week).pack(side="right")
+        ttk.Button(footer, text="前の週と同じ", style="Link.TButton", command=self.copy_previous).pack(side="right", padx=4)
+        ttk.Button(footer, text="すべて外す", style="Link.TButton", command=self.clear_week).pack(side="right")
 
         self.summary = tk.Label(
             frame, text="", font=window.font_small, bg=COLORS["bg"], fg=COLORS["muted"], anchor="w", justify="left",
