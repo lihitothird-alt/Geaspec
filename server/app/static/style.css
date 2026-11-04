@@ -1712,3 +1712,11 @@ body.theme-gamedev::before {
 .uses.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 960px) { .uses.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .uses.four { grid-template-columns: 1fr; } }
+
+/* いちばん下の案内: 3 つの列に分ける */
+.footer-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 32px; margin: 8px 0; }
+.footer-cols div { display: grid; align-content: start; gap: 2px; }
+.footer-cols h3 { margin: 0 0 6px; font-size: .78rem; letter-spacing: .06em; color: var(--text-muted); font-weight: 700; }
+.footer-cols a { padding: 6px 0; color: var(--text); font-size: .9rem; text-decoration: none; }
+.footer-cols a:hover { text-decoration: underline; }
+@media (max-width: 600px) { .footer-cols { grid-template-columns: 1fr 1fr; } }
