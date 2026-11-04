@@ -255,6 +255,28 @@ class ReadinessTest(unittest.TestCase):
         self.assertEqual((fresh["VRChat が入っている"], fresh["貸し出し用の標準ユーザーを使っている"]), ("ok", "ok"))
         self.assertEqual((fresh["予約サイトにつながっている"], fresh["運営の承認"]), ("ng", "wait"))
 
+    def test_lending_needs_a_steam_account_kept_only_for_lending(self):
+        c = self.controller()
+        steam = self.steam(with_vrchat=True)
+        (steam / "config").mkdir()
+        label = "貸し出し専用の Steam アカウントを使っている"
+
+        def state(now):
+            with mock.patch.object(h, "steam_root", return_value=steam), \
+                    mock.patch.object(h, "is_admin_account", return_value=False):
+                return {lab: (st, tip) for lab, st, tip in c.readiness(now=now)}[label]
+
+        self.assertEqual(state(0), ("ng", "Steam にログインしてください"))
+        login = steam / "config" / "loginusers.vdf"
+        login.write_text('"users"\n{\n "76561198000000002"\n {\n  "AccountName" "geaspec_lend"\n  "MostRecent" "1"\n }\n}\n')
+        self.assertEqual(state(100), ("ng", "確かめる（作り方）"))
+        c.confirm_steam_account("geaspec_lend")
+        self.assertEqual(c.config["lending_steam_account"], "geaspec_lend")
+        self.assertEqual(state(101), ("ok", ""))  # 記録したらすぐに確かめ直す
+        # ふだんのアカウントでログインし直したら、また「できていない」に戻る
+        login.write_text('"users"\n{\n "76561198000000001"\n {\n  "AccountName" "main_account"\n  "MostRecent" "1"\n }\n}\n')
+        self.assertEqual(state(200), ("ng", "いまは main_account でログインしています"))
+
     def test_home_summary_says_one_thing_at_a_time(self):
         c = self.controller()
         ready = [("Steam", "ok", ""), ("VRChat", "ok", "")]

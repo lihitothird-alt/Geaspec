@@ -564,6 +564,149 @@ def is_steam_app_installed(root: Path | None, app_id: int = VRCHAT_APP_ID) -> bo
     return any((d / "steamapps" / f"appmanifest_{app_id}.acf").is_file() for d in steam_library_dirs(root))
 
 
+# 貸し出し中に、VR の中から Steam (ストア・ライブラリ・フレンド) を触られないようにする。
+# SteamVR のメニュー (ダッシュボード) は VR のコントローラーで開くので、キーボードとマウスを止めても防げない。
+# 貸し出しの間だけ steamvr.vrsettings を書き換えてメニューを止め、終わったら元の値に戻す。
+STEAMVR_LOCK_SETTINGS = (
+    ("dashboard", "enableDashboard", False),  # システムボタンでメニューを開かない
+    ("dashboard", "arcadeMode", True),  # メニューが出ても、ライブラリ・ストア・デスクトップを出さない
+    ("steamvr", "enableHomeApp", False),  # SteamVR Home (ストアに行ける部屋) を出さない
+    ("steamvr", "startDashboardFromAppLaunch", False),
+)
+_NOT_SET = "__geaspec_not_set__"
+# Steam のゲームのフォルダ (steamapps/common の下) のうち、貸し出し中に動いてよいもの
+ALLOWED_STEAM_APP_DIRS = ("vrchat", "steamvr", "steamworks shared")
+
+
+def steamvr_settings_path(root: Path) -> Path:
+    return root / "config" / "steamvr.vrsettings"
+
+
+def _read_json_file(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8-sig") or "{}")
+    if not isinstance(data, dict):
+        raise ValueError(f"{path.name} の形がおかしいです")
+    return data
+
+
+def _write_json_file(path: Path, data: dict) -> None:
+    """途中で止まっても壊れないよう、別の名前に書いてから置き換える。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".geaspec-tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=3), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+class SteamVRLock:
+    """貸し出しの間だけ SteamVR のメニューを止める。元の値はアプリのフォルダに残し、終わったら戻す。
+
+    アプリが途中で落ちても、次の前処理 (prepare_session) で戻す。
+    """
+
+    def __init__(self, home: Path, root_finder: Callable[[], Path | None] = steam_root) -> None:
+        self.backup = home / "steamvr_backup.json"
+        self.root_finder = root_finder
+
+    def _path(self) -> Path | None:
+        root = self.root_finder()
+        return steamvr_settings_path(root) if root else None
+
+    def apply(self) -> list[str]:
+        path = self._path()
+        if path is None:
+            return ["Steam が見つからないため、SteamVR のメニューを止められませんでした"]
+        try:
+            data = _read_json_file(path)
+            if not self.backup.exists():
+                saved = {}
+                for section, key, _ in STEAMVR_LOCK_SETTINGS:
+                    sec = data.get(section)
+                    saved[f"{section}.{key}"] = sec.get(key, _NOT_SET) if isinstance(sec, dict) else _NOT_SET
+                _write_json_file(self.backup, {"path": str(path), "values": saved})
+            for section, key, value in STEAMVR_LOCK_SETTINGS:
+                if not isinstance(data.get(section), dict):
+                    data[section] = {}
+                data[section][key] = value
+            _write_json_file(path, data)
+        except (OSError, ValueError) as exc:
+            return [f"SteamVR のメニューを止められませんでした: {exc}"]
+        log.info("SteamVR のメニュー (ダッシュボード) を止めました: %s", path)
+        return []
+
+    def is_applied(self) -> bool:
+        path = self._path()
+        try:
+            data = _read_json_file(path) if path else {}
+        except (OSError, ValueError):
+            return False
+        return all(isinstance(data.get(s), dict) and data[s].get(k) == v for s, k, v in STEAMVR_LOCK_SETTINGS)
+
+    def restore(self) -> list[str]:
+        if not self.backup.exists():
+            return []
+        try:
+            saved = _read_json_file(self.backup)
+            path = Path(saved["path"])
+            data = _read_json_file(path)
+            for name, old in saved.get("values", {}).items():
+                section, key = name.split(".", 1)
+                sec = data.get(section)
+                if not isinstance(sec, dict):
+                    sec = data[section] = {}
+                if old == _NOT_SET:
+                    sec.pop(key, None)
+                else:
+                    sec[key] = old
+                if not sec:
+                    data.pop(section, None)
+            _write_json_file(path, data)
+            self.backup.unlink()
+        except (OSError, ValueError, KeyError) as exc:
+            return [f"SteamVR のメニューの設定を元に戻せませんでした: {exc}"]
+        log.info("SteamVR のメニューの設定を元に戻しました")
+        return []
+
+
+def other_steam_games(libraries: list[Path], processes=None) -> list[tuple[int, str]]:
+    """貸し出し中に動いている、VRChat (と SteamVR) 以外の Steam のゲーム [(プロセス番号, 名前)]。"""
+    commons = [os.path.normcase(str(lib / "steamapps" / "common")) + os.sep for lib in libraries]
+    found = []
+    for proc in processes if processes is not None else psutil.process_iter(["pid", "name", "exe"]):
+        info = getattr(proc, "info", proc)
+        exe = info.get("exe")
+        if not exe:
+            continue
+        path = os.path.normcase(str(exe))
+        for common in commons:
+            if path.startswith(common):
+                folder = path[len(common):].split(os.sep, 1)[0]
+                if folder.lower() not in ALLOWED_STEAM_APP_DIRS:
+                    found.append((int(info.get("pid") or 0), str(info.get("name") or folder)))
+                break
+    return found
+
+
+def steam_logged_in_account(root: Path | None) -> str | None:
+    """Steam に最後にログインしたアカウント名 (config/loginusers.vdf)。わからなければ None。"""
+    if root is None:
+        return None
+    try:
+        text = (root / "config" / "loginusers.vdf").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    accounts = []
+    for block in re.findall(r'"\d{5,20}"\s*\{([^{}]*)\}', text):
+        fields = dict(re.findall(r'"(\w+)"\s+"([^"]*)"', block))
+        if fields.get("AccountName"):
+            accounts.append((fields.get("MostRecent") == "1", fields["AccountName"]))
+    recent = [name for most, name in accounts if most]
+    if recent:
+        return recent[0]
+    return accounts[0][1] if len(accounts) == 1 else None
+
+
 def is_admin_account() -> bool | None:
     """このユーザーが管理者のグループに入っているか (わからなければ None)。
 
@@ -692,6 +835,8 @@ class HostAgent:
         # 終了処理で、VRChat を閉じた後・削除する前に呼ぶ (スクリーンショットの送信用)
         self.before_wipe: Callable[[], None] | None = None
         self.input_blocker = InputBlocker()
+        self.steamvr_lock = SteamVRLock(self.home)
+        self._closed_games: set[str] = set()
         if not cfg.wipe_targets:
             cfg.wipe_targets = default_wipe_targets(cfg.keep_screenshots)
 
@@ -720,6 +865,9 @@ class HostAgent:
                 previous.get("session_id"),
             )
         self._terminate_all()
+        # 前の貸し出しの途中でアプリが落ちていたら、SteamVR のメニューの設定を元に戻しておく
+        if self._guards_steam():
+            self.warnings += self.steamvr_lock.restore()
         self._wipe_all()
         self._write_state("prepared")
         log.info("=== 前処理が完了しました ===")
@@ -729,6 +877,13 @@ class HostAgent:
     def start_session(self) -> None:
         log.info("=== セッションを開始します ===")
         self._authorize_borrower()
+        # SteamVR が動き出す前に、VR の中のメニュー (Steam のストアやライブラリに行ける) を止める。
+        # 止められないまま貸すと、借りた人が貸し手の Steam を触れてしまうので、貸し出しを始めない
+        if self._guards_steam():
+            kill_processes(STEAMVR_PROCESSES, self.cfg.kill_timeout_sec, False)
+            problems = self.steamvr_lock.apply()
+            if problems:
+                raise AgentError(problems[0] + "。安全のため、貸し出しを始めませんでした")
         label = STREAMERS[self.cfg.streamer]["label"]
         exe = self.cfg.streamer_path
         if self.cfg.dry_run:
@@ -830,6 +985,8 @@ class HostAgent:
             # VRChat が閉じられたら、少し待ってからもう一度起動する (借り手は VRChat の中だけで過ごす)
             if not self.cfg.dry_run and now - last_vrchat_check >= self.cfg.vrchat_check_sec:
                 last_vrchat_check = now
+                if self._guards_steam():
+                    self._close_other_games()
                 if is_process_running(VRCHAT_PROCESSES[:1]):
                     vrchat_seen, vrchat_gone_at = True, None
                 elif vrchat_seen:
@@ -847,6 +1004,29 @@ class HostAgent:
 
     # --- 5. 終了処理 -----------------------------------------------------
 
+    def _guards_steam(self) -> bool:
+        """Steam を守る処理 (メニューを止める・ほかのゲームを閉じる) をするか。Windows の本番だけ。"""
+        return sys.platform == "win32" and not self.cfg.dry_run
+
+    def _close_other_games(self) -> None:
+        """VRChat 以外の Steam のゲームが起動されたら、すぐに閉じて記録に残す。"""
+        root = steam_root()
+        if root is None:
+            return
+        for pid, name in other_steam_games(steam_library_dirs(root)):
+            try:
+                psutil.Process(pid).kill()
+            except (psutil.Error, ValueError):
+                pass
+            if name not in self._closed_games:
+                self._closed_games.add(name)
+                msg = f"VRChat 以外のゲーム（{name}）が起動されたので閉じました"
+                log.warning(msg)
+                self.warnings.append(msg)
+        if not self.steamvr_lock.is_applied():
+            log.warning("SteamVR のメニューの設定が変えられていました。止め直します")
+            self.warnings += self.steamvr_lock.apply()
+
     def cleanup_session(self) -> None:
         """何度呼ばれても 1 回だけ実行する (Ctrl+C とウィンドウ閉じが重なっても安全)。"""
         with self._cleanup_lock:
@@ -856,6 +1036,9 @@ class HostAgent:
             self.input_blocker.stop()
             self.warnings += set_task_manager_locked(False, self.cfg.dry_run)
             self._terminate_all()
+            # SteamVR を閉じてから、メニューの設定を元に戻す (動いている間に戻すと、閉じるときに上書きされる)
+            if self._guards_steam():
+                self.warnings += self.steamvr_lock.restore()
             if self.before_wipe:
                 try:
                     self.before_wipe()
@@ -1519,6 +1702,8 @@ CONFIG_KEYS = {
     "lending_user": str,
     # この PC を見分ける ID (ログインし直しても同じ PC として扱うため)
     "machine_id": str,
+    # 貸し出し専用として確かめた Steam のアカウント名 (ふだんのアカウントで貸さないため)
+    "lending_steam_account": str,
 }
 
 
