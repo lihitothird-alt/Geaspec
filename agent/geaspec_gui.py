@@ -56,9 +56,10 @@ STANDARD_USER_INTRO = (
     "いま使っているユーザーを標準に変えるだけでは、あなたのファイルが借りる人に見えてしまいます。",
 )
 STANDARD_USER_STEPS = (
-    "設定 → アカウント → 他のユーザー で、新しいユーザーを作る",
+    "設定 → アカウント → 他のユーザー で、新しいユーザーを作る\n"
+    "（メールを聞かれたら「このユーザーのサインイン情報がありません」→「Microsoft アカウントを持たないユーザーを追加する」）",
     "そのユーザーの種類を「標準ユーザー」にする（「アカウントの種類の変更」）",
-    "そのユーザーでサインインして、Geaspec Agent を入れる",
+    "そのユーザーでサインインして、Geaspec の Web サイト（貸し出しのページ）から Geaspec Agent を入れる",
 )
 
 
@@ -110,6 +111,10 @@ def open_user_settings(root) -> None:
 
     ttk.Button(buttons, text="Windows の設定を開く", style="Primary.TButton", command=go).pack(side="left")
     ttk.Button(buttons, text="閉じる", command=top.destroy).pack(side="left", padx=10)
+    top.update_idletasks()
+    x = root.winfo_rootx() + max(0, (root.winfo_width() - top.winfo_reqwidth()) // 2)
+    y = root.winfo_rooty() + max(0, (root.winfo_height() - top.winfo_reqheight()) // 3)
+    top.geometry(f"+{x}+{y}")
     top.grab_set()
 
 
@@ -620,9 +625,7 @@ class CoverWindow:
             self._round_rect(cx - bw / 2, y, cx + bw / 2, y + bh, COVER["track"])
             if content["progress"] > 0.01:
                 self._round_rect(cx - bw / 2, y, cx - bw / 2 + bw * content["progress"], y + bh, accent)
-            y += bh + 20 * k
-            c.create_text(cx, y + 14 * k, text=content["end_label"], font=font(26), fill=COVER["muted"])
-            y += 26 * k + 64 * k
+            y += bh + 72 * k
         else:
             # 文字は中央に固定し、点だけを右に足す (点が増えても文字が左右に動かないように)
             words = content["big"].rstrip(".")
@@ -1098,8 +1101,9 @@ class SetupView:
         from tkinter import ttk
 
         user = h.current_windows_user()
+        admin = h.is_admin_account()
         self.heading(
-            f"Windows ユーザー「{user}」を貸し出し専用にします",
+            f"このユーザー（{user}）は貸し出しに使えません" if admin else f"Windows ユーザー「{user}」を貸し出し専用にします",
             "借りた人のデータを残さないよう、利用が終わるたびに、このユーザーの次のものを消します（元に戻せません）。",
         )
         for line in ("VRChat のログイン情報と設定", "VRChat のキャッシュと一時ファイル",
@@ -1110,7 +1114,6 @@ class SetupView:
                         bg=COLORS["bg"], cursor="hand2", anchor="w")
         link.pack(fill="x", padx=(8, 0), pady=(2, 8))
         link.bind("<Button-1>", lambda e: self.w.show_targets())
-        admin = h.is_admin_account()
         if admin is not None:
             kind = tk.Frame(self.body, bg=COLORS["bg"])
             kind.pack(fill="x", pady=(10, 0))
@@ -1119,8 +1122,6 @@ class SetupView:
                      fg=COLORS["warn" if admin else "ok"], bg=COLORS["bg"]).pack(side="left")
             if admin:
                 # 管理者のユーザーでは貸し出させない (借りる人が、ほかのユーザーのファイルも見られてしまうため)
-                tk.Label(self.body, text="このユーザーでは貸し出せません", font=self.w.font_bold, fg=COLORS["bad"],
-                         bg=COLORS["bg"], anchor="w").pack(fill="x", pady=(8, 0))
                 tk.Label(self.body, text="ふだん使っているユーザーとは別に、貸し出し用の「標準ユーザー」を作り、"
                          "そこで Agent を入れてください。", font=self.w.font, fg=COLORS["ink"], bg=COLORS["bg"],
                          anchor="w", justify="left", wraplength=560).pack(fill="x", pady=(2, 0))
@@ -1295,7 +1296,8 @@ class HomeView:
         self.dot.itemconfigure(self.dot_item, fill=COLORS.get(tone, COLORS["muted"]))
         self.menu.entryconfigure(self.cleanup_index, state="disabled" if c.in_session() else "normal")
         busy = h.STATUS.state in ("session", "cleaning")
-        self.web_button.configure(text="予約を Web で見る" if busy else "貸し出す時間を決める（Web サイト）")
+        self.web_button.configure(text="予約を Web で見る" if busy else "貸し出す時間を決める（Web サイト）",
+                                  style="TButton" if any(state == "ng" for _, state, _ in items) else "Primary.TButton")
         if busy == bool(self.checks_card.winfo_ismapped()):
             if busy:
                 self.checks_card.pack_forget()
