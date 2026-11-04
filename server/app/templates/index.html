@@ -1,54 +1,87 @@
 {% extends "base.html" %}
-{% block title %}{{ settings.service_name }}（ギアスペック） | GPU を集めて、あなただけの AI 組織を{% endblock %}
-{% block description %}Geaspec（ギアスペック）は、ゲーミングPCの GPU を個人どうしで時間単位で貸し借りするサービスです。何台もの GPU を集めて、AI やレンダリングに必要な VRAM を増強できます（準備中）。いまは Geaspec VR（PC版VRChat）で使えます。{% endblock %}
-{% from "_gpu.html" import gpu_card %}
+{% block title %}{{ settings.service_name }}（ギアスペック） | PC を束ねて、あなただけの AI 組織を{% endblock %}
+{% block description %}Geaspec（ギアスペック）は、AI の仕事を何台もの PC に分けて頼める、業務委託の基盤です。ゲストは仕事を頼み、ホストは自分の PC で実行して結果だけを返します（AI の仕事は準備中）。{% endblock %}
 {% block content %}
 <section class="hero" aria-labelledby="hero-title">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>ネット越しの外付け GPU</p>
-      <h1 id="hero-title"><span class="ln">GPU を集めて、</span><br><span class="ln">あなただけの</span><span class="ln"><mark class="hl">AI 組織</mark>を。</span></h1>
-      <p class="lead">何台もの GPU をひとつの組織のように動かして、AI やレンダリングを同時に回す。足りない VRAM は、台数で <strong>VRAM増強</strong>。Geaspec は、ゲーミングPCの GPU を<span class="nowrap">個人どうしで貸し借りする</span>サービスです。</p>
+      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>AI の仕事を、みんなの PC で分担</p>
+      <h1 id="hero-title"><span class="ln">PC を束ねて、</span><br><span class="ln">あなただけの</span><span class="ln"><mark class="hl">AI 組織</mark>を。</span></h1>
+      <p class="lead">Geaspec は、AI の仕事を<span class="nowrap">何台もの PC に分けて頼める、</span>業務委託の基盤です。ゲストは仕事を頼み、ホストは自分の PC で実行して、<span class="nowrap">結果だけを返します。</span></p>
       <div class="cta-row">
-        <a class="btn lg" href="/gpus">GPU をさがす<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-        <a class="btn lg ghost" href="/guide?for=lend">GPU を貸す</a>
+        <a class="btn lg" href="/ai">AI で使う<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <a class="btn lg ghost" href="#host">ホストになる</a>
       </div>
     </div>
 
     <div class="hero-visual">
       <figure class="hud">
-        <figcaption class="pool-cap">複数台で使うイメージ</figcaption>
-        <div class="pool" role="img" aria-label="VRAM 8GB・8GB・12GB の GPU を3台集めて、合計 28GB として使うイメージ">
-          <div class="pool-gpu"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span><span class="num">8</span>GB</span></div>
-          <span class="pool-op" aria-hidden="true">+</span>
-          <div class="pool-gpu"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span><span class="num">8</span>GB</span></div>
-          <span class="pool-op" aria-hidden="true">+</span>
-          <div class="pool-gpu"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span><span class="num">12</span>GB</span></div>
+        <figcaption class="pool-cap">AI 組織のイメージ</figcaption>
+        <div class="org" role="img" aria-label="司令塔が仕事を分けて3台のホストに配り、検証役が結果を確かめるイメージ。同時に動ける AI は3つ">
+          <div class="org-boss"><svg class="i" aria-hidden="true"><use href="#i-sparkle"/></svg>司令塔<small>分ける・配る・確かめる</small></div>
+          <div class="org-hosts">
+            <div class="pool-gpu"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span>要約</span><small>8GB</small></div>
+            <div class="pool-gpu"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span>分類</span><small>8GB</small></div>
+            <div class="pool-gpu"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span>重い仕事</span><small>24GB</small></div>
+          </div>
+          <div class="org-check"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>検証役が結果をチェック</div>
         </div>
-        <p class="pool-sum" aria-hidden="true">VRAM <span class="num">28</span>GB</p>
-        {% if gpus %}
-        <dl class="hud-specs">
-          <div><dt>貸し出し中の GPU</dt><dd><span class="num">{{ gpus|length }}</span> 台</dd></div>
-          {% if total_vram %}<div><dt>VRAM の合計</dt><dd><span class="num">{{ total_vram }}</span>GB</dd></div>{% endif %}
-        </dl>
-        {% endif %}
+        <p class="pool-sum" aria-hidden="true">同時に動ける AI <span class="num">3</span></p>
       </figure>
     </div>
   </div>
 </section>
 
-<section class="section" aria-labelledby="how">
+<section class="section" aria-labelledby="flow">
   <div class="wrap">
     <div class="section-head">
-      <h2 id="how">1台で足りないなら、何台でも</h2>
-      <p>AI やレンダリングでは、GPU の速さより VRAM の量が効きます。VRAM が足りないと、AI のモデルはそもそも動きません。大きな GPU を1台買う代わりに、必要な台数の GPU を集めて、ひとつの組織のように動かします。</p>
+      <h2 id="flow">依頼から結果まで</h2>
+      <p>ゲストがホストの PC を操作することはありません。アカウントの共有もしません。</p>
     </div>
-    <ol class="steps three">
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></div><h3>VRAM でえらぶ</h3><p>GPU ごとの VRAM を見て、必要な量になるまで選びます。</p></li>
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg></div><h3>何台もまとめて借りる</h3><p>同じ時間に、何台もの GPU をまとめて予約します。</p></li>
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg></div><h3>終われば元どおり</h3><p>時間になると自動で終了。データは消え、貸した PC も元に戻ります。</p></li>
+    <ol class="steps">
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-mail"/></svg></div><h3>依頼</h3><p>ゲストが、仕事の中身と、返してほしい結果の形を決めて頼みます。</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></div><h3>承認</h3><p>ホストが決めた条件（時間帯・用途・上限時間・スペック）に合えば自動で承認。合わなければホストがえらびます。</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg></div><h3>実行</h3><p>ホストが自分の PC で実行します。どのモデルやソフトを使うかは、ホストが決めます。</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></div><h3>結果の返却</h3><p>結果だけが返ります。検証役がチェックしてから、ゲストに届きます。</p></li>
     </ol>
-    <p class="muted small uses-note">複数台の貸し出しは準備中です。使いたい方は、<a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a> に「やりたいこと」と「ほしい VRAM の量」を送ってください。始めるときにお知らせします。</p>
+  </div>
+</section>
+
+<section class="section flush-top" aria-labelledby="org">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="org">AI 組織のしくみ</h2>
+      <p>最近の AI は、ひとつの大きな処理より、何体もの AI に役割を分けて、何度も見直しをくり返す使い方が増えています。この使い方は、速い 1 台より、台数がものを言います。</p>
+    </div>
+    <ul class="uses">
+      <li class="use-card ready">
+        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span></div>
+        <h3>司令塔</h3>
+        <p>仕事を小さく分けて、ホストに配ります。進み具合を見て、結果を確かめてまとめます。</p>
+      </li>
+      <li class="use-card ready">
+        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-pc"/></svg></span></div>
+        <h3>ホスト</h3>
+        <p>自分の PC で仕事を実行します。VRAM に合った仕事が届きます。</p>
+      </li>
+      <li class="use-card ready">
+        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span></div>
+        <h3>検証役</h3>
+        <p>結果をチェックします。大事な仕事は 2 台に頼んで、答えが一致するかを確かめます。</p>
+      </li>
+    </ul>
+    <p class="muted small uses-note">VRAM は、何台分を合わせても 1 つの大きなメモリにはなりません。台数が増えると、同時に動ける AI の数と、それぞれが扱える文章の長さが増えます。</p>
+  </div>
+</section>
+
+<section class="section flush-top" aria-labelledby="privacy">
+  <div class="wrap">
+    <div class="lend-band">
+      <div>
+        <h2 id="privacy">頼む中身は、ホストから見える前提で</h2>
+        <p>ホストの PC に渡した仕事の中身は、ホストから見えるものとして扱います。個人情報を含む処理はゲストの手元で行い、外に出すのは切り分けられる部分だけにします。</p>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -60,47 +93,36 @@
     <ul class="uses">
       <li class="use-card">
         <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span><span class="badge completed">準備中</span></div>
-        <h3>AI・画像生成</h3>
-        <p>AI エージェントや学習のお試しを、何台もの GPU で同時に回して、改善のくり返しを速く。</p>
+        <h3>AI</h3>
+        <p>要約・分類・文字起こしから、大きめのモデルまで。何体もの AI で、見直しを何度も回します。</p>
+        <a class="use-link" href="/ai">AI のページへ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
       </li>
       <li class="use-card">
         <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span><span class="badge completed">準備中</span></div>
-        <h3>3D レンダリング</h3>
-        <p>フレームを何台もの GPU で分けて描いて、待ち時間を短く。</p>
+        <h3>ゲーム開発</h3>
+        <p>仕組みの設計、オブジェクトの生成、色の設定、軽量化の開発を、役割を分けた AI で。</p>
+        <a class="use-link" href="/gamedev">ゲーム開発のページへ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
       </li>
       <li class="use-card ready">
         <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-quest"/></svg></span><span class="badge confirmed">使えます</span></div>
         <h3>Geaspec VR</h3>
-        <p>VR は、速い GPU を1台まるごと借ります。Quest ひとつで PC版VRChat。</p>
+        <p>VR だけは別の仕組みです。Quest からホストの PC にその場でつないで、PC版VRChat を遊びます。</p>
         <a class="use-link" href="/vrchat">Geaspec VR へ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
       </li>
     </ul>
   </div>
 </section>
 
-{% if gpus %}
-<section class="section flush-top" aria-labelledby="gpus">
-  <div class="wrap">
-    <div class="section-head split">
-      <h2 id="gpus">貸し出されている GPU</h2>
-      <a class="use-link" href="/gpus">すべての GPU を見る<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-    </div>
-    <ul class="gpu-list">
-      {% for g in gpus[:3] %}{{ gpu_card(g, now) }}{% endfor %}
-    </ul>
-  </div>
-</section>
-{% endif %}
-
-<section class="section flush-top" aria-labelledby="lend">
+<section class="section flush-top" aria-labelledby="host">
   <div class="wrap">
     <div class="lend-band">
       <div>
-        <h2 id="lend">使っていない GPU を貸す</h2>
-        <p>ゲーミングPCの空いている時間を貸し出せます。貸し出し中はキーボードとマウスを止め、終わったら自動で片づけます。</p>
+        <h2 id="host">ホストになる</h2>
+        <p>使っていない PC で、仕事を引き受けます。受ける仕事の条件も、やり方も、ホストが決めます。設定したくない人向けの、入れるだけで動く標準のやり方も用意する予定です。いまは Geaspec VR のホストとして参加できます。</p>
       </div>
-      <a class="btn ghost" href="/guide?for=lend">貸す人の手順</a>
+      <a class="btn ghost" href="/guide?for=lend">VR のホストの手順</a>
     </div>
+    <p class="muted small uses-note">AI の仕事の依頼と、AI のホストの受付は準備中です。料金も決まっていません。関心のある方は <a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a> へ、ゲストかホストか、やりたいことを書いて送ってください。始めるときにお知らせします。</p>
   </div>
 </section>
 {% endblock %}

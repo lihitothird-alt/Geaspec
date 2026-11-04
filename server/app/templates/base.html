@@ -93,9 +93,10 @@
       {% else %}<a class="logo" href="{{ '/en' if en else '/' }}">{{ logo_mark() }}<span class="logo-text">{{ settings.service_name }}</span></a>{% endif %}
 
       <nav class="nav-desktop" aria-label="メインメニュー">
-        {% if not en %}<a class="nav-link" href="/gpus"{% if path == "/gpus" %} aria-current="page"{% endif %}>GPU をさがす</a>
-        <a class="nav-link" href="/vrchat"{% if path == "/vrchat" %} aria-current="page"{% endif %}>Geaspec VR</a>{% endif %}
-        <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}>{{ "Open slots" if en else "空き枠" }}</a>
+        {% if en or vr_area %}<a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}>{{ "Open slots" if en else "空き枠" }}</a>
+        {% else %}<a class="nav-link" href="/ai"{% if path == "/ai" %} aria-current="page"{% endif %}>AI</a>
+        <a class="nav-link" href="/gamedev"{% if path == "/gamedev" %} aria-current="page"{% endif %}>ゲーム開発</a>
+        <a class="nav-link" href="/vrchat">Geaspec VR</a>{% endif %}
         {% if user %}
           <a class="nav-link" href="/bookings"{% if path.startswith("/bookings") %} aria-current="page"{% endif %}>{{ "Bookings" if en else "予約一覧" }}</a>
           {% if not simple %}<a class="nav-link" href="/following"{% if path == "/following" %} aria-current="page"{% endif %}>{{ "Following" if en else "フォロー中" }}</a>{% endif %}
@@ -110,13 +111,15 @@
       </nav>
 
       <div class="nav-mobile">
-        {% if path != "/slots" %}<a class="btn small" href="/slots">{{ "Open slots" if en else "空き枠" }}</a>{% endif %}
+        {% if (en or vr_area) and path != "/slots" %}<a class="btn small" href="/slots">{{ "Open slots" if en else "空き枠" }}</a>{% endif %}
         <details class="menu">
           <summary><svg class="i ic-open"><use href="#i-menu"/></svg><svg class="i ic-close"><use href="#i-close"/></svg><span class="visually-hidden">メニュー</span></summary>
           <nav class="menu-panel" aria-label="メニュー">
-            <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-calendar"/></svg>{{ "Open slots" if en else "空き枠" }}</a>
-            {% if not en %}<a class="nav-link" href="/gpus"{% if path == "/gpus" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-pc"/></svg>GPU をさがす</a>
+            {% if not en %}<a class="nav-link" href="/"{% if path == "/" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-sparkle"/></svg>Geaspec トップ</a>
+            <a class="nav-link" href="/ai"{% if path == "/ai" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-sparkle"/></svg>AI</a>
+            <a class="nav-link" href="/gamedev"{% if path == "/gamedev" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-monitor"/></svg>ゲーム開発</a>
             <a class="nav-link" href="/vrchat"{% if path == "/vrchat" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-quest"/></svg>Geaspec VR（PC版VRChat）</a>{% endif %}
+            <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-calendar"/></svg>{{ "Open slots" if en else "VR の空き枠" }}</a>
             {% if user %}
               <a class="nav-link" href="/bookings"{% if path.startswith("/bookings") %} aria-current="page"{% endif %}><svg class="i"><use href="#i-list"/></svg>{{ "Bookings" if en else "予約一覧" }}</a>
               {% if not simple %}<a class="nav-link" href="/following"{% if path == "/following" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-heart"/></svg>{{ "Following" if en else "フォロー中" }}</a>{% endif %}
@@ -169,7 +172,8 @@
         <a href="/legal/privacy" hreflang="ja">Privacy (Japanese)</a>
         <a href="/legal/platforms" hreflang="ja">VRChat and Steam terms (Japanese)</a>
         {% else %}
-        <a href="/gpus">GPU をさがす</a>
+        <a href="/ai">AI</a>
+        <a href="/gamedev">ゲーム開発</a>
         <a href="/vrchat">Geaspec VR（PC版VRChat）</a>
         <a href="/guide">はじめての方へ</a>
         <a href="/about">名前の由来</a>

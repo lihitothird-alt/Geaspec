@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}ゲーム開発 | {{ settings.service_name }}（ギアスペック）{% endblock %}
+{% block description %}ゲームの仕組みの設計、オブジェクトの生成、色の設定、軽量化の開発を、役割を分けた AI の組織に頼めます（準備中）。{% endblock %}
+{% block content %}
+<div class="wrap">
+  <header class="page-head big">
+    <p class="eyebrow"><span class="dot" aria-hidden="true"></span>準備中</p>
+    <h1>ゲーム開発を、役割を分けた AI で</h1>
+    <p class="muted">設計する役、作る役、テストする役、確かめる役。ゲーム開発の仕事を、何台ものホストの PC で動く AI の組織に分けて頼めます。</p>
+  </header>
+</div>
+
+<section class="wrap section tight" aria-labelledby="jobs">
+  <div class="section-head">
+    <h2 id="jobs">頼める仕事</h2>
+  </div>
+  <ul class="uses four">
+    <li class="use-card ready">
+      <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-gear"/></svg></span></div>
+      <h3>ゲームの内側の仕組み</h3>
+      <p>ゲームを動かす仕組みの設計と実装。</p>
+    </li>
+    <li class="use-card ready">
+      <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-pc"/></svg></span></div>
+      <h3>オブジェクトの生成</h3>
+      <p>ゲームに置く 3D の物体を作ります。</p>
+    </li>
+    <li class="use-card ready">
+      <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span></div>
+      <h3>RGB の設定</h3>
+      <p>色や光の調整。</p>
+    </li>
+    <li class="use-card ready">
+      <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-power"/></svg></span></div>
+      <h3>軽量化の仕組み</h3>
+      <p>重いゲームを軽く動かすための仕組みの開発。</p>
+    </li>
+  </ul>
+</section>
+
+<section class="wrap section flush-top" aria-labelledby="roles">
+  <div class="section-head">
+    <h2 id="roles">役割を分けて、何度も見直す</h2>
+    <p>それぞれの役を別の PC の AI が受け持ち、司令塔が順番に回します。</p>
+  </div>
+  <ol class="steps">
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></div><h3>設計する役</h3><p>何を作るかを決めて、細かい作業に分けます。</p></li>
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg></div><h3>作る役</h3><p>分けた作業を、何台かで同時に進めます。</p></li>
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-play"/></svg></div><h3>テストする役</h3><p>動かして、うまくいかないところを探します。</p></li>
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></div><h3>確かめる役</h3><p>結果をチェックして、直すところを作る役に戻します。</p></li>
+  </ol>
+</section>
+
+<section class="wrap section flush-top" aria-labelledby="status">
+  <h2 id="status" class="visually-hidden">いまの状況</h2>
+  <p class="muted small uses-note status-note">ホストに渡した仕事の中身は、ホストから見える前提で扱います。公開前の秘密の部分はゲストの手元で行い、切り分けられる部分だけを頼みます。</p>
+  <div class="notice"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg><p>ゲーム開発の仕事の依頼は準備中で、料金も決まっていません。関心のある方は <a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a> へ、作っているゲームと、頼みたいことを書いて送ってください。</p></div>
+</section>
+{% endblock %}

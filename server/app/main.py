@@ -54,7 +54,7 @@ SITE_GATE_OPEN_PREFIXES = (
     "/manifest.webmanifest", "/sw.js",
 )
 # 検索エンジンに載せるページ (だれでも見られる案内だけ。アカウントや予約、管理のページは載せない)
-INDEXABLE_PATHS = ("/", "/gpus", "/vrchat", "/en", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
+INDEXABLE_PATHS = ("/", "/ai", "/gamedev", "/vrchat", "/en", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
 LEGAL_PAGES = {"tokushoho": "特定商取引法に基づく表記", "terms": "利用規約", "privacy": "プライバシーポリシー",
                "platforms": "VRChat・Steam などの規約について"}
 
@@ -257,47 +257,41 @@ def create_app(
 
     # --- 公開ページ ---------------------------------------------------------
 
-    def gpu_listing(db: Session, slots: list[Slot]) -> list[dict]:
-        """貸し出されている GPU (承認済み・受付中の PC) を VRAM の大きい順に。空き枠の数と次の空きも付ける。"""
-        hosts = db.scalars(select(Host).where(Host.active.is_(True), Host.pending.is_(False))).all()
-        items = []
-        for h in hosts:
-            open_slots = [s for s in slots if s.host_id == h.id]
-            items.append({
-                "host": h, "vram": h.vram_gb, "gpu": h.spec.get("gpu", ""),
-                "open_count": len(open_slots), "next": open_slots[0] if open_slots else None,
-                "lender": None if settings.simple_mode else h.owner,
-            })
-        # VRAM の大きい順。空きがある PC を先に
-        items.sort(key=lambda g: (-(g["vram"] or 0), g["next"] is None, g["host"].id))
-        return items
-
     def landing(request: Request, db: Session, ref: str, template: str):
         # 広告などの流入元 (例: /?ref=himari-ryokan)。登録時にユーザーへ記録する
         if ref and REF_RE.match(ref):
             request.session["ref"] = ref
         slots = services.available_slots(db, clock.utcnow(), settings.hold_minutes)
         min_price = min((s.price_yen for s in slots), default=None)
-        gpus = gpu_listing(db, slots)
-        total_vram = sum(g["vram"] or 0 for g in gpus)
-        return render(request, db, template, slot_count=len(slots), min_price=min_price, total_vram=total_vram,
-                      gpus=gpus, now=clock.utcnow())
+        return render(request, db, template, slot_count=len(slots), min_price=min_price)
 
-    VRAM_FILTERS = (8, 12, 16, 24)
+    # VRAM の階層ごとに、向いている仕事 (AI の仕事を振り分ける目安)
+    VRAM_TIERS = (
+        ("8GB 級", 0, 12, "軽い推論（要約・分類・文字起こし・埋め込みの作成など）"),
+        ("12〜16GB 級", 12, 24, "中くらいのモデル・画像生成"),
+        ("24GB 級以上", 24, 10_000, "大きめのモデル・重い仕事"),
+    )
 
-    @app.get("/gpus", response_class=HTMLResponse)
-    def gpus_page(request: Request, vram: int = 0, db: Session = Depends(get_db)):
-        """GPU をさがす: 貸し出されている GPU を VRAM でえらぶ。"""
-        now = clock.utcnow()
-        gpus = gpu_listing(db, services.available_slots(db, now, settings.hold_minutes))
-        if vram not in VRAM_FILTERS:
-            vram = 0
-        shown = [g for g in gpus if not vram or (g["vram"] or 0) >= vram]
-        return render(request, db, "gpus.html", gpus=shown, total=len(gpus), vram=vram, filters=VRAM_FILTERS, now=now)
+    # 以前の「GPU をさがす」と「参加している PC」。いま登録されている PC はすべて Geaspec VR のホストなので、
+    # AI 側に PC の一覧は出さない (VR の PC は Geaspec VR の空き枠で見られる)
+    @app.get("/gpus")
+    @app.get("/hosts")
+    def hosts_moved():
+        return RedirectResponse("/ai", status_code=301)
+
+    @app.get("/ai", response_class=HTMLResponse)
+    def ai_page(request: Request, db: Session = Depends(get_db)):
+        """AI の仕事を、何台ものホストの PC に分けて頼む (準備中)。"""
+        return render(request, db, "ai.html", tiers=VRAM_TIERS)
+
+    @app.get("/gamedev", response_class=HTMLResponse)
+    def gamedev_page(request: Request, db: Session = Depends(get_db)):
+        """ゲーム開発の仕事を、AI の組織に分けて頼む (準備中)。"""
+        return render(request, db, "gamedev.html")
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request, ref: str = "", db: Session = Depends(get_db)):
-        """Geaspec 全体のトップ (VRAM 増強)。いま使える用途は PC版VRChat。"""
+        """Geaspec 全体のトップ: 業務委託で AI の仕事を分散して処理する基盤。用途別のページへ案内する。"""
         return landing(request, db, ref, "index.html")
 
     @app.get("/vrchat", response_class=HTMLResponse)

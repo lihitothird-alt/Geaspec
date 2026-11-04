@@ -139,8 +139,16 @@ def test_landing_page_renders(tmp_path, now):
     c = TestClient(app)
     r = c.get("/")
     assert r.status_code == 200
-    # トップは GPU の貸し借り (VRAM 増強)。VR はその中の専用ページ
-    assert "VRAM増強" in r.text and 'href="/gpus"' in r.text and "Geaspec VR へ" in r.text and "複数台の貸し出しは準備中" in r.text and "AI 組織" in r.text
+    # トップは業務委託で AI の仕事を分ける基盤。用途別のページへ案内し、VR は別の仕組み
+    assert "業務委託の基盤" in r.text and "AI 組織" in r.text and "準備中" in r.text
+    for href in ('href="/ai"', 'href="/gamedev"', 'href="/vrchat"'):
+        assert href in r.text
+    # レンタルの言葉や、VRAM を合算して 1 つのメモリに見せる表現は使わない
+    assert "GPU をさがす" not in r.text and "VRAM増強" not in r.text and "28GB" not in r.text
+    assert "1 つの大きなメモリにはなりません" in r.text
+    for path in ("/ai", "/gamedev"):
+        page = c.get(path)
+        assert page.status_code == 200 and "準備中" in page.text and "料金も決まっていません" in page.text
     # カタカナの読みでも見つかるように (タイトル・説明・検索エンジン向けのサイト名)
     assert "<title>Geaspec（ギアスペック）" in r.text and '"alternateName": ["ギアスペック"]' in r.text
     # もとのトップページは /vrchat にそのまま残っている
@@ -673,7 +681,7 @@ def test_site_login_rejects_open_redirect(tmp_path, now, monkeypatch):
 def test_only_public_pages_are_indexed(tmp_path, now):
     app, _ = make_app(tmp_path)
     c = TestClient(app)
-    for path in ("/", "/gpus", "/vrchat", "/en", "/about", "/guide"):
+    for path in ("/", "/ai", "/gamedev", "/vrchat", "/en", "/about", "/guide"):
         r = c.get(path)
         assert "x-robots-tag" not in r.headers, path
         assert 'name="robots"' not in r.text and f'rel="canonical" href="http://localhost:8000{path}"' in r.text, path
@@ -1366,12 +1374,10 @@ def test_lender_pc_specs_are_shown_to_borrowers(tmp_path, now):
     signup(user, "user@example.com")
     line = "NVIDIA GeForce RTX 4070（12GB）・AMD Ryzen 7 7700 8-Core・メモリ 32GB"
     assert line in user.get("/slots").text
-    # トップには、貸し出されている GPU の VRAM の合計を出す (複数台で使うときの目安)
-    assert '<dt>VRAM の合計</dt><dd><span class="num">12</span>GB' in user.get("/").text
-    # GPU をさがす: VRAM でしぼれて、その PC の空き枠だけに飛べる
-    gpus = user.get("/gpus").text
-    assert "NVIDIA GeForce RTX 4070" in gpus and 'href="/slots?host=1"' in gpus and "（1 枠）" in gpus
-    assert "RTX 4070" in user.get("/gpus?vram=12").text and "RTX 4070" not in user.get("/gpus?vram=16").text
+    # VR の PC は Geaspec VR の中だけに出す (AI 側に PC の一覧は出さない)
+    assert user.get("/gpus", follow_redirects=False).headers["location"] == "/ai"
+    assert user.get("/hosts", follow_redirects=False).headers["location"] == "/ai"
+    assert "RTX 4070" not in user.get("/").text and "RTX 4070" not in user.get("/ai").text
     assert "の空き枠だけを表示しています" in user.get("/slots?host=1").text
     assert agent.post("/api/agent/specs", json={"gpu": "x" * 500, "ram_gb": -1}).json() == {"ok": True}
     assert "x" * 100 in user.get("/slots").text and "x" * 101 not in user.get("/slots").text

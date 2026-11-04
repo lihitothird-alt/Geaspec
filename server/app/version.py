@@ -1,12 +1,19 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.45"
+VERSION = "0.7.46"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 # 貸す人の Windows アプリ (サイトと同じ版のもの)
 AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.46": [
+        "トップページを、AI の仕事を何台もの PC に分けて頼める「業務委託の基盤」の案内にしました（依頼 → 承認 → 実行 → 結果の返却、司令塔・ホスト・検証役の役割、頼む中身の扱い）。AI の仕事は準備中です",
+        "AI のページと、ゲーム開発のページを足しました（どちらも準備中）",
+        "「GPU をさがす」のページはなくしました。いま登録されている PC はすべて Geaspec VR のホストなので、VR の PC は Geaspec VR の空き枠でだけ見られるようにしました",
+        "貸し手アプリ（Geaspec Agent）のウィンドウと説明の小窓が、画面の左上ではなく真ん中に出るようにしました",
+        "Geaspec VR のよくある質問に、夜以外の空きと、AI の仕事とのちがいを足しました",
+    ],
     "0.7.45": [
         "トップページを、GPU を個人どうしで貸し借りするサービスの案内にしました。何台もの GPU を集めて AI やレンダリングを同時に回す、複数台の貸し出しを準備中です",
         "「GPU をさがす」のページを足しました。貸し出されている GPU を VRAM の大きい順に並べ、8GB 以上・12GB 以上などでしぼれます",

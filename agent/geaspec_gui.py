@@ -73,6 +73,21 @@ def open_uri(uri: str) -> None:
         webbrowser.open(uri)
 
 
+def place_center(win, over=None) -> None:
+    """ウィンドウを画面の真ん中に出す。over があり、その上に収まるなら over の真ん中に重ねる。"""
+    win.update_idletasks()
+    min_w, min_h = win.minsize()
+    w = max(win.winfo_reqwidth(), min_w, win.winfo_width() if win.winfo_ismapped() else 0)
+    hgt = max(win.winfo_reqheight(), min_h, win.winfo_height() if win.winfo_ismapped() else 0)
+    if over is not None and over.winfo_viewable() and over.winfo_width() >= w and over.winfo_height() >= hgt:
+        x = over.winfo_rootx() + (over.winfo_width() - w) // 2
+        y = over.winfo_rooty() + (over.winfo_height() - hgt) // 2
+    else:
+        x = (win.winfo_screenwidth() - w) // 2
+        y = (win.winfo_screenheight() - hgt) // 2 - 20  # 下のタスクバーのぶん少し上げる
+    win.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+
 def open_user_settings(root) -> None:
     """標準ユーザーの作り方をアプリと同じ見た目の小さな画面で見せ、Windows の「他のユーザー」の設定を開ける。"""
     import tkinter as tk
@@ -111,10 +126,7 @@ def open_user_settings(root) -> None:
 
     ttk.Button(buttons, text="Windows の設定を開く", style="Primary.TButton", command=go).pack(side="left")
     ttk.Button(buttons, text="閉じる", command=top.destroy).pack(side="left", padx=10)
-    top.update_idletasks()
-    x = root.winfo_rootx() + max(0, (root.winfo_width() - top.winfo_reqwidth()) // 2)
-    y = root.winfo_rooty() + max(0, (root.winfo_height() - top.winfo_reqheight()) // 3)
-    top.geometry(f"+{x}+{y}")
+    place_center(top, over=root)
     top.grab_set()
 
 
@@ -763,6 +775,7 @@ class AgentWindow:
         if sys.platform == "win32":
             self.tray.start()
         self.show_start_page()
+        place_center(root)  # 左上ではなく、画面の真ん中に出す
         self.tick()
 
     # --- 画面の切り替え -----------------------------------------------------
@@ -1430,6 +1443,7 @@ class SettingsDialog:
         buttons.grid(row=8, column=0, columnspan=2, sticky="e", pady=(8, 0))
         ttk.Button(buttons, text="キャンセル", command=top.destroy).pack(side="right")
         ttk.Button(buttons, text="保存", style="Primary.TButton", command=self.save).pack(side="right", padx=(0, 8))
+        place_center(top, over=window.root)
         top.grab_set()
 
     def save(self) -> None:
