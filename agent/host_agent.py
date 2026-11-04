@@ -33,6 +33,7 @@ import json
 import logging
 import logging.handlers
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -519,6 +520,46 @@ def set_task_manager_locked(locked: bool, dry_run: bool = False) -> list[str]:
     except OSError as exc:
         return [f"タスクマネージャーの設定を変えられませんでした: {exc}"]
     return []
+
+
+STEAM_DEFAULT_DIR = r"C:\Program Files (x86)\Steam"
+VRCHAT_APP_ID = 438100
+
+
+def steam_root() -> Path | None:
+    """Steam のフォルダ。入っていなければ None (レジストリの SteamPath → いつもの場所の順に探す)。"""
+    candidates: list[Path] = []
+    if sys.platform == "win32":
+        try:
+            import winreg
+
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam") as key:
+                candidates.append(Path(winreg.QueryValueEx(key, "SteamPath")[0]))
+        except OSError:
+            pass
+    candidates.append(Path(STEAM_DEFAULT_DIR))
+    return next((p for p in candidates if (p / "steam.exe").is_file()), None)
+
+
+def steam_library_dirs(root: Path) -> list[Path]:
+    """ゲームを入れる場所 (Steam のフォルダと、libraryfolders.vdf に書かれた追加の場所)。"""
+    dirs = [root]
+    try:
+        text = (root / "steamapps" / "libraryfolders.vdf").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return dirs
+    for match in re.finditer(r'"path"\s+"([^"]+)"', text):
+        path = Path(match.group(1).replace("\\\\", "\\"))
+        if path not in dirs:
+            dirs.append(path)
+    return dirs
+
+
+def is_steam_app_installed(root: Path | None, app_id: int = VRCHAT_APP_ID) -> bool:
+    """Steam でそのゲーム (ふつうは VRChat) を入れてあるか。"""
+    if root is None:
+        return False
+    return any((d / "steamapps" / f"appmanifest_{app_id}.acf").is_file() for d in steam_library_dirs(root))
 
 
 def is_process_running(names: Iterable[str]) -> bool:

@@ -190,67 +190,77 @@ def server_slot(start, hours=1, state="open", editable=True):
     }
 
 
-class ScheduleModelTest(unittest.TestCase):
-    WEEK = dt.datetime(2026, 10, 10)
-    NOW = dt.datetime(2026, 10, 10, 12, 30)
+class ReadinessTest(unittest.TestCase):
+    """ホームのチェックリスト (自動で確かめる項目) と「次の貸し出し」の文。"""
 
-    def model(self):
-        m = g.ScheduleModel(self.WEEK)
-        m.load({"price_yen": 800, "trial_minutes": 30, "host": "PC-1", "slots": [
-            server_slot(dt.datetime(2026, 10, 10, 20)),
-            server_slot(dt.datetime(2026, 10, 10, 21), state="booked", editable=False),
-            server_slot(dt.datetime(2026, 10, 11, 9), hours=2, state="open", editable=False),  # 別に作った 2 時間枠
-            server_slot(dt.datetime(2026, 10, 11, 20), state="closed"),
-        ]})
-        return m
+    NOW = dt.datetime(2026, 11, 4, 20, 0)
 
-    def test_load_marks_cells(self):
-        m = self.model()
-        now = self.NOW
-        self.assertEqual((m.price_yen, m.trial_minutes, m.host), (800, 30, "PC-1"))
-        self.assertEqual(m.state(dt.datetime(2026, 10, 10, 20), now), "open")
-        self.assertEqual(m.state(dt.datetime(2026, 10, 10, 21), now), "booked")
-        self.assertEqual(m.state(dt.datetime(2026, 10, 11, 9), now), "fixed")
-        self.assertEqual(m.state(dt.datetime(2026, 10, 11, 10), now), "fixed")
-        self.assertEqual(m.state(dt.datetime(2026, 10, 11, 20), now), "empty")  # 受付をやめた枠
-        self.assertEqual(m.state(dt.datetime(2026, 10, 10, 12), now), "past")
-        self.assertFalse(m.dirty())
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        env = mock.patch.dict(os.environ, {"USERNAME": "geaspec"}, clear=True)
+        env.start()
+        self.addCleanup(env.stop)
+        h.STATUS = h.AgentStatus()
 
-    def test_toggle_only_free_future_cells(self):
-        m = self.model()
-        now = self.NOW
-        self.assertTrue(m.set(dt.datetime(2026, 10, 10, 22), True, now))
-        self.assertFalse(m.set(dt.datetime(2026, 10, 10, 22), True, now))  # 変化なし
-        self.assertFalse(m.set(dt.datetime(2026, 10, 10, 21), False, now))  # 予約あり
-        self.assertFalse(m.set(dt.datetime(2026, 10, 10, 11), True, now))  # 過ぎた時間
-        self.assertFalse(m.set(dt.datetime(2026, 10, 17, 11), True, now))  # 範囲外
-        self.assertTrue(m.set(dt.datetime(2026, 10, 10, 20), False, now))
-        self.assertTrue(m.dirty())
-        self.assertEqual(m.starts_to_save(now), [dt.datetime(2026, 10, 10, 22)])
-        counts = m.counts(now)
-        self.assertEqual((counts["open"], counts["booked"]), (1, 1))
+    def steam(self, with_vrchat: bool, extra_library: bool = False) -> Path:
+        steam = self.root / "Steam"
+        (steam / "steamapps").mkdir(parents=True)
+        (steam / "steam.exe").write_text("")
+        library = self.root / "Games" if extra_library else steam
+        (library / "steamapps").mkdir(parents=True, exist_ok=True)
+        (steam / "steamapps" / "libraryfolders.vdf").write_text(
+            '"libraryfolders"\n{\n "1"\n {\n  "path"  "%s"\n }\n}\n' % str(library).replace("\\", "\\\\"))
+        if with_vrchat:
+            (library / "steamapps" / "appmanifest_438100.acf").write_text("")
+        return steam
 
-    def test_copy_previous_week(self):
-        previous = self.model()
-        week = g.ScheduleModel(self.WEEK + dt.timedelta(days=7))
-        added = week.copy_from(previous, self.NOW)
-        # 受付中と予約ありだった時間を、1 週間後に選ぶ (別に作った枠と、受付をやめた枠は写さない)
-        self.assertEqual(added, 2)
-        self.assertEqual(sorted(week.selected), [dt.datetime(2026, 10, 17, 20), dt.datetime(2026, 10, 17, 21)])
+    def test_vrchat_found_in_an_extra_steam_library(self):
+        steam = self.steam(with_vrchat=True, extra_library=True)
+        self.assertTrue(h.is_steam_app_installed(steam))
+        self.assertFalse(h.is_steam_app_installed(self.steam_without()))
+        self.assertFalse(h.is_steam_app_installed(None))
 
-    def test_server_time_round_trip(self):
-        t = dt.datetime(2026, 10, 10, 20, 0)
-        self.assertEqual(h.server_time_to_local(h.local_to_server_time(t)), t)
-        self.assertTrue(h.local_to_server_time(t).endswith("Z"))
+    def steam_without(self) -> Path:
+        other = self.root / "Other"
+        (other / "steamapps").mkdir(parents=True)
+        return other
 
-    def test_until_text(self):
-        self.assertEqual(g.until_text(10), "1分")
-        self.assertEqual(g.until_text(83 * 60), "1時間23分")
-        self.assertEqual(g.until_text(2 * 86400 + 3600), "2日1時間")
+    def test_checklist_reports_each_condition(self):
+        c = g.AgentController(config_path=self.root / "config.json", home=self.root / "home")
+        c.save_settings("https://x.example", "pcvr_0123456789", "")
+        c.register_lending_user()
+        steam = self.steam(with_vrchat=False)
+        with mock.patch.object(h, "steam_root", return_value=steam):
+            items = {label: (state, tip) for label, state, tip in c.readiness(now=0)}
+        self.assertEqual(items["Geaspec にログイン"][0], "ok")
+        self.assertEqual(items["貸し出し専用の Windows ユーザー"][0], "ok")
+        self.assertEqual(items["予約サイトとつながっている"][0], "wait")
+        self.assertEqual(items["運営の承認"][0], "wait")
+        self.assertEqual(items["Steam"][0], "ok")
+        self.assertEqual(items["VRChat"], ("ng", "Steam で VRChat を入れてください"))
+        self.assertEqual(items["Virtual Desktop Streamer"][0], "ng")
 
+        h.STATUS.state, h.STATUS.last_poll_at, h.STATUS.host_state = "unreachable", self.NOW, "pending"
+        (steam / "steamapps" / "appmanifest_438100.acf").write_text("")
+        with mock.patch.object(h, "steam_root", return_value=steam):
+            cached = {label: state for label, state, _ in c.readiness(now=10)}
+            fresh = {label: state for label, state, _ in c.readiness(now=40)}
+        self.assertEqual(cached["VRChat"], "ng")  # ファイルは 30 秒ごとにだけ見直す
+        self.assertEqual(fresh["VRChat"], "ok")
+        self.assertEqual((fresh["予約サイトとつながっている"], fresh["運営の承認"]), ("ng", "wait"))
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_next_lending_text(self):
+        st = h.AgentStatus()
+        self.assertEqual(g.next_lending_text(st, self.NOW)[0], "まだ予約はありません")
+        st.state = "idle"
+        st.next_starts_at, st.next_ends_at = self.NOW + dt.timedelta(hours=2, minutes=15), self.NOW + dt.timedelta(hours=4)
+        when, left = g.next_lending_text(st, self.NOW)
+        self.assertEqual(when, "11/04（水） 22:15〜00:00")
+        self.assertTrue(left.startswith("あと 2時間15分で始まります"))
+        st.state, st.session_ends_at = "session", self.NOW + dt.timedelta(minutes=30)
+        self.assertEqual(g.next_lending_text(st, self.NOW)[0], "いま貸し出し中（20:30 まで）")
 
 
 class CoverTest(unittest.TestCase):

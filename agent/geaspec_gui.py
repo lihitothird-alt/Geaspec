@@ -15,6 +15,7 @@ import os
 import queue
 import sys
 import threading
+import time
 import uuid
 from pathlib import Path
 
@@ -48,6 +49,19 @@ WEEKDAYS = "月火水木金土日"
 
 def day_label(value: dt.datetime) -> str:
     return f"{value:%m/%d}（{WEEKDAYS[value.weekday()]}）"
+
+
+def next_lending_text(st, now: dt.datetime) -> tuple[str, str]:
+    """「次の貸し出し」の欄の (日時, 残りのひとこと)。"""
+    if st.state in ("session", "cleaning") and st.session_ends_at:
+        return f"いま貸し出し中（{st.session_ends_at:%H:%M} まで）", "終わると自動で片づけます"
+    if st.next_starts_at:
+        end = f"{st.next_ends_at:%H:%M}" if st.next_ends_at else ""
+        left = (st.next_starts_at - now).total_seconds()
+        wait = f"あと {until_text(left)}で始まります" if left > 60 else "まもなく始まります"
+        return f"{day_label(st.next_starts_at)} {st.next_starts_at:%H:%M}〜{end}", \
+            wait + "。時間になると自動で準備します。PC はつけたままにしてください"
+    return "まだ予約はありません", "Web サイトで貸し出す時間を決めると、予約が入ったときにここに出ます"
 
 
 def validate_settings(server: str, token: str) -> str | None:
@@ -208,6 +222,45 @@ class AgentController:
         self.cleanup_thread.start()
         return None
 
+    # --- 貸し出せる状態かのチェックリスト ---------------------------------
+
+    DISK_CHECK_SEC = 30.0
+
+    def readiness(self, now: float | None = None) -> list[tuple[str, str, str]]:
+        """[(項目, ok / ng / wait, できていないときのひとこと)]。すべて自動で確かめる。
+
+        ファイルを見る項目 (Steam など) は 30 秒ごとにだけ確かめ直す (画面は 0.5 秒ごとに呼ぶため)。
+        """
+        now = time.monotonic() if now is None else now
+        if now - getattr(self, "_disk_checked_at", -1e9) >= self.DISK_CHECK_SEC:
+            root = h.steam_root()
+            self._disk = (self.cfg.streamer_path.is_file(), root is not None, h.is_steam_app_installed(root))
+            self._disk_checked_at = now
+        streamer_ok, steam_ok, vrchat_ok = self._disk
+        st = h.STATUS
+        items = [
+            ("Geaspec にログイン", "ng" if self.needs_setup() else "ok", "「その他」→「ログインし直す」から"),
+            ("貸し出し専用の Windows ユーザー", "ok" if self.is_lending_user() else "ng", "このユーザーを登録してください"),
+        ]
+        if st.state in ("idle", "session", "cleaning"):
+            items.append(("予約サイトとつながっている", "ok", ""))
+        elif st.state == "auth_error":
+            items.append(("予約サイトとつながっている", "ng", "「その他」→「ログインし直す」から"))
+        elif st.state == "unreachable":
+            items.append(("予約サイトとつながっている", "ng", "インターネットにつながっているか確認してください"))
+        else:
+            items.append(("予約サイトとつながっている", "wait", "確かめています"))
+        if st.last_poll_at is None:
+            items.append(("運営の承認", "wait", "確かめています"))
+        else:
+            approval = {"pending": ("wait", "運営の確認を待っています"), "paused": ("ng", "運営が受付を止めています")}
+            items.append(("運営の承認", *approval.get(st.host_state, ("ok", ""))))
+        label = h.STREAMERS.get(self.cfg.streamer, {}).get("label", "Virtual Desktop")
+        items.append((f"{label} Streamer", "ok" if streamer_ok else "ng", "Streamer をこの PC に入れてください"))
+        items.append(("Steam", "ok" if steam_ok else "ng", "Steam をこの PC に入れてください"))
+        items.append(("VRChat", "ok" if vrchat_ok else "ng", "Steam で VRChat を入れてください"))
+        return items
+
     # --- 画面に出す文章 ---------------------------------------------------
 
     def status_text(self, now: dt.datetime | None = None) -> tuple[str, str, str]:
@@ -225,7 +278,7 @@ class AgentController:
         if st.state == "idle" and st.host_state == "pending":
             return (
                 "運営の確認待ちです",
-                "確認が終わると予約を受けられるようになります。先に下のカレンダーで貸し出す時間を選んでおけます",
+                "確認が終わると予約を受けられるようになります。先に Web サイトで貸し出す時間を決めておけます",
                 "warn",
             )
         if st.state == "idle" and st.host_state == "paused":
@@ -251,7 +304,7 @@ class AgentController:
             )
             tone = "busy"
         elif st.state == "idle":
-            detail = f"まだ予約はありません。下のカレンダーで貸し出す時間を選べます · 最終確認 {last}"
+            detail = f"まだ予約はありません。貸し出す時間は Web サイトで決めます · 最終確認 {last}"
         elif st.state == "unreachable":
             detail = f"インターネットにつながっているか確認してください · {int(self.poll_interval)} 秒ごとに自動でやり直します"
         elif st.state == "auth_error":
@@ -259,95 +312,6 @@ class AgentController:
         else:
             detail = "開始しています…" if self.running() else "待機していません"
         return title, detail, tone
-
-
-class ScheduleModel:
-    """「貸し出す時間」のカレンダー (1 マス = 1 時間) の中身。画面に依存しない。
-
-    時刻はすべてこの PC のローカル時刻 (タイムゾーンなし)。
-    """
-
-    HOUR = dt.timedelta(hours=1)
-    LOCKED = ("booked", "holding", "past", "fixed")
-
-    def __init__(self, week_start: dt.datetime, days: int = 7) -> None:
-        self.week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
-        self.days = days
-        self.locked: dict[dt.datetime, str] = {}  # 予約あり・支払い待ちなど、触れないマス
-        self.original: set[dt.datetime] = set()  # サーバーで受付中のマス
-        self.selected: set[dt.datetime] = set()  # 画面で選ばれているマス
-        self.price_yen = 500
-        self.trial_minutes = 0
-        self.host = ""
-
-    @property
-    def end(self) -> dt.datetime:
-        return self.week_start + dt.timedelta(days=self.days)
-
-    def load(self, data: dict) -> None:
-        self.locked.clear()
-        self.original.clear()
-        self.price_yen = int(data.get("price_yen") or self.price_yen)
-        self.trial_minutes = int(data.get("trial_minutes") or 0)
-        self.host = str(data.get("host") or "")
-        for item in data.get("slots", []):
-            start = h.server_time_to_local(item["start"])
-            end = h.server_time_to_local(item["end"])
-            state = item.get("state")
-            if item.get("editable"):
-                if state == "open":
-                    self.original.add(start)
-                continue
-            label = state if state in ("booked", "holding", "past") else "fixed"
-            t = start.replace(minute=0, second=0, microsecond=0)
-            while t < end:
-                self.locked[t] = label
-                t += self.HOUR
-        self.selected = set(self.original)
-
-    def cell(self, day: int, hour: int) -> dt.datetime:
-        return self.week_start + dt.timedelta(days=day, hours=hour)
-
-    def state(self, t: dt.datetime, now: dt.datetime) -> str:
-        """open / empty / booked / holding / past / fixed"""
-        if t in self.locked:
-            return self.locked[t]
-        if t < now:
-            return "past"
-        return "open" if t in self.selected else "empty"
-
-    def can_edit(self, t: dt.datetime, now: dt.datetime) -> bool:
-        return t not in self.locked and t >= now and self.week_start <= t < self.end
-
-    def set(self, t: dt.datetime, on: bool, now: dt.datetime) -> bool:
-        """マスを選ぶ・外す。変わったら True。"""
-        if not self.can_edit(t, now) or (t in self.selected) == on:
-            return False
-        if on:
-            self.selected.add(t)
-        else:
-            self.selected.discard(t)
-        return True
-
-    def copy_from(self, previous: "ScheduleModel", now: dt.datetime) -> int:
-        """前の週に出していた時間 (予約が入ったものも含む) を、この週にも選ぶ。選んだマスの数を返す。"""
-        shift = self.week_start - previous.week_start
-        offered = previous.original | {t for t, st in previous.locked.items() if st in ("booked", "holding", "past")}
-        return sum(self.set(t + shift, True, now) for t in sorted(offered))
-
-    def dirty(self) -> bool:
-        return self.selected != self.original
-
-    def starts_to_save(self, now: dt.datetime) -> list[dt.datetime]:
-        return sorted(t for t in self.selected if t >= now)
-
-    def counts(self, now: dt.datetime) -> dict[str, int]:
-        result: dict[str, int] = {}
-        for d in range(self.days):
-            for hr in range(24):
-                st = self.state(self.cell(d, hr), now)
-                result[st] = result.get(st, 0) + 1
-        return result
 
 
 # ---------------------------------------------------------------------------
@@ -370,13 +334,6 @@ COLORS = {
     "warn": "#d9a520",
     "bad": "#d0464f",
     "warn_bg": "#fff3c2",
-    # カレンダーのマス
-    "cell_empty": "#ffffff",
-    "cell_open": "#7fd9bf",
-    "cell_booked": "#2f3537",
-    "cell_holding": "#f3d27a",
-    "cell_past": "#e6e9e9",
-    "cell_fixed": "#dff4ed",
 }
 
 
@@ -631,7 +588,7 @@ class QueueLogHandler(logging.Handler):
 
 
 class AgentWindow:
-    """Geaspec Agent のウィンドウ。はじめての設定も、カレンダーも、すべてこの 1 つのウィンドウの中で行う。"""
+    """Geaspec Agent のウィンドウ。はじめての設定も、ホームも、すべてこの 1 つのウィンドウの中で行う。"""
 
     MAX_LOG_LINES = 1000
 
@@ -651,8 +608,8 @@ class AgentWindow:
             root.iconbitmap(default=str(tray.ICON_PATH))  # ウィンドウとタスクバーに Geaspec のロゴを出す (Windows)
         except tk.TclError:
             pass
-        root.geometry("700x760")
-        root.minsize(640, 600)
+        root.geometry("620x640")
+        root.minsize(560, 560)
         root.configure(bg=COLORS["bg"])
         family = pick_font_family(root)
         self.font = (family, 10)
@@ -705,7 +662,7 @@ class AgentWindow:
         tk.Label(header, text=f"  Agent {h.AGENT_VERSION}", font=self.font_small, fg=COLORS["muted"],
                  bg=COLORS["bg"]).pack(side="left", pady=(3, 0))
 
-        # ここに「はじめての設定」か「ホーム（状態とカレンダー）」のどちらかを入れる
+        # ここに「はじめての設定」か「ホーム（時刻・次の貸し出し・準備のチェック）」のどちらかを入れる
         self.content = tk.Frame(root, bg=COLORS["bg"])
         self.content.pack(fill="both", expand=True)
 
@@ -781,8 +738,6 @@ class AgentWindow:
                 self.tray.notify("新しい予約が入りました。時間になると自動で準備します")
             else:
                 self.bring_to_front()
-            if self.home is not None:
-                self.home.schedule.load()  # 予約が入ったマスを濃い色にする
         self.drain_logs()
         if self.closing and not self.c.running():
             self.tray.stop()
@@ -913,8 +868,7 @@ class AgentWindow:
         if self.closing:
             return
         if self.tray.active and self.home is not None:
-            if self.home.schedule.ask_discard():
-                self.hide_to_tray()
+            self.hide_to_tray()
             return
         self.quit_app()
 
@@ -922,8 +876,6 @@ class AgentWindow:
         from tkinter import messagebox
 
         if self.closing:
-            return
-        if self.home is not None and not self.home.schedule.ask_discard():
             return
         if self.c.in_session():
             message = "利用中です。終了すると今のセッションを終了し、PC のデータを削除します。\n終了しますか？"
@@ -1101,7 +1053,12 @@ class SetupView:
 
 
 class HomeView:
-    """ホーム: 今の状態 (次の予約まであと何分など) と、貸し出す時間のカレンダー。"""
+    """ホーム: 現在時刻、次の貸し出し、貸し出せる状態かのチェックリストだけを出す。
+
+    貸し出す時間を決めるのは Web サイト (このアプリではしない)。
+    """
+
+    MARKS = {"ok": ("✓", "ok"), "ng": ("!", "bad"), "wait": ("…", "muted")}
 
     def __init__(self, window: AgentWindow) -> None:
         tk = window.tk
@@ -1111,26 +1068,57 @@ class HomeView:
         frame = self.frame = tk.Frame(window.content, bg=COLORS["bg"])
         frame.pack(fill="both", expand=True)
 
-        # --- 状態 ---
-        card = tk.Frame(frame, bg=COLORS["card"], highlightbackground=COLORS["line"], highlightthickness=1)
-        card.pack(fill="x", padx=18, pady=(0, 14))
-        row = tk.Frame(card, bg=COLORS["card"])
-        row.pack(fill="x", padx=16, pady=(14, 2))
-        self.dot = tk.Canvas(row, width=14, height=14, bg=COLORS["card"], highlightthickness=0)
-        self.dot.pack(side="left", padx=(0, 10))
+        # --- 状態と現在時刻 ---
+        top = tk.Frame(frame, bg=COLORS["bg"])
+        top.pack(fill="x", padx=18, pady=(0, 12))
+        clock = tk.Frame(top, bg=COLORS["bg"])
+        clock.pack(side="right", anchor="n")
+        light = pick_light_family(window.root, window.font[0])
+        self.clock = tk.Label(clock, text="", font=(light, 26), fg=COLORS["ink"], bg=COLORS["bg"])
+        self.clock.pack(anchor="e")
+        self.date = tk.Label(clock, text="", font=window.font_small, fg=COLORS["muted"], bg=COLORS["bg"])
+        self.date.pack(anchor="e")
+        state = tk.Frame(top, bg=COLORS["bg"])
+        state.pack(side="left", fill="x", expand=True, anchor="n")
+        row = tk.Frame(state, bg=COLORS["bg"])
+        row.pack(fill="x", pady=(6, 2))
+        self.dot = tk.Canvas(row, width=14, height=14, bg=COLORS["bg"], highlightthickness=0)
+        self.dot.pack(side="left", padx=(0, 8))
         self.dot_item = self.dot.create_oval(2, 2, 12, 12, fill=COLORS["warn"], outline="")
-        self.status_title = tk.Label(row, text="", font=window.font_title, fg=COLORS["ink"], bg=COLORS["card"])
+        self.status_title = tk.Label(row, text="", font=window.font_title, fg=COLORS["ink"], bg=COLORS["bg"])
         self.status_title.pack(side="left")
-        self.status_detail = tk.Label(
-            card, text="", font=window.font, fg=COLORS["muted"], bg=COLORS["card"], justify="left", anchor="w",
-            wraplength=600,
-        )
-        self.status_detail.pack(fill="x", padx=(40, 16), pady=(0, 14))
+        self.status_detail = tk.Label(state, text="", font=window.font, fg=COLORS["muted"], bg=COLORS["bg"],
+                                      justify="left", anchor="w", wraplength=360)
+        self.status_detail.pack(fill="x", padx=(22, 0))
 
-        # --- カレンダー / 動きの記録 (同じ場所を切り替える) ---
+        # --- 次の貸し出し と チェックリスト / 動きの記録 (同じ場所を切り替える) ---
         self.middle = tk.Frame(frame, bg=COLORS["bg"])
         self.middle.pack(fill="both", expand=True)
-        self.schedule = ScheduleView(window, self.middle)
+        self.main = tk.Frame(self.middle, bg=COLORS["bg"])
+        self.main.pack(fill="both", expand=True)
+
+        nxt = self.card(self.main, "次の貸し出し")
+        self.next_when = tk.Label(nxt, text="", font=(window.font[0], 15, "bold"), fg=COLORS["ink"], bg=COLORS["card"],
+                                  anchor="w")
+        self.next_when.pack(fill="x", padx=16)
+        self.next_left = tk.Label(nxt, text="", font=window.font, fg=COLORS["muted"], bg=COLORS["card"], anchor="w",
+                                  justify="left", wraplength=560)
+        self.next_left.pack(fill="x", padx=16, pady=(2, 14))
+
+        checks = self.card(self.main, "貸し出しの準備（自動で確かめています）")
+        self.check_rows: list[tuple] = []
+        for _ in range(len(window.c.readiness())):
+            r = tk.Frame(checks, bg=COLORS["card"])
+            r.pack(fill="x", padx=16, pady=2)
+            mark = tk.Label(r, text="", width=2, font=window.font_bold, bg=COLORS["card"])
+            mark.pack(side="left")
+            name = tk.Label(r, text="", font=window.font, fg=COLORS["ink"], bg=COLORS["card"], anchor="w")
+            name.pack(side="left")
+            hint = tk.Label(r, text="", font=window.font_small, fg=COLORS["muted"], bg=COLORS["card"], anchor="e")
+            hint.pack(side="right")
+            self.check_rows.append((mark, name, hint))
+        tk.Frame(checks, height=10, bg=COLORS["card"]).pack()
+
         self.log_frame = tk.Frame(self.middle, bg=COLORS["line"])
         self.log_text = tk.Text(
             self.log_frame, wrap="word", font=window.font, bg=COLORS["card"], fg=COLORS["ink"],
@@ -1142,12 +1130,10 @@ class HomeView:
         self.log_text.pack(side="left", fill="both", expand=True, padx=1, pady=1)
         self.append_log(window.log_lines)
 
-        # --- その他の操作 (ふだん使わないものは「その他」にまとめる) ---
+        # --- 操作: 貸し出す時間は Web サイトで決める。ふだん使わないものは「その他」 ---
         actions = tk.Frame(frame, bg=COLORS["bg"])
-        actions.pack(fill="x", padx=12, pady=(4, 10))
-        self.log_button = ttk.Button(actions, text="動きの記録", style="Link.TButton", command=self.toggle_log)
-        self.log_button.pack(side="left")
-        ttk.Button(actions, text="Web サイトで時間を決める", style="Link.TButton",
+        actions.pack(fill="x", padx=18, pady=(6, 14))
+        ttk.Button(actions, text="貸し出す時間を決める（Web サイト）", style="Primary.TButton",
                    command=window.open_lend_page).pack(side="left")
         more = ttk.Menubutton(actions, text="その他", width=6)
         self.menu = tk.Menu(more, tearoff=False, font=window.font, bg=COLORS["card"], fg=COLORS["ink"],
@@ -1160,19 +1146,46 @@ class HomeView:
         self.menu.add_command(label="ログインし直す", command=self.relogin)
         more["menu"] = self.menu
         more.pack(side="right")
+        self.log_button = ttk.Button(actions, text="動きの記録", style="Link.TButton", command=self.toggle_log)
+        self.log_button.pack(side="right", padx=4)
         if not window.tray.active:  # アイコンで動き続けられないときだけ、閉じると止まることを書いておく
             tk.Label(frame, text="ウィンドウを閉じると Agent も終了し、予約を受け付けなくなります。",
                      font=window.font_small, fg=COLORS["muted"], bg=COLORS["bg"], anchor="w").pack(
                 fill="x", padx=18, pady=(0, 10))
         self.update_status()
 
+    def card(self, parent, title: str):
+        tk = self.w.tk
+        box = tk.Frame(parent, bg=COLORS["card"], highlightbackground=COLORS["line"], highlightthickness=1)
+        box.pack(fill="x", padx=18, pady=(0, 12))
+        tk.Label(box, text=title, font=self.w.font_small, fg=COLORS["muted"], bg=COLORS["card"], anchor="w").pack(
+            fill="x", padx=16, pady=(12, 4))
+        return box
+
     def update_status(self) -> None:
         c = self.w.c
-        title, detail, tone = c.status_text()
+        now = dt.datetime.now()
+        self.clock.configure(text=f"{now:%H:%M:%S}")
+        self.date.configure(text=f"{day_label(now)} 現在")
+        title, detail, tone = c.status_text(now)
+        st = h.STATUS
+        if st.state in ("idle", "session", "cleaning") and st.host_state == "ok":
+            # 予約の日時は下の「次の貸し出し」に出すので、ここは短い状態だけにする
+            title = STATE_LABELS[st.state][0]
+            detail = {"idle": "予約の時間を待っています", "session": "借りる人が使っています",
+                      "cleaning": "データを片づけています"}[st.state]
         self.status_title.configure(text=title)
         self.status_detail.configure(text=detail)
         self.dot.itemconfigure(self.dot_item, fill=COLORS.get(tone, COLORS["warn"]))
         self.menu.entryconfigure(self.cleanup_index, state="disabled" if c.in_session() else "normal")
+        when, left = next_lending_text(h.STATUS, now)
+        self.next_when.configure(text=when)
+        self.next_left.configure(text=left)
+        for (mark, name, hint), (label, state, tip) in zip(self.check_rows, c.readiness()):
+            symbol, tone = self.MARKS[state]
+            mark.configure(text=symbol, fg=COLORS[tone])
+            name.configure(text=label)
+            hint.configure(text="" if state == "ok" else tip)
 
     def append_log(self, lines: list[str]) -> None:
         if not lines:
@@ -1189,15 +1202,15 @@ class HomeView:
         return bool(self.log_frame.winfo_ismapped())
 
     def toggle_log(self) -> None:
-        """カレンダーと動きの記録を切り替える (ウィンドウは増やさない)。"""
+        """ホームと動きの記録を切り替える (ウィンドウは増やさない)。"""
         if self.log_frame.winfo_ismapped():
             self.log_frame.pack_forget()
-            self.schedule.frame.pack(fill="both", expand=True)
+            self.main.pack(fill="both", expand=True)
             self.log_button.configure(text="動きの記録")
         else:
-            self.schedule.frame.pack_forget()
+            self.main.pack_forget()
             self.log_frame.pack(fill="both", expand=True, padx=18, pady=(0, 4))
-            self.log_button.configure(text="カレンダーに戻る")
+            self.log_button.configure(text="ホームに戻る")
             self.log_text.see("end")
 
     def relogin(self) -> None:
@@ -1206,297 +1219,7 @@ class HomeView:
         if self.w.c.in_session():
             messagebox.showinfo("ログインし直す", "利用中はログインし直せません。終わってからもう一度押してください。", parent=self.w.root)
             return
-        if self.schedule.ask_discard():
-            self.w.show_setup(step=0)
-
-
-class ScheduleView:
-    """「貸し出す時間」のカレンダー。マスをクリック (ドラッグでまとめて) して受付時間を選ぶ。"""
-
-    CELL_W, CELL_H, GAP = 78, 22, 3
-    LEFT = 52
-    VISIBLE_HOURS = 12
-
-    def __init__(self, window: AgentWindow, parent) -> None:
-        tk = window.tk
-        from tkinter import ttk
-
-        self.w = window
-        self.model = ScheduleModel(dt.datetime.now())
-        self.paint: bool | None = None
-        self.rects: dict[dt.datetime, int] = {}
-        self.busy = False
-        font = window.font
-
-        frame = self.frame = tk.Frame(parent, bg=COLORS["bg"])
-        frame.pack(fill="both", expand=True)
-
-        bar = tk.Frame(frame, bg=COLORS["bg"])
-        bar.pack(fill="x", padx=18, pady=(0, 2))
-        tk.Label(bar, text="貸し出す時間", font=window.font_title, bg=COLORS["bg"], fg=COLORS["ink"]).pack(side="left")
-        self.range_label = tk.Label(bar, text="", font=window.font, bg=COLORS["bg"], fg=COLORS["muted"])
-        self.range_label.pack(side="left", padx=(12, 0), pady=(4, 0))
-        ttk.Button(bar, text="›", width=2, command=lambda: self.move(7)).pack(side="right")
-        ttk.Button(bar, text="今日", width=4, command=lambda: self.move(0)).pack(side="right", padx=4)
-        ttk.Button(bar, text="‹", width=2, command=lambda: self.move(-7)).pack(side="right")
-
-        info = tk.Frame(frame, bg=COLORS["bg"])
-        info.pack(fill="x", padx=18, pady=(2, 6))
-        tk.Label(info, text="マスを押すか、なぞって選びます（1 マス = 1 時間）", font=window.font_small, bg=COLORS["bg"],
-                 fg=COLORS["muted"]).pack(side="left")
-        for key, label in (("booked", "予約あり"), ("open", "受付中")):
-            tk.Label(info, text=label, font=window.font_small, bg=COLORS["bg"], fg=COLORS["muted"]).pack(side="right", padx=(3, 10))
-            sample = tk.Canvas(info, width=12, height=12, bg=COLORS["bg"], highlightthickness=0)
-            sample.create_rectangle(1, 1, 11, 11, fill=COLORS[f"cell_{key}"], outline="")
-            sample.pack(side="right")
-
-        # 曜日の見出し (スクロールしない) と、時間のマス (縦にスクロール)
-        grid_w = self.LEFT + 7 * self.CELL_W
-        self.head = tk.Canvas(frame, width=grid_w, height=40, bg=COLORS["bg"], highlightthickness=0)
-        self.head.pack(padx=18, anchor="w")
-        grid = tk.Frame(frame, bg=COLORS["bg"])
-        grid.pack(padx=18, anchor="w")
-        self.canvas = tk.Canvas(
-            grid, width=grid_w, height=self.VISIBLE_HOURS * self.CELL_H, bg=COLORS["bg"], highlightthickness=0,
-            scrollregion=(0, 0, grid_w, 24 * self.CELL_H),
-        )
-        scroll = ttk.Scrollbar(grid, command=self.canvas.yview)
-        self.canvas.configure(yscrollcommand=scroll.set)
-        self.canvas.pack(side="left")
-        scroll.pack(side="left", fill="y")
-        self.canvas.bind("<Button-1>", self.on_press)
-        self.canvas.bind("<B1-Motion>", self.on_drag)
-        self.canvas.bind("<ButtonRelease-1>", lambda e: setattr(self, "paint", None))
-        self.canvas.bind("<MouseWheel>", lambda e: self.canvas.yview_scroll(-1 if e.delta > 0 else 1, "units"))
-        self.canvas.bind("<Button-4>", lambda e: self.canvas.yview_scroll(-1, "units"))
-        self.canvas.bind("<Button-5>", lambda e: self.canvas.yview_scroll(1, "units"))
-
-        footer = tk.Frame(frame, bg=COLORS["bg"])
-        footer.pack(fill="x", padx=18, pady=(8, 0))
-        tk.Label(footer, text="1 時間の料金", font=window.font_bold, bg=COLORS["bg"], fg=COLORS["ink"]).pack(side="left")
-        self.price = tk.StringVar(value="500")
-        ttk.Spinbox(footer, from_=50, to=100000, increment=50, width=7, textvariable=self.price, font=font).pack(
-            side="left", padx=6
-        )
-        tk.Label(footer, text="円", font=font, bg=COLORS["bg"], fg=COLORS["ink"]).pack(side="left")
-        self.save_button = ttk.Button(footer, text="保存", style="Primary.TButton", command=self.save)
-        self.save_button.pack(side="right")
-        ttk.Button(footer, text="前の週と同じ", style="Link.TButton", command=self.copy_previous).pack(side="right", padx=4)
-        ttk.Button(footer, text="すべて外す", style="Link.TButton", command=self.clear_week).pack(side="right")
-
-        self.summary = tk.Label(
-            frame, text="", font=window.font_small, bg=COLORS["bg"], fg=COLORS["muted"], anchor="w", justify="left",
-            wraplength=640,
-        )
-        self.summary.pack(fill="x", padx=18, pady=(4, 0))
-
-        self.draw_grid()
-        self.canvas.yview_moveto(12 / 24)  # はじめは 12 時から (夜の時間が見えるように)
-        self.load()
-
-    @property
-    def parent_window(self):
-        return self.w.root
-
-    # --- 表示 ---------------------------------------------------------------
-
-    def cell_box(self, day: int, hour: int) -> tuple[int, int, int, int]:
-        x = self.LEFT + day * self.CELL_W
-        y = hour * self.CELL_H
-        return x + 1, y + 1, x + self.CELL_W - self.GAP, y + self.CELL_H - self.GAP
-
-    def draw_grid(self) -> None:
-        m, font = self.model, self.w.font
-        self.head.delete("all")
-        self.canvas.delete("all")
-        self.rects.clear()
-        for d in range(m.days):
-            day = m.cell(d, 0)
-            color = "#2456d6" if day.weekday() == 5 else ("#c41f4b" if day.weekday() == 6 else COLORS["ink"])
-            x = self.LEFT + d * self.CELL_W + (self.CELL_W - self.GAP) / 2
-            self.head.create_text(x, 12, text=f"{day:%m/%d}", font=self.w.font_bold, fill=color)
-            self.head.create_text(x, 30, text=WEEKDAYS[day.weekday()], font=font, fill=color)
-        for hr in range(24):
-            self.canvas.create_text(
-                self.LEFT - 8, hr * self.CELL_H + self.CELL_H / 2, text=f"{hr}:00", anchor="e", font=font,
-                fill=COLORS["muted"],
-            )
-            for d in range(m.days):
-                self.rects[m.cell(d, hr)] = self.canvas.create_rectangle(*self.cell_box(d, hr), width=1)
-        self.range_label.configure(text=f"{day_label(m.week_start)} 〜 {day_label(m.end - dt.timedelta(days=1))}")
-        self.refresh()
-
-    def refresh(self) -> None:
-        now = dt.datetime.now()
-        for t, rect in self.rects.items():
-            self.paint_cell(t, rect, now)
-        counts = self.model.counts(now)
-        text = f"この週の受付: {counts.get('open', 0)} 時間 · 予約あり: {counts.get('booked', 0)} 時間"
-        if self.model.dirty():
-            text += " · まだ保存していません"
-        if self.model.trial_minutes:
-            text += f"\nはじめて利用する人は最初の {self.model.trial_minutes} 分が無料です（その分は貸し手の負担になります）。"
-        self.summary.configure(text=text, fg=COLORS["warn"] if self.model.dirty() else COLORS["muted"])
-
-    def paint_cell(self, t: dt.datetime, rect: int, now: dt.datetime) -> None:
-        state = self.model.state(t, now)
-        outline = COLORS["line"] if state in ("empty", "past") else COLORS["ink"]
-        self.canvas.itemconfigure(rect, fill=COLORS[f"cell_{state}"], outline=outline)
-
-    # --- 操作 ---------------------------------------------------------------
-
-    def cell_at(self, event) -> dt.datetime | None:
-        x, y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
-        day, hour = int((x - self.LEFT) // self.CELL_W), int(y // self.CELL_H)
-        if x < self.LEFT or not (0 <= day < self.model.days and 0 <= hour < 24):
-            return None
-        return self.model.cell(day, hour)
-
-    def on_press(self, event) -> None:
-        t = self.cell_at(event)
-        now = dt.datetime.now()
-        if self.busy or t is None or not self.model.can_edit(t, now):
-            self.paint = None
-            return
-        self.paint = t not in self.model.selected
-        self.apply(t, now)
-
-    def on_drag(self, event) -> None:
-        t = self.cell_at(event)
-        if self.paint is not None and t is not None:
-            self.apply(t, dt.datetime.now())
-
-    def apply(self, t: dt.datetime, now: dt.datetime) -> None:
-        if self.model.set(t, bool(self.paint), now):
-            self.refresh()
-
-    def clear_week(self) -> None:
-        now = dt.datetime.now()
-        for t in list(self.model.selected):
-            self.model.set(t, False, now)
-        self.refresh()
-
-    def ask_discard(self) -> bool:
-        """保存していない変更があれば聞く。続けてよければ True。"""
-        from tkinter import messagebox
-
-        if not self.model.dirty():
-            return True
-        answer = messagebox.askyesnocancel("貸し出す時間", "カレンダーの変更を保存しますか？", parent=self.parent_window)
-        if answer is None:
-            return False
-        if answer:
-            self.save()
-            return False  # 保存が終わってから操作し直してもらう
-        return True
-
-    def move(self, days: int) -> None:
-        if self.busy or not self.ask_discard():
-            return
-        start = self.model.week_start + dt.timedelta(days=days) if days else dt.datetime.now()
-        self.model = ScheduleModel(start)
-        self.draw_grid()
-        self.load()
-
-    # --- 通信 ---------------------------------------------------------------
-
-    def set_busy(self, busy: bool, text: str = "") -> None:
-        self.busy = busy
-        self.save_button.state(["disabled"] if busy else ["!disabled"])
-        if text:
-            self.summary.configure(text=text, fg=COLORS["muted"])
-
-    def alive(self) -> bool:
-        return bool(self.frame.winfo_exists())
-
-    def load(self) -> None:
-        if self.busy:
-            return
-        model, client = self.model, self.w.c.client()
-        self.set_busy(True, "予約サイトから読み込んでいます…")
-
-        def done(data, error) -> None:
-            if not self.alive() or model is not self.model:
-                return
-            self.set_busy(False)
-            if error or data is None:
-                self.summary.configure(text="読み込めませんでした。インターネットにつながっているか確認してください。", fg=COLORS["bad"])
-                return
-            keep = model.selected - model.original if model.dirty() else set()
-            model.load(data)
-            now = dt.datetime.now()
-            for t in keep:  # 予約が入って読み直したときも、保存前の選択は残す
-                model.set(t, True, now)
-            self.price.set(str(model.price_yen))
-            self.refresh()
-
-        self.w.run_async(lambda: client.get_schedule(model.week_start, model.days), done)
-
-    def copy_previous(self) -> None:
-        if self.busy:
-            return
-        model, client = self.model, self.w.c.client()
-        previous = ScheduleModel(model.week_start - dt.timedelta(days=7))
-        self.set_busy(True, "前の週を読み込んでいます…")
-
-        def done(data, error) -> None:
-            if not self.alive() or model is not self.model:
-                return
-            self.set_busy(False)
-            if error or data is None:
-                self.summary.configure(text="前の週を読み込めませんでした。", fg=COLORS["bad"])
-                return
-            previous.load(data)
-            added = model.copy_from(previous, dt.datetime.now())
-            self.refresh()
-            if not added:
-                self.summary.configure(text="前の週と同じ時間はすでに選ばれているか、選べる時間がありません。")
-
-        self.w.run_async(lambda: client.get_schedule(previous.week_start, previous.days), done)
-
-    def save(self) -> None:
-        from tkinter import messagebox
-
-        if self.busy:
-            return
-        try:
-            price = int(self.price.get())
-        except ValueError:
-            price = 0
-        if price < 50:
-            messagebox.showwarning("貸し出す時間", "料金は 50 円以上の数字で入力してください。", parent=self.parent_window)
-            return
-        model, client = self.model, self.w.c.client()
-        starts = model.starts_to_save(dt.datetime.now())
-        self.set_busy(True, "保存しています…")
-
-        def done(result, error) -> None:
-            if not self.alive():
-                return
-            self.set_busy(False)
-            if error or result is None:
-                messagebox.showwarning(
-                    "貸し出す時間", "保存できませんでした。インターネットにつながっているか確認してください。",
-                    parent=self.parent_window,
-                )
-                self.refresh()
-                return
-            if result.get("error"):
-                messagebox.showwarning("貸し出す時間", f"保存できませんでした: {result['error']}", parent=self.parent_window)
-                self.refresh()
-                return
-            model.load(result)
-            self.refresh()
-            message = f"保存しました（追加 {result.get('added', 0)} 件・取り消し {result.get('removed', 0)} 件）"
-            h.log.info("貸し出す時間: %s", message)
-            if result.get("errors"):
-                messagebox.showwarning(
-                    "貸し出す時間", "保存できなかった時間があります:\n" + "\n".join(result["errors"]), parent=self.parent_window
-                )
-            else:
-                self.summary.configure(text=message + "。予約サイトに並びました。", fg=COLORS["ok"])
-
-        self.w.run_async(lambda: client.put_schedule(model.week_start, model.days, price, starts), done)
+        self.w.show_setup(step=0)
 
 
 class SettingsDialog:
