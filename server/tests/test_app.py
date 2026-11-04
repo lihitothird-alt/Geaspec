@@ -1686,3 +1686,24 @@ def test_agent_download_button_points_to_this_version(tmp_path, now):
     assert r.status_code == 302
     assert r.headers["location"].endswith(f"/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe")
     assert 'href="/download/agent"' in c.get("/guide?for=lend").text
+
+
+def test_bookings_list_shows_upcoming_first_and_folds_the_past(setup, now):
+    app, _, user, _ = setup
+    assert "これからの予約はありません" in user.get("/bookings").text
+    user.post("/slots/1/book")
+    page = user.get("/bookings").text
+    assert "予約 #1" in page and "終わった予約" not in page  # まだ始まっていない予約は上に出す
+
+    session = db(app)
+    booking = session.get(Booking, 1)
+    booking.status = BookingStatus.COMPLETED
+    session.commit()
+    page = user.get("/bookings").text
+    assert "これからの予約はありません" in page
+    assert "終わった予約（1 件）" in page and "予約 #1" in page
+
+    booking.status = BookingStatus.EXPIRED  # 支払わずに期限が切れた予約は出さない
+    session.commit()
+    page = user.get("/bookings").text
+    assert "予約 #1" not in page and "終わった予約" not in page
