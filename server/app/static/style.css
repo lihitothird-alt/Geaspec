@@ -1825,3 +1825,9 @@ body.theme-ai::before, body.theme-gamedev::before { display: none; }
 .jm-wire { animation: jm-flow 1.2s linear infinite; }
 @keyframes jm-flow { to { stroke-dashoffset: -11; } }
 @media (prefers-reduced-motion: reduce) { .jm-wire { animation: none; } }
+
+/* 地図の上のパソコン: 画面と本体。GPU を貸すパソコンだけサイトの色 */
+.jm-home .jm-screen, .jm-home .jm-tower { fill: var(--surface); stroke: var(--text); stroke-width: 2.4; }
+.jm-home .jm-stand { fill: none; stroke: var(--text); stroke-width: 2.4; stroke-linecap: round; }
+.jm-home.lend .jm-screen, .jm-home.lend .jm-tower { fill: var(--primary); stroke: var(--mint-ink); }
+.jm-home.lend .jm-stand { stroke: var(--mint-ink); }
