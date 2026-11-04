@@ -15,6 +15,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import host_agent  # noqa: E402
 from host_agent import AgentConfig, HostAgent  # noqa: E402
 
+# このファイルは貸し出しの流れを確かめる。Steam を守る処理 (SteamVR のメニューを止める・音を止める) は
+# 本物の Steam と音の機器がいるので、ここでは止めておく (test_protection.py で別に確かめる)
+_steam_guard = mock.patch.object(HostAgent, "_guards_steam", return_value=False)
+
+
+def setUpModule():
+    _steam_guard.start()
+
+
+def tearDownModule():
+    _steam_guard.stop()
+
 
 class FakeProc:
     def __init__(self, pid, name, dies_on_terminate=True):
