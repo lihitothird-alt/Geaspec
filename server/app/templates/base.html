@@ -128,7 +128,7 @@
       </nav>
 
       <div class="nav-mobile">
-        {% if vr_area and path != "/slots" %}<a class="btn small" href="/slots">{{ "Book" if en else "空き枠を見る" }}</a>{% endif %}
+        {% if vr_area and path not in ("/slots", "/vrchat", "/en/vr") %}<a class="btn small" href="/slots">{{ "Book" if en else "予約する" }}</a>{% endif %}
         <details class="menu">
           <summary><svg class="i ic-open"><use href="#i-menu"/></svg><svg class="i ic-close"><use href="#i-close"/></svg><span class="visually-hidden">メニュー</span></summary>
           <nav class="menu-panel" aria-label="メニュー">
