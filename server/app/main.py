@@ -54,7 +54,7 @@ SITE_GATE_OPEN_PREFIXES = (
     "/manifest.webmanifest", "/sw.js",
 )
 # 検索エンジンに載せるページ (だれでも見られる案内だけ。アカウントや予約、管理のページは載せない)
-INDEXABLE_PATHS = ("/", "/vrchat", "/en", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
+INDEXABLE_PATHS = ("/", "/gpus", "/vrchat", "/en", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
 LEGAL_PAGES = {"tokushoho": "特定商取引法に基づく表記", "terms": "利用規約", "privacy": "プライバシーポリシー",
                "platforms": "VRChat・Steam などの規約について"}
 
@@ -257,16 +257,43 @@ def create_app(
 
     # --- 公開ページ ---------------------------------------------------------
 
+    def gpu_listing(db: Session, slots: list[Slot]) -> list[dict]:
+        """貸し出されている GPU (承認済み・受付中の PC) を VRAM の大きい順に。空き枠の数と次の空きも付ける。"""
+        hosts = db.scalars(select(Host).where(Host.active.is_(True), Host.pending.is_(False))).all()
+        items = []
+        for h in hosts:
+            open_slots = [s for s in slots if s.host_id == h.id]
+            items.append({
+                "host": h, "vram": h.vram_gb, "gpu": h.spec.get("gpu", ""),
+                "open_count": len(open_slots), "next": open_slots[0] if open_slots else None,
+                "lender": None if settings.simple_mode else h.owner,
+            })
+        # VRAM の大きい順。空きがある PC を先に
+        items.sort(key=lambda g: (-(g["vram"] or 0), g["next"] is None, g["host"].id))
+        return items
+
     def landing(request: Request, db: Session, ref: str, template: str):
         # 広告などの流入元 (例: /?ref=himari-ryokan)。登録時にユーザーへ記録する
         if ref and REF_RE.match(ref):
             request.session["ref"] = ref
         slots = services.available_slots(db, clock.utcnow(), settings.hold_minutes)
         min_price = min((s.price_yen for s in slots), default=None)
-        # 登録されている PC の VRAM のいちばん大きいもの (承認済み・受付中だけ)
-        hosts = db.scalars(select(Host).where(Host.active.is_(True), Host.pending.is_(False))).all()
-        max_vram = max((h.vram_gb for h in hosts if h.vram_gb), default=None)
-        return render(request, db, template, slot_count=len(slots), min_price=min_price, max_vram=max_vram)
+        gpus = gpu_listing(db, slots)
+        max_vram = max((g["vram"] for g in gpus if g["vram"]), default=None)
+        return render(request, db, template, slot_count=len(slots), min_price=min_price, max_vram=max_vram,
+                      gpus=gpus, now=clock.utcnow())
+
+    VRAM_FILTERS = (8, 12, 16, 24)
+
+    @app.get("/gpus", response_class=HTMLResponse)
+    def gpus_page(request: Request, vram: int = 0, db: Session = Depends(get_db)):
+        """GPU をさがす: 貸し出されている GPU を VRAM でえらぶ。"""
+        now = clock.utcnow()
+        gpus = gpu_listing(db, services.available_slots(db, now, settings.hold_minutes))
+        if vram not in VRAM_FILTERS:
+            vram = 0
+        shown = [g for g in gpus if not vram or (g["vram"] or 0) >= vram]
+        return render(request, db, "gpus.html", gpus=shown, total=len(gpus), vram=vram, filters=VRAM_FILTERS, now=now)
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request, ref: str = "", db: Session = Depends(get_db)):
@@ -619,10 +646,14 @@ def create_app(
     # --- 予約 ---------------------------------------------------------------
 
     @app.get("/slots", response_class=HTMLResponse)
-    def slots(request: Request, view: str = "", db: Session = Depends(get_db)):
+    def slots(request: Request, view: str = "", host: int = 0, db: Session = Depends(get_db)):
         now = clock.utcnow()
         user = current_user(request, db)
         items = services.available_slots(db, now, settings.hold_minutes)
+        # GPU の一覧から来たときは、その PC の枠だけ
+        only_host = db.get(Host, host) if host > 0 else None
+        if only_host:
+            items = [s for s in items if s.host_id == only_host.id]
         followed = {u.id for u in social.following_lenders(db, user)} if user else set()
         if view == "following" and not settings.simple_mode:
             items = [s for s in items if s.host.owner_id in followed]
@@ -646,7 +677,7 @@ def create_app(
                 chain_ends[s.id] = chain[-1].end_at
         return render(
             request, db, "slots.html", slots=items, trial_eligible=trial, trial_prices=prices,
-            lenders=lenders, followed=followed, view=view, now=now, chain_ends=chain_ends,
+            lenders=lenders, followed=followed, view=view, now=now, chain_ends=chain_ends, only_host=only_host,
         )
 
     @app.get("/slots/{slot_id}/confirm", response_class=HTMLResponse)

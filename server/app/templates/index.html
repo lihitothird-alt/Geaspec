@@ -1,61 +1,76 @@
 {% extends "base.html" %}
 {% block title %}{{ settings.service_name }} | ネット越しに VRAM増強{% endblock %}
-{% block description %}近くのだれかのゲーミングPCの GPU を、インターネット越しに必要な時間だけ借りて、VRAM を増強できます。いまは Quest で遊ぶ PC版VRChat に対応しています。{% endblock %}
+{% block description %}Geaspec は、ゲーミングPCの GPU を個人どうしで時間単位で貸し借りするサービスです。足りない VRAM を、近くのだれかの GPU で増強できます。{% endblock %}
+{% from "_gpu.html" import gpu_card %}
 {% block content %}
 <section class="hero" aria-labelledby="hero-title">
   <div class="wrap hero-grid">
     <div class="hero-copy">
       <p class="eyebrow"><span class="dot" aria-hidden="true"></span>ネット越しの外付け GPU</p>
-      <h1 id="hero-title"><span class="ln">手元の機材に、</span><br><span class="ln"><mark class="hl">VRAM増強</mark>を。</span></h1>
-      <p class="lead">近くのだれかのゲーミングPCの GPU を、<span class="nowrap">インターネット越しに、</span><span class="nowrap">必要な時間だけ</span>借りられます。いまは <strong>PC版VRChat</strong> に対応しています。</p>
+      <h1 id="hero-title"><span class="ln">必要なときだけ、</span><br><span class="ln"><mark class="hl">VRAM増強</mark>。</span></h1>
+      <p class="lead">Geaspec は、ゲーミングPCの GPU を<span class="nowrap">個人どうしで、</span><span class="nowrap">時間単位で貸し借りする</span>サービスです。足りない VRAM を、近くのだれかの GPU で補えます。</p>
       <div class="cta-row">
-        <a class="btn lg" href="/vrchat">PC版VRChat で使う<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-        <a class="btn lg ghost" href="#uses">使いみちを見る</a>
+        <a class="btn lg" href="/gpus">GPU をさがす<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <a class="btn lg ghost" href="/guide?for=lend">GPU を貸す</a>
       </div>
     </div>
 
     <div class="hero-visual">
       <figure class="hud">
         <div class="hud-link" role="img" aria-label="あなたの機材から、インターネット越しに、だれかのゲーミングPCの GPU を借りるイメージ">
-          <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>あなたの<br>機材</div>
+          <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-monitor"/></svg></span>あなたの<br>機材</div>
           <div class="wire"><span class="tag"><svg class="i"><use href="#i-globe"/></svg>ネット</span></div>
           <div class="node pc"><span class="node-ic"><svg class="i"><use href="#i-pc"/></svg></span>だれかの<br>GPU</div>
         </div>
         <dl class="hud-specs">
-          {% if max_vram %}<div><dt>VRAM</dt><dd>最大 <span class="num">{{ max_vram }}</span>GB <small>登録中の PC</small></dd></div>{% endif %}
-          <div><dt>いま使える用途</dt><dd>PC版VRChat</dd></div>
-          <div><dt>遅延</dt><dd><span class="num">50〜60</span>ms <small>検証時</small></dd></div>
+          {% if gpus %}<div><dt>貸し出し中の GPU</dt><dd><span class="num">{{ gpus|length }}</span> 台</dd></div>{% endif %}
+          {% if max_vram %}<div><dt>VRAM</dt><dd>最大 <span class="num">{{ max_vram }}</span>GB</dd></div>{% endif %}
+          <div><dt>遅延</dt><dd><span class="num">50〜60</span>ms <small>VR の検証時</small></dd></div>
         </dl>
       </figure>
     </div>
   </div>
 </section>
 
-<section class="section" aria-labelledby="uses">
+{% if gpus %}
+<section class="section" aria-labelledby="gpus">
+  <div class="wrap">
+    <div class="section-head split">
+      <h2 id="gpus">貸し出されている GPU</h2>
+      <a class="use-link" href="/gpus">すべての GPU を見る<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+    </div>
+    <ul class="gpu-list">
+      {% for g in gpus[:3] %}{{ gpu_card(g, now) }}{% endfor %}
+    </ul>
+  </div>
+</section>
+{% endif %}
+
+<section class="section{% if gpus %} flush-top{% endif %}" aria-labelledby="uses">
   <div class="wrap">
     <div class="section-head">
-      <h2 id="uses">使いみち</h2>
-      <p>VRAM が足りないと、できないことがあります。借りれば、その時間だけ増やせます。</p>
+      <h2 id="uses">用途からえらぶ</h2>
+      <p>借りた GPU で、手元の機材ではできないことを。</p>
     </div>
     <ul class="uses">
       <li class="use-card ready">
         <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-quest"/></svg></span><span class="badge confirmed">使えます</span></div>
-        <h3>VR で遊ぶ</h3>
-        <p>PC版VRChat。Quest ひとつで、人の多いワールドや作りこまれたアバターも。</p>
-        <a class="use-link" href="/vrchat">くわしく見る<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <h3>VR</h3>
+        <p>Quest ひとつで PC版VRChat。人の多いワールドや、作りこまれたアバターも。</p>
+        <a class="use-link" href="/vrchat">VR 専用ページへ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
       </li>
       <li class="use-card">
-        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span><span class="badge completed">準備中</span></div>
+        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span><span class="badge completed">対応予定</span></div>
         <h3>画像生成・AI</h3>
         <p>画像生成や、手元で動かす AI に。VRAM が多いほど、大きなモデルが動きます。</p>
       </li>
       <li class="use-card">
-        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span><span class="badge completed">準備中</span></div>
+        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span><span class="badge completed">対応予定</span></div>
         <h3>3D・動画</h3>
         <p>3D のレンダリングや、動画の書き出しに。</p>
       </li>
     </ul>
-    <p class="muted small uses-note">準備中の使いみちを試したい方は、<a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a> に「やりたいこと」と「ほしい VRAM の量」を送ってください。始めるときにお知らせします。</p>
+    <p class="muted small uses-note">対応予定の用途で使いたい方は、<a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a> に「やりたいこと」と「ほしい VRAM の量」を送ってください。対応したらお知らせします。</p>
   </div>
 </section>
 
@@ -66,7 +81,7 @@
       <p>VRAM は、GPU 専用のメモリです。足りないと、VRChat ではワールドやアバターが重くなり、AI ではモデルがそもそも動きません。</p>
     </div>
     <ol class="steps three">
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></div><h3>VRAM でえらぶ</h3><p>予約の一覧に、PC ごとの GPU と VRAM が出ます。</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></div><h3>VRAM でえらぶ</h3><p>GPU ごとの VRAM を見て、足りる GPU を予約します。</p></li>
       <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-globe"/></svg></div><h3>ネット越しにつなぐ</h3><p>自分の機材から、借りた PC の GPU を使います。</p></li>
       <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg></div><h3>終われば元どおり</h3><p>時間になると自動で終了。ログイン情報は消え、貸した PC も元に戻ります。</p></li>
     </ol>

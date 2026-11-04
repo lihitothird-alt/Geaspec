@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_gpu.html" import gpu_card %}
+{% block title %}GPU をさがす | {{ settings.service_name }}{% endblock %}
+{% block description %}Geaspec に貸し出されている GPU を、VRAM の大きさでえらべます。{% endblock %}
+{% block content %}
+<div class="wrap">
+  <header class="page-head">
+    <h1>GPU をさがす</h1>
+    <p class="muted">貸し出されている GPU を、VRAM の大きい順に並べています。いまはどの GPU も VR（PC版VRChat）で使えます。ほかの用途は対応予定です。</p>
+    <nav class="tabs" aria-label="VRAM でしぼる">
+      <a href="/gpus"{% if not vram %} aria-current="page"{% endif %}>すべて</a>
+      {% for f in filters %}<a href="/gpus?vram={{ f }}"{% if vram == f %} aria-current="page"{% endif %}>{{ f }}GB 以上</a>{% endfor %}
+    </nav>
+  </header>
+</div>
+<section class="wrap section tight" aria-label="GPU の一覧">
+  {% if gpus %}
+  <ul class="gpu-list">
+    {% for g in gpus %}{{ gpu_card(g, now) }}{% endfor %}
+  </ul>
+  {% else %}
+  <div class="empty">
+    <svg class="i" aria-hidden="true"><use href="#i-pc"/></svg>
+    <p><strong>{% if vram %}VRAM {{ vram }}GB 以上の GPU は、いまはありません。{% else %}いま貸し出されている GPU はありません。{% endif %}</strong></p>
+    {% if vram %}<p class="muted"><a href="/gpus">すべての GPU</a>を見てみてください。</p>{% endif %}
+  </div>
+  {% endif %}
+  <p class="muted small uses-note">GPU を貸したい方は <a href="/guide?for=lend">貸す人の手順</a> へ。</p>
+</section>
+{% endblock %}

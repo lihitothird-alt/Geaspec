@@ -1356,3 +1356,25 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 @media (max-width: 760px) {
   .uses { grid-template-columns: 1fr; }
 }
+
+/* GPU の一覧 (トップ・GPU をさがす) */
+.section-head.split { max-width: none; display: flex; align-items: baseline; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; }
+.section-head.split h2 { margin: 0; }
+.gpu-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+.gpu-card {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 18px; align-items: start; padding: 20px;
+  border-radius: var(--radius); background: var(--surface); border: 1.5px solid var(--line);
+}
+.gpu-card > .btn { grid-column: 2; justify-self: start; margin-top: 8px; }
+.gpu-vram {
+  grid-row: span 2; min-width: 84px; padding: 12px 10px; border-radius: var(--radius-s, 6px);
+  background: var(--mint-soft); color: var(--mint-ink); text-align: center; line-height: 1.1;
+}
+.gpu-vram .num { font-size: 2rem; font-weight: 800; }
+.gpu-vram .unit { font-weight: 700; margin-left: 2px; }
+.gpu-vram .unknown { font-size: 2rem; font-weight: 800; color: var(--text-muted); }
+.gpu-vram .lbl { display: block; margin-top: 4px; font-size: .74rem; font-weight: 700; letter-spacing: .08em; }
+.gpu-body h3 { margin: 0 0 4px; font-size: 1.08rem; overflow-wrap: anywhere; }
+.gpu-body p { margin: 0; color: var(--text-muted); font-size: .9rem; }
+.gpu-body .gpu-uses { margin: 8px 0 6px; }
+.gpu-body .gpu-next { color: var(--text); font-weight: 600; }
