@@ -85,31 +85,32 @@
   </div>
 </section>
 
-<section class="section flush-top" aria-labelledby="uses">
+<section class="section flush-top" aria-labelledby="services">
   <div class="wrap">
     <div class="section-head">
-      <h2 id="uses">用途</h2>
+      <h2 id="services">Geaspec のサービス</h2>
+      <p>用途ごとに、別のサイトに分けています。</p>
     </div>
-    <ul class="uses">
-      <li class="use-card">
-        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span><span class="badge completed">準備中</span></div>
-        <h3>AI</h3>
-        <p>要約・分類・文字起こしから、大きめのモデルまで。何体もの AI で、見直しを何度も回します。</p>
-        <a class="use-link" href="/ai">AI のページへ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      </li>
-      <li class="use-card">
-        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span><span class="badge completed">準備中</span></div>
-        <h3>ゲーム開発</h3>
-        <p>仕組みの設計、オブジェクトの生成、色の設定、軽量化の開発を、役割を分けた AI で。</p>
-        <a class="use-link" href="/gamedev">ゲーム開発のページへ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      </li>
-      <li class="use-card ready">
-        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-quest"/></svg></span><span class="badge confirmed">使えます</span></div>
-        <h3>Geaspec VR</h3>
-        <p>VR だけは別の仕組みです。Quest からホストの PC にその場でつないで、PC版VRChat を遊びます。</p>
-        <a class="use-link" href="/vrchat">Geaspec VR へ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      </li>
-    </ul>
+    <div class="svc-list">
+      <article class="svc svc-ai" id="ai" aria-labelledby="svc-ai">
+        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span><span class="badge completed">準備中</span></div>
+        <h3 id="svc-ai">Geaspec AI</h3>
+        <p>要約・分類・文字起こしから、大きめのモデルまで。AI の仕事を何台もの PC に分けて頼み、何体もの AI で見直しを何度も回します。</p>
+        <a class="btn svc-btn" href="/ai">Geaspec AI を見る<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </article>
+      <article class="svc svc-gamedev" id="gamedev" aria-labelledby="svc-gamedev">
+        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span><span class="badge completed">準備中</span></div>
+        <h3 id="svc-gamedev">Geaspec ゲーム開発</h3>
+        <p>ゲームの仕組みの設計、オブジェクトの生成、色の設定、軽量化の開発を、役割を分けた AI の組織に頼みます。</p>
+        <a class="btn svc-btn" href="/gamedev">ゲーム開発を見る<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </article>
+      <article class="svc svc-vr" id="vr" aria-labelledby="svc-vr">
+        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-quest"/></svg></span><span class="badge confirmed">使えます</span></div>
+        <h3 id="svc-vr">Geaspec VR</h3>
+        <p>VR だけは別の仕組みです。Quest からホストの PC にその場でつないで、PC版VRChat を遊びます。予約は Geaspec VR のサイトで行います。</p>
+        <a class="btn svc-btn" href="{{ vr_home }}">Geaspec VR を開く<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </article>
+    </div>
   </div>
 </section>
 
@@ -120,7 +121,7 @@
         <h2 id="host">ホストになる</h2>
         <p>使っていない PC で、仕事を引き受けます。受ける仕事の条件も、やり方も、ホストが決めます。設定したくない人向けの、入れるだけで動く標準のやり方も用意する予定です。いまは Geaspec VR のホストとして参加できます。</p>
       </div>
-      <a class="btn ghost" href="/guide?for=lend">VR のホストの手順</a>
+      <a class="btn ghost" href="/guide?for=lend">Geaspec VR のホストの手順</a>
     </div>
     <p class="muted small uses-note">AI の仕事の依頼と、AI のホストの受付は準備中です。料金も決まっていません。関心のある方は <a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a> へ、ゲストかホストか、やりたいことを書いて送ってください。始めるときにお知らせします。</p>
   </div>
