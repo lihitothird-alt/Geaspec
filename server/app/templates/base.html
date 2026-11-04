@@ -101,13 +101,13 @@
 
       {#- サイトごとのメニュー: 予約する・一覧・貸し出し -#}
       {%- if vr_area -%}
-        {%- set site_nav = [("/slots", "Book" if en else "予約", "#i-calendar", true),
-                            ("/bookings", "Bookings" if en else "予約一覧", "#i-list", user),
+        {%- set site_nav = [("/slots", "Book" if en else "予約する", "#i-calendar", true),
+                            ("/bookings", "My bookings" if en else "自分の予約", "#i-list", user),
                             ("/lend", "Lend" if en else "貸し出し", "#i-pc", user)] -%}
       {%- elif area in ("ai", "gamedev") -%}
         {%- set base_path = main_url ~ "/" ~ area -%}
         {%- set site_nav = [(base_path, "頼む", "#i-mail", true),
-                            (base_path ~ "/requests", "依頼一覧", "#i-list", true),
+                            (base_path ~ "/requests", "自分の依頼", "#i-list", true),
                             (base_path ~ "/host", "貸し出し", "#i-pc", true)] -%}
       {%- else -%}
         {#- 本体 (トップ) では、サービスへの入口はページの中のカードだけにする (上のメニューには並べない) -#}
