@@ -1758,3 +1758,5 @@ body.theme-gamedev::before {
 }
 .vrc-strip { max-width: 820px; margin: clamp(32px, 5vw, 48px) auto 0; }
 .vrc-strip div { background: color-mix(in srgb, var(--surface) 90%, transparent); box-shadow: var(--shadow); text-align: center; justify-items: center; }
+/* AI と Studio の背景の模様は目が疲れるので出さない (色だけで見分ける) */
+body.theme-ai::before, body.theme-gamedev::before { display: none; }
