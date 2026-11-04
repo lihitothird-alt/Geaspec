@@ -34,6 +34,10 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="{{ settings.service_name }}">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  {% if path == "/" %}
+  {# 検索結果に出すサイト名。カタカナで検索した人にも見つけてもらう #}
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "{{ settings.service_name }}", "alternateName": ["ギアスペック"], "url": "{{ settings.base_url }}/"}</script>
+  {% endif %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -87,7 +91,7 @@
 
       <nav class="nav-desktop" aria-label="メインメニュー">
         {% if not en %}<a class="nav-link" href="/gpus"{% if path == "/gpus" %} aria-current="page"{% endif %}>GPU をさがす</a>
-        <a class="nav-link" href="/vrchat"{% if path == "/vrchat" %} aria-current="page"{% endif %}>VR</a>{% endif %}
+        <a class="nav-link" href="/vrchat"{% if path == "/vrchat" %} aria-current="page"{% endif %}>Geaspec VR</a>{% endif %}
         <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}>{{ "Open slots" if en else "空き枠" }}</a>
         {% if user %}
           <a class="nav-link" href="/bookings"{% if path.startswith("/bookings") %} aria-current="page"{% endif %}>{{ "Bookings" if en else "予約一覧" }}</a>
@@ -109,7 +113,7 @@
           <nav class="menu-panel" aria-label="メニュー">
             <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-calendar"/></svg>{{ "Open slots" if en else "空き枠" }}</a>
             {% if not en %}<a class="nav-link" href="/gpus"{% if path == "/gpus" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-pc"/></svg>GPU をさがす</a>
-            <a class="nav-link" href="/vrchat"{% if path == "/vrchat" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-quest"/></svg>VR（PC版VRChat）</a>{% endif %}
+            <a class="nav-link" href="/vrchat"{% if path == "/vrchat" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-quest"/></svg>Geaspec VR（PC版VRChat）</a>{% endif %}
             {% if user %}
               <a class="nav-link" href="/bookings"{% if path.startswith("/bookings") %} aria-current="page"{% endif %}><svg class="i"><use href="#i-list"/></svg>{{ "Bookings" if en else "予約一覧" }}</a>
               {% if not simple %}<a class="nav-link" href="/following"{% if path == "/following" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-heart"/></svg>{{ "Following" if en else "フォロー中" }}</a>{% endif %}
@@ -151,7 +155,7 @@
 
   <footer class="site-footer">
     <div class="wrap footer-inner">
-      <span class="footer-brand">{{ logo_mark() }}{{ settings.service_name }}</span>
+      <span class="footer-brand">{{ logo_mark() }}{{ settings.service_name }}{% if not en %}<span class="footer-kana">ギアスペック</span>{% endif %}</span>
       <nav class="footer-links" aria-label="規約・表記">
         {% if not simple %}<a href="/app">{{ "Use as a phone app" if en else "スマホのアプリとして使う" }}</a>{% endif %}
         {% if en %}<a href="/" hreflang="ja" lang="ja">日本語</a>{% else %}<a href="/en" hreflang="en" lang="en">English</a>{% endif %}
@@ -163,7 +167,7 @@
         <a href="/legal/platforms" hreflang="ja">VRChat and Steam terms (Japanese)</a>
         {% else %}
         <a href="/gpus">GPU をさがす</a>
-        <a href="/vrchat">VR（PC版VRChat）</a>
+        <a href="/vrchat">Geaspec VR（PC版VRChat）</a>
         <a href="/guide">はじめての方へ</a>
         <a href="/about">名前の由来</a>
         <a href="/legal/terms">利用規約</a>

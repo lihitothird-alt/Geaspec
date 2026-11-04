@@ -6,7 +6,7 @@
 <div class="wrap">
   <header class="page-head">
     <h1>GPU をさがす</h1>
-    <p class="muted">貸し出されている GPU を、VRAM の大きい順に並べています。AI やレンダリング向けの「まとめ借り」は準備中です。いまは VR（PC版VRChat）で、1台ずつ借りられます。</p>
+    <p class="muted">貸し出されている GPU を、VRAM の大きい順に並べています。AI やレンダリング向けの、複数台の貸し出しは準備中です。いまは Geaspec VR（PC版VRChat）で、1台ずつ借りられます。</p>
     <nav class="tabs" aria-label="VRAM でしぼる">
       <a href="/gpus"{% if not vram %} aria-current="page"{% endif %}>すべて</a>
       {% for f in filters %}<a href="/gpus?vram={{ f }}"{% if vram == f %} aria-current="page"{% endif %}>{{ f }}GB 以上</a>{% endfor %}

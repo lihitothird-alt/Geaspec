@@ -140,11 +140,13 @@ def test_landing_page_renders(tmp_path, now):
     r = c.get("/")
     assert r.status_code == 200
     # トップは GPU の貸し借り (VRAM 増強)。VR はその中の専用ページ
-    assert "VRAM増強" in r.text and 'href="/gpus"' in r.text and "VR 専用ページへ" in r.text and "まとめ借りは準備中" in r.text
+    assert "VRAM増強" in r.text and 'href="/gpus"' in r.text and "Geaspec VR へ" in r.text and "複数台の貸し出しは準備中" in r.text and "AI 組織" in r.text
+    # カタカナの読みでも見つかるように (タイトル・説明・検索エンジン向けのサイト名)
+    assert "<title>Geaspec（ギアスペック）" in r.text and '"alternateName": ["ギアスペック"]' in r.text
     # もとのトップページは /vrchat にそのまま残っている
     v = c.get("/vrchat")
     assert v.status_code == 200
-    assert "PC版VRChat</mark>を。" in v.text and "Geaspec の VR 専用ページ" in v.text and 'href="/slots"' in v.text and "必要なもの" in v.text
+    assert "PC版VRChat</mark>を。" in v.text and "<title>Geaspec VR | PC版VRChat" in v.text and 'href="/slots"' in v.text and "必要なもの" in v.text
 
 
 def test_slot_creation_converts_jst_to_utc(setup):
@@ -1361,7 +1363,7 @@ def test_lender_pc_specs_are_shown_to_borrowers(tmp_path, now):
     signup(user, "user@example.com")
     line = "NVIDIA GeForce RTX 4070（12GB）・AMD Ryzen 7 7700 8-Core・メモリ 32GB"
     assert line in user.get("/slots").text
-    # トップには、貸し出されている GPU の VRAM の合計を出す (まとめ借りの目安)
+    # トップには、貸し出されている GPU の VRAM の合計を出す (複数台で使うときの目安)
     assert '<dt>VRAM の合計</dt><dd><span class="num">12</span>GB' in user.get("/").text
     # GPU をさがす: VRAM でしぼれて、その PC の空き枠だけに飛べる
     gpus = user.get("/gpus").text
