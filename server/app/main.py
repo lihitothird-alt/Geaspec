@@ -47,11 +47,14 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 META_USERNAME_RE = re.compile(r"^[A-Za-z0-9._-]{2,64}$")
 # 合言葉なしで通すパス。Agent・決済サービスからの通知は機械が呼ぶので、それぞれ別の方法で認証している
 SITE_GATE_OPEN_PREFIXES = (
-    "/site-login", "/join", "/guide", "/about", "/legal/", "/healthz", "/robots.txt", "/static/", "/api/agent/", "/api/bot/",
+    "/site-login", "/join", "/guide", "/about", "/legal/", "/healthz", "/robots.txt", "/sitemap.xml", "/static/",
+    "/api/agent/", "/api/bot/",
     "/stripe/webhook",
     # ホーム画面アプリの設定と裏方のスクリプト。ブラウザは合言葉の Cookie を付けずに読みに来る
     "/manifest.webmanifest", "/sw.js",
 )
+# 検索エンジンに載せるページ (だれでも見られる案内だけ。アカウントや予約、管理のページは載せない)
+INDEXABLE_PATHS = ("/", "/en", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
 LEGAL_PAGES = {"tokushoho": "特定商取引法に基づく表記", "terms": "利用規約", "privacy": "プライバシーポリシー",
                "platforms": "VRChat・Steam などの規約について"}
 
@@ -97,16 +100,21 @@ def create_app(
             return RedirectResponse(str(request.url.replace(scheme="https", port=None)), status_code=code)
         return await call_next(request)
 
+    def indexable(path: str) -> bool:
+        """検索エンジンに載せてよいページか (合言葉や招待制のときは、どこも載せない)。"""
+        return not (settings.site_password or settings.invite_only) and path in INDEXABLE_PATHS
+
     @app.middleware("http")
     async def private_site(request: Request, call_next):
-        """検索エンジンに載せない。合言葉か招待リンクを使う設定なら、招待した人だけに見せる (ふだんは公開)。"""
+        """案内のページだけ検索エンジンに載せる。合言葉か招待リンクを使う設定なら、招待した人だけに見せる (ふだんは公開)。"""
         path = request.url.path
         if (settings.site_password or settings.invite_only) and not path.startswith(SITE_GATE_OPEN_PREFIXES):
             if not request.session.get("site_ok"):
                 target = path + (f"?{request.url.query}" if request.url.query else "")
                 return RedirectResponse(f"/site-login?next={target}", status_code=303)
         response = await call_next(request)
-        response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        if not indexable(path) and not path.startswith("/static/"):
+            response.headers["X-Robots-Tag"] = "noindex, nofollow"
         if path.startswith("/static/") and response.status_code == 200:
             # サイトは家の PC から Tailscale Funnel 経由で届くので、CSS や画像は毎回取りに行かせない。
             # style.css は ?v=版 を付けて読むので、新しい版にすると読み直される
@@ -139,6 +147,7 @@ def create_app(
     templates.env.globals["turnover_minutes"] = settings.turnover_minutes
     templates.env.globals["free_mode"] = settings.free_mode
     templates.env.globals["asset_version"] = VERSION
+    templates.env.globals["indexable"] = indexable
     templates.env.globals["simple"] = settings.simple_mode
     templates.env.globals["mail_enabled"] = app.state.mailer.enabled
 
@@ -297,7 +306,19 @@ def create_app(
 
     @app.get("/robots.txt", response_class=PlainTextResponse)
     def robots():
-        return "User-agent: *\nDisallow: /\n"
+        if site_gated():
+            return "User-agent: *\nDisallow: /\n"
+        private = ("/admin", "/api/", "/account", "/bookings", "/join", "/site-login", "/login", "/signup")
+        return "User-agent: *\n" + "".join(f"Disallow: {p}\n" for p in private) + \
+            f"Allow: /\nSitemap: {settings.base_url}/sitemap.xml\n"
+
+    @app.get("/sitemap.xml")
+    def sitemap():
+        if site_gated():
+            raise HTTPException(404)
+        urls = "".join(f"<url><loc>{settings.base_url}{p}</loc></url>" for p in INDEXABLE_PATHS)
+        xml = f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
+        return Response(xml, media_type="application/xml")
 
     # --- ホーム画面アプリ (iPhone / Android) --------------------------------
 
@@ -313,8 +334,8 @@ def create_app(
             "start_url": "/bookings?source=app",
             "scope": "/",
             "display": "standalone",
-            "background_color": "#110e21",
-            "theme_color": "#5b3cf0",
+            "background_color": "#f3f5f5",
+            "theme_color": "#f3f5f5",
             "icons": [
                 {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
                 {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},

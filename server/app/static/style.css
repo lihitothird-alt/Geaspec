@@ -1318,3 +1318,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 .need li { border: 0; box-shadow: var(--shadow); }
 .need .box, .faq summary::before, .flow li::before { background: var(--surface-3); color: var(--text); border: 0; }
 .flow li:not([aria-current="step"])::before { background: var(--surface-3); color: var(--text-muted); }
+/* 貸し出す時間のカレンダー: 受付中はミント、予約ありは濃い灰色 (アプリと同じ色分け) */
+.sched-table td.cell.s-open, .sched-legend .sw.s-open,
+.schedule-grid td.cell:has(input:checked), .cell-sample.open { background: var(--primary); border-color: var(--primary); }
+.sched-table td.cell.s-booked, .sched-legend .sw.s-booked,
+.schedule-grid td.cell.booked, .cell-sample.booked { background: var(--text); border-color: var(--text); }

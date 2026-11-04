@@ -15,6 +15,7 @@ import os
 import queue
 import sys
 import threading
+import time
 import uuid
 from pathlib import Path
 
@@ -48,6 +49,73 @@ WEEKDAYS = "月火水木金土日"
 
 def day_label(value: dt.datetime) -> str:
     return f"{value:%m/%d}（{WEEKDAYS[value.weekday()]}）"
+
+
+STANDARD_USER_INTRO = (
+    "貸し出しには、ふだん使っているユーザーとは別の「標準ユーザー」を使います。",
+    "いま使っているユーザーを標準に変えるだけでは、あなたのファイルが借りる人に見えてしまいます。",
+)
+STANDARD_USER_STEPS = (
+    "設定 → アカウント → 他のユーザー で、新しいユーザーを作る\n"
+    "（メールを聞かれたら「このユーザーのサインイン情報がありません」→「Microsoft アカウントを持たないユーザーを追加する」）",
+    "そのユーザーの種類を「標準ユーザー」にする（「アカウントの種類の変更」）",
+    "そのユーザーでサインインして、Geaspec の Web サイト（貸し出しのページ）から Geaspec Agent を入れる",
+)
+
+
+def open_uri(uri: str) -> None:
+    """steam:// などを、その PC で開く。"""
+    if sys.platform == "win32":
+        os.startfile(uri)  # noqa: S606 - Steam のページなどを開くだけ
+    else:
+        import webbrowser
+
+        webbrowser.open(uri)
+
+
+def open_user_settings(root) -> None:
+    """標準ユーザーの作り方をアプリと同じ見た目の小さな画面で見せ、Windows の「他のユーザー」の設定を開ける。"""
+    import tkinter as tk
+    from tkinter import ttk
+
+    family = pick_font_family(root)
+    top = tk.Toplevel(root)
+    top.title("貸し出し用のユーザーを作る")
+    top.configure(bg=COLORS["bg"])
+    top.transient(root)
+    top.resizable(False, False)
+    body = tk.Frame(top, bg=COLORS["bg"])
+    body.pack(fill="both", expand=True, padx=24, pady=20)
+    tk.Label(body, text="貸し出し用のユーザーを作る", font=(family, 14, "bold"), fg=COLORS["ink"],
+             bg=COLORS["bg"], anchor="w").pack(fill="x")
+    for i, line in enumerate(STANDARD_USER_INTRO):
+        tk.Label(body, text=line, font=(family, 10, "bold" if i else "normal"),
+                 fg=COLORS["bad"] if i else COLORS["muted"], bg=COLORS["bg"], anchor="w", justify="left",
+                 wraplength=460).pack(fill="x", pady=(8 if i == 0 else 4, 0))
+    steps = tk.Frame(body, bg=COLORS["card"], highlightbackground=COLORS["line"], highlightthickness=1)
+    steps.pack(fill="x", pady=(14, 0))
+    for n, line in enumerate(STANDARD_USER_STEPS, 1):
+        row = tk.Frame(steps, bg=COLORS["card"])
+        row.pack(fill="x", padx=14, pady=(10 if n == 1 else 4, 10 if n == len(STANDARD_USER_STEPS) else 0))
+        tk.Label(row, text=str(n), width=2, font=(family, 10, "bold"), fg=COLORS["on_mint"], bg=COLORS["mint"]).pack(
+            side="left", anchor="n")
+        tk.Label(row, text=line, font=(family, 10), fg=COLORS["ink"], bg=COLORS["card"], anchor="w", justify="left",
+                 wraplength=400).pack(side="left", padx=(10, 0), fill="x")
+    buttons = tk.Frame(body, bg=COLORS["bg"])
+    buttons.pack(fill="x", pady=(16, 0))
+
+    def go() -> None:
+        top.destroy()
+        if sys.platform == "win32":
+            os.startfile("ms-settings:otherusers")  # noqa: S606 - Windows の設定画面を開くだけ
+
+    ttk.Button(buttons, text="Windows の設定を開く", style="Primary.TButton", command=go).pack(side="left")
+    ttk.Button(buttons, text="閉じる", command=top.destroy).pack(side="left", padx=10)
+    top.update_idletasks()
+    x = root.winfo_rootx() + max(0, (root.winfo_width() - top.winfo_reqwidth()) // 2)
+    y = root.winfo_rooty() + max(0, (root.winfo_height() - top.winfo_reqheight()) // 3)
+    top.geometry(f"+{x}+{y}")
+    top.grab_set()
 
 
 def validate_settings(server: str, token: str) -> str | None:
@@ -208,6 +276,77 @@ class AgentController:
         self.cleanup_thread.start()
         return None
 
+    # --- 貸し出せる状態かのチェックリスト ---------------------------------
+
+    DISK_CHECK_SEC = 30.0
+
+    def readiness(self, now: float | None = None) -> list[tuple[str, str, str]]:
+        """貸し出せる状態かのチェックリスト [(項目, ok / ng / wait, できていないときのひとこと)]。すべて自動で確かめる。
+
+        ログインと貸し出し専用ユーザーは、できていなければホームではなく設定の画面が出るので、ここには入れない。
+        ファイルを見る項目 (Steam など) は 30 秒ごとにだけ確かめ直す (画面は 0.5 秒ごとに呼ぶため)。
+        """
+        now = time.monotonic() if now is None else now
+        if now - getattr(self, "_disk_checked_at", -1e9) >= self.DISK_CHECK_SEC:
+            root = h.steam_root()
+            self._disk = (self.cfg.streamer_path.is_file(), root is not None, h.is_steam_app_installed(root),
+                          h.is_admin_account())
+            self._disk_checked_at = now
+        streamer_ok, steam_ok, vrchat_ok, admin = self._disk
+        st = h.STATUS
+        items = []
+        site = "予約サイトにつながっている"
+        if st.state in ("idle", "session", "cleaning"):
+            items.append((site, "ok", ""))
+        elif st.state == "auth_error":
+            items.append((site, "ng", "「その他」→「ログインし直す」"))
+        elif st.state == "unreachable":
+            items.append((site, "ng", "未接続"))
+        else:
+            items.append((site, "wait", "確認中"))
+        if st.last_poll_at is None:
+            items.append(("運営の承認", "wait", "確認中"))
+        else:
+            approval = {"pending": ("wait", "待機中"), "paused": ("ng", "停止中")}
+            items.append(("運営の承認", *approval.get(st.host_state, ("ok", ""))))
+        label = h.STREAMERS.get(self.cfg.streamer, {}).get("label", "Virtual Desktop")
+        items.append((f"{label} Streamer が入っている", "ok" if streamer_ok else "ng", "この PC に入れてください"))
+        items.append(("Steam が入っている", "ok" if steam_ok else "ng", "この PC に入れてください"))
+        items.append(("VRChat が入っている", "ok" if vrchat_ok else "ng", "Steam で入れる"))
+        items.append(("貸し出し用の標準ユーザーを使っている", {False: "ok", True: "ng", None: "wait"}[admin],
+                      "別に作ってください（やり方）" if admin else "確認中"))
+        return items
+
+    def home_summary(self, items: list[tuple[str, str, str]], now: dt.datetime) -> tuple[str, str, str, str]:
+        """ホームのいちばん上に出す (見出しの上の小さな文字, 見出し, 説明, 色)。ほかの場所と同じことは書かない。"""
+        st = h.STATUS
+        if st.state == "session":
+            end = f"{st.session_ends_at:%H:%M} まで" if st.session_ends_at else "準備中"
+            return "いまの状態", f"貸し出し中（{end}）", "借りている人が VR で使っています。PC はつけたままにしてください", "busy"
+        if st.state == "cleaning":
+            return "いまの状態", "片づけ中", "借りた人のデータを消しています。電源は切らないでください", "warn"
+        if st.state == "unreachable":
+            return "いまの状態", "予約サイトにつながりません", "インターネットを確認してください。つながると自動で戻ります", "bad"
+        if st.state == "auth_error":
+            return "いまの状態", "ログインし直してください", "「その他」→「ログインし直す」から、もう一度ログインします", "bad"
+        if st.last_poll_at is not None and st.host_state == "pending":
+            return ("いまの状態", "運営の承認を待っています",
+                    "承認されると予約を受けられるようになります。あなたがすることはありません", "warn")
+        if st.last_poll_at is not None and st.host_state == "paused":
+            return "いまの状態", "運営が受付を止めています", "くわしくは運営に聞いてください", "warn"
+        missing = [label for label, state, _ in items if state == "ng"]
+        if missing:
+            return "いまの状態", f"準備があと {len(missing)} つ必要です", "下の ! の項目を確認してください", "bad"
+        if any(state == "wait" for _, state, _ in items):
+            return "いまの状態", "確認しています", "少し待つと表示が変わります", "muted"
+        if st.next_starts_at:
+            end = f"{st.next_ends_at:%H:%M}" if st.next_ends_at else ""
+            left = (st.next_starts_at - now).total_seconds()
+            when = f"あと {until_text(left)}で" if left > 60 else "まもなく"
+            return ("次の貸し出し", f"{day_label(st.next_starts_at)} {st.next_starts_at:%H:%M}〜{end}",
+                    f"{when}自動で始まります。PC はつけたままにしてください", "ok")
+        return "いまの状態", "貸し出しの準備ができています", "Web サイトで貸し出す時間を決めると、予約を受けられます", "ok"
+
     # --- 画面に出す文章 ---------------------------------------------------
 
     def status_text(self, now: dt.datetime | None = None) -> tuple[str, str, str]:
@@ -225,7 +364,7 @@ class AgentController:
         if st.state == "idle" and st.host_state == "pending":
             return (
                 "運営の確認待ちです",
-                "確認が終わると予約を受けられるようになります。先に下のカレンダーで貸し出す時間を選んでおけます",
+                "確認が終わると予約を受けられるようになります。先に Web サイトで貸し出す時間を決めておけます",
                 "warn",
             )
         if st.state == "idle" and st.host_state == "paused":
@@ -251,7 +390,7 @@ class AgentController:
             )
             tone = "busy"
         elif st.state == "idle":
-            detail = f"まだ予約はありません。下のカレンダーで貸し出す時間を選べます · 最終確認 {last}"
+            detail = f"まだ予約はありません。貸し出す時間は Web サイトで決めます · 最終確認 {last}"
         elif st.state == "unreachable":
             detail = f"インターネットにつながっているか確認してください · {int(self.poll_interval)} 秒ごとに自動でやり直します"
         elif st.state == "auth_error":
@@ -261,118 +400,26 @@ class AgentController:
         return title, detail, tone
 
 
-class ScheduleModel:
-    """「貸し出す時間」のカレンダー (1 マス = 1 時間) の中身。画面に依存しない。
-
-    時刻はすべてこの PC のローカル時刻 (タイムゾーンなし)。
-    """
-
-    HOUR = dt.timedelta(hours=1)
-    LOCKED = ("booked", "holding", "past", "fixed")
-
-    def __init__(self, week_start: dt.datetime, days: int = 7) -> None:
-        self.week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
-        self.days = days
-        self.locked: dict[dt.datetime, str] = {}  # 予約あり・支払い待ちなど、触れないマス
-        self.original: set[dt.datetime] = set()  # サーバーで受付中のマス
-        self.selected: set[dt.datetime] = set()  # 画面で選ばれているマス
-        self.price_yen = 500
-        self.trial_minutes = 0
-        self.host = ""
-
-    @property
-    def end(self) -> dt.datetime:
-        return self.week_start + dt.timedelta(days=self.days)
-
-    def load(self, data: dict) -> None:
-        self.locked.clear()
-        self.original.clear()
-        self.price_yen = int(data.get("price_yen") or self.price_yen)
-        self.trial_minutes = int(data.get("trial_minutes") or 0)
-        self.host = str(data.get("host") or "")
-        for item in data.get("slots", []):
-            start = h.server_time_to_local(item["start"])
-            end = h.server_time_to_local(item["end"])
-            state = item.get("state")
-            if item.get("editable"):
-                if state == "open":
-                    self.original.add(start)
-                continue
-            label = state if state in ("booked", "holding", "past") else "fixed"
-            t = start.replace(minute=0, second=0, microsecond=0)
-            while t < end:
-                self.locked[t] = label
-                t += self.HOUR
-        self.selected = set(self.original)
-
-    def cell(self, day: int, hour: int) -> dt.datetime:
-        return self.week_start + dt.timedelta(days=day, hours=hour)
-
-    def state(self, t: dt.datetime, now: dt.datetime) -> str:
-        """open / empty / booked / holding / past / fixed"""
-        if t in self.locked:
-            return self.locked[t]
-        if t < now:
-            return "past"
-        return "open" if t in self.selected else "empty"
-
-    def can_edit(self, t: dt.datetime, now: dt.datetime) -> bool:
-        return t not in self.locked and t >= now and self.week_start <= t < self.end
-
-    def set(self, t: dt.datetime, on: bool, now: dt.datetime) -> bool:
-        """マスを選ぶ・外す。変わったら True。"""
-        if not self.can_edit(t, now) or (t in self.selected) == on:
-            return False
-        if on:
-            self.selected.add(t)
-        else:
-            self.selected.discard(t)
-        return True
-
-    def copy_from(self, previous: "ScheduleModel", now: dt.datetime) -> int:
-        """前の週に出していた時間 (予約が入ったものも含む) を、この週にも選ぶ。選んだマスの数を返す。"""
-        shift = self.week_start - previous.week_start
-        offered = previous.original | {t for t, st in previous.locked.items() if st in ("booked", "holding", "past")}
-        return sum(self.set(t + shift, True, now) for t in sorted(offered))
-
-    def dirty(self) -> bool:
-        return self.selected != self.original
-
-    def starts_to_save(self, now: dt.datetime) -> list[dt.datetime]:
-        return sorted(t for t in self.selected if t >= now)
-
-    def counts(self, now: dt.datetime) -> dict[str, int]:
-        result: dict[str, int] = {}
-        for d in range(self.days):
-            for hr in range(24):
-                st = self.state(self.cell(d, hr), now)
-                result[st] = result.get(st, 0) + 1
-        return result
-
-
 # ---------------------------------------------------------------------------
 # 画面 (tkinter は Windows 版 Python に標準で入っている)
 # ---------------------------------------------------------------------------
 
+# サイトと同じ色: 落ち着いた灰色の面に、ミントをひとつだけ使う (文字のミントは読めるよう濃いめ)
 COLORS = {
-    "bg": "#f7f5ff",
+    "bg": "#f3f5f5",
     "card": "#ffffff",
-    "ink": "#1c1733",
-    "muted": "#554e6e",
-    "line": "#ddd6f3",
-    "primary": "#5b3cf0",
-    "ok": "#13a07a",
-    "busy": "#5b3cf0",
-    "warn": "#c77700",
-    "bad": "#c41f4b",
+    "ink": "#2f3537",
+    "muted": "#687073",
+    "line": "#e0e4e4",
+    "primary": "#1d7a62",
+    "mint": "#7fd9bf",
+    "on_mint": "#103a2e",
+    "hover": "#eceff0",
+    "ok": "#2fae8a",
+    "busy": "#1d7a62",
+    "warn": "#d9a520",
+    "bad": "#d0464f",
     "warn_bg": "#fff3c2",
-    # カレンダーのマス
-    "cell_empty": "#ffffff",
-    "cell_open": "#3ee0b5",
-    "cell_booked": "#5b3cf0",
-    "cell_holding": "#ffd84a",
-    "cell_past": "#ece8f7",
-    "cell_fixed": "#d9f9ef",
 }
 
 
@@ -384,6 +431,49 @@ def pick_font_family(root) -> str:
         if name in families:
             return name
     return font.nametofont("TkDefaultFont").actual("family")
+
+
+def pick_light_family(root, fallback: str) -> str:
+    """幕の大きな数字に使う細い書体 (なければふだんの書体)。"""
+    from tkinter import font
+
+    families = set(font.families(root))
+    for name in ("Segoe UI Light", "Yu Gothic UI Light", "Segoe UI Semilight", "Yu Gothic UI Semilight"):
+        if name in families:
+            return name
+    return fallback
+
+
+# Geaspec のロゴ (サイトの SVG と同じ形、88×48 の座標)。幕のいちばん上に描く
+LOGO_FRAME = ((10, 4), (78, 4), (84, 10), (84, 38), (78, 44), (50, 44), (44, 39), (38, 44), (10, 44), (4, 38), (4, 10))
+LOGO_GEARS = (
+    ((30, 24), "41.18 21.32 44.44 22.64 44.44 25.36 41.18 26.68 40.62 28.40 42.48 31.38 40.88 33.59 37.47 32.74 "
+               "36.01 33.81 35.76 37.31 33.16 38.15 30.90 35.46 29.10 35.46 26.84 38.15 24.24 37.31 23.99 33.81 "
+               "22.53 32.74 19.12 33.59 17.52 31.38 19.38 28.40 18.82 26.68 15.56 25.36 15.56 22.64 18.82 21.32 "
+               "19.38 19.60 17.52 16.62 19.12 14.41 22.53 15.26 23.99 14.19 24.24 10.69 26.84 9.85 29.10 12.54 "
+               "30.90 12.54 33.16 9.85 35.76 10.69 36.01 14.19 37.47 15.26 40.88 14.41 42.48 16.62 40.62 19.60"),
+    ((58, 24), "69.46 24.90 72.15 27.16 71.31 29.76 67.81 30.01 66.74 31.47 67.59 34.88 65.38 36.48 62.40 34.62 "
+               "60.68 35.18 59.36 38.44 56.64 38.44 55.32 35.18 53.60 34.62 50.62 36.48 48.41 34.88 49.26 31.47 "
+               "48.19 30.01 44.69 29.76 43.85 27.16 46.54 24.90 46.54 23.10 43.85 20.84 44.69 18.24 48.19 17.99 "
+               "49.26 16.53 48.41 13.12 50.62 11.52 53.60 13.38 55.32 12.82 56.64 9.56 59.36 9.56 60.68 12.82 "
+               "62.40 13.38 65.38 11.52 67.59 13.12 66.74 16.53 67.81 17.99 71.31 18.24 72.15 20.84 69.46 23.10"),
+)
+
+
+def draw_logo(canvas, cx: float, cy: float, width: float, color: str, bg: str) -> None:
+    """キャンバスの (cx, cy) を中心に、幅 width でロゴを描く。"""
+    k = width / 88
+    x0, y0 = cx - 44 * k, cy - 24 * k
+
+    def pt(x: float, y: float) -> tuple[float, float]:
+        return x0 + x * k, y0 + y * k
+
+    frame = [c for x, y in LOGO_FRAME + LOGO_FRAME[:1] for c in pt(x, y)]
+    canvas.create_line(*frame, fill=color, width=max(1.0, 2.6 * k), joinstyle="round", capstyle="round")
+    for (hx, hy), points in LOGO_GEARS:
+        nums = [float(v) for v in points.split()]
+        canvas.create_polygon(*[c for x, y in zip(nums[0::2], nums[1::2]) for c in pt(x, y)], fill=color, outline="")
+        canvas.create_oval(*pt(hx - 4.2, hy - 4.2), *pt(hx + 4.2, hy + 4.2), fill=bg, outline="")
 
 
 def should_cover(state: str) -> bool:
@@ -407,8 +497,9 @@ def virtual_screen(root) -> tuple[int, int, int, int]:
 
 
 COVER = {
-    "bg": "#110e21", "text": "#ece9ff", "muted": "#8a83a8", "accent": "#a996ff",
-    "primary": "#5b3cf0", "track": "#241e3d", "yellow": "#ffd84a", "mint": "#3ee0b5",
+    "bg": "#1c2021", "text": "#e6ecec", "muted": "#8f989a", "accent": "#8fdfc7",
+    "primary": "#7fd9bf", "track": "#30373a", "yellow": "#f3d27a", "mint": "#7fd9bf", "logo": "#e6ecec",
+    "foot": "#c3cacb",
 }
 ENDING_SOON_SECONDS = 5 * 60
 
@@ -427,12 +518,12 @@ def cover_content(state: str, ends_at: dt.datetime | None, total_seconds: float,
     if state == "cleaning":
         return {
             "mode": "cleaning", "pill": "貸し出しは終了しました", "pill_bg": COVER["mint"], "pill_fg": COVER["bg"],
-            "big": "データを片づけています" + "." * dots, "lines": ("ご利用ありがとうございました", ""),
-            "footer": "片づけが終わるまで、電源を切らないでください",
+            "big": "データを片づけています" + "." * dots, "lines": ("ご利用ありがとうございました", "ふつうは数分で終わります"),
+            "footer": "片づけが終わると、この画面は自動で消えます。電源は切らないでください",
         }
     if ends_at is None:
         return {
-            "mode": "preparing", "pill": "Geaspec で貸し出し中", "pill_bg": COVER["primary"], "pill_fg": COVER["text"],
+            "mode": "preparing", "pill": "Geaspec で貸し出し中", "pill_bg": COVER["primary"], "pill_fg": COVER["bg"],
             "big": "準備しています" + "." * dots, "lines": ("まもなく始まります", ""),
             "footer": "このパソコンは利用中のため操作できません",
         }
@@ -443,12 +534,12 @@ def cover_content(state: str, ends_at: dt.datetime | None, total_seconds: float,
     return {
         "mode": "ending" if ending else "running",
         "pill": "まもなく終了します" if ending else "Geaspec で貸し出し中",
-        "pill_bg": color, "pill_fg": COVER["bg"] if ending else COVER["text"],
+        "pill_bg": color, "pill_fg": COVER["bg"],
         "countdown": countdown_text(left), "countdown_fg": COVER["yellow"] if ending else COVER["text"],
         "end_label": f"{ends_at:%H:%M} に終了", "progress": progress, "bar": color,
         "lines": ("写真の撮り忘れはありませんか？", "終わる時間になると、自動で終了します") if ending else
                  ("ゲームはそのまま続いています", "デスクトップ表示を閉じると、VR に戻れます"),
-        "footer": "このパソコンは利用中のため操作できません",
+        "footer": f"このパソコンは貸し出し中です。{ends_at:%H:%M} に自動で元に戻ります",
     }
 
 
@@ -473,6 +564,7 @@ class CoverWindow:
         self.canvas = tk.Canvas(top, bg=COVER["bg"], highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
         self.family = window.font[0]
+        self.light = pick_light_family(window.root, self.family)
         self.visible = False
         self.styled = False
         self.size = (0, 0)
@@ -502,52 +594,52 @@ class CoverWindow:
         c.create_rectangle(x1 + r, y1, x2 - r, y2, fill=fill, outline="")
 
     def _draw(self, content: dict) -> None:
-        """1080p を基準に、画面の大きさに合わせて描く (全部のモニターをまとめた範囲の中央)。"""
+        """1080p を基準に、画面の大きさに合わせて描く (全部のモニターをまとめた範囲の中央)。
+
+        ロゴ・状態・残り時間・ひとこと、の順に、真ん中に縦に並べるだけにする (色はミントと黄色の 2 つだけ)。
+        """
         c = self.canvas
         c.delete("all")
         w, hgt = self.size
         k = max(0.5, min(w / 1920, hgt / 1080))
         cx = w / 2
 
-        def font(px: float, bold: bool = False):
-            return (self.family, -max(8, int(px * k)), "bold") if bold else (self.family, -max(8, int(px * k)))
+        def font(px: float, bold: bool = False, light: bool = False):
+            family = self.light if light else self.family
+            return (family, -max(8, int(px * k)), "bold") if bold else (family, -max(8, int(px * k)))
 
-        y = hgt * 0.45 - 260 * k
-        # 状態の札
-        pill = c.create_text(cx, 0, text=content["pill"], font=font(36, True), fill=content["pill_fg"])
-        bx1, _, bx2, _ = c.bbox(pill)
-        pill_h = 36 * k + 24 * k
-        self._round_rect(bx1 - 32 * k, y, bx2 + 32 * k, y + pill_h, content["pill_bg"])
-        c.tag_raise(pill)
-        c.coords(pill, cx, y + pill_h / 2)
-        y += pill_h + 40 * k
+        ending = content["mode"] == "ending"
+        accent = COVER["yellow"] if ending else COVER["accent"]
+        y = hgt * 0.5 - 300 * k
+        draw_logo(c, cx, y + 30 * k, 112 * k, COVER["logo"], COVER["bg"])
+        y += 60 * k + 48 * k
+        c.create_text(cx, y + 14 * k, text=content["pill"], font=font(28, True), fill=accent)
+        y += 28 * k + 36 * k
         if "countdown" in content:
-            c.create_text(cx, y + 16 * k, text="のこり", font=font(32), fill=COVER["muted"])
-            y += 32 * k + 8 * k
-            c.create_text(cx, y + 100 * k, text=content["countdown"], font=font(200, True), fill=content["countdown_fg"])
-            y += 200 * k + 8 * k
-            c.create_text(cx, y + 18 * k, text=content["end_label"], font=font(36), fill=COVER["accent"])
-            y += 36 * k + 32 * k
-            bw, bh = 640 * k, 12 * k
+            c.create_text(cx, y + 12 * k, text="のこり", font=font(24), fill=COVER["muted"])
+            y += 24 * k + 4 * k
+            c.create_text(cx, y + 90 * k, text=content["countdown"], font=font(180, light=True),
+                          fill=content["countdown_fg"])
+            y += 180 * k + 28 * k
+            bw, bh = 520 * k, max(2, 4 * k)
             self._round_rect(cx - bw / 2, y, cx + bw / 2, y + bh, COVER["track"])
-            if content["progress"] > 0.02:
-                self._round_rect(cx - bw / 2, y, cx - bw / 2 + bw * content["progress"], y + bh, content["bar"])
-            y += bh + 64 * k
+            if content["progress"] > 0.01:
+                self._round_rect(cx - bw / 2, y, cx - bw / 2 + bw * content["progress"], y + bh, accent)
+            y += bh + 72 * k
         else:
-            y += 40 * k
             # 文字は中央に固定し、点だけを右に足す (点が増えても文字が左右に動かないように)
             words = content["big"].rstrip(".")
-            item = c.create_text(cx, y + 28 * k, text=words, font=font(56, True), fill=COVER["text"])
-            c.create_text(c.bbox(item)[2], y + 28 * k, text="." * (len(content["big"]) - len(words)),
-                          font=font(56, True), fill=COVER["text"], anchor="w")
-            y += 56 * k + 64 * k
+            item = c.create_text(cx, y + 30 * k, text=words, font=font(60, light=True), fill=COVER["text"])
+            c.create_text(c.bbox(item)[2], y + 30 * k, text="." * (len(content["big"]) - len(words)),
+                          font=font(60, light=True), fill=COVER["text"], anchor="w")
+            y += 60 * k + 56 * k
         first, second = content["lines"]
         if first:
-            c.create_text(cx, y + 18 * k, text=first, font=font(36), fill=COVER["text"])
-            y += 36 * k * 1.4
+            c.create_text(cx, y + 16 * k, text=first, font=font(32), fill=COVER["text"])
+            y += 32 * k * 1.5
         if second:
-            c.create_text(cx, y + 14 * k, text=second, font=font(28), fill=COVER["muted"])
-        c.create_text(cx, hgt - 56 * k, text=content["footer"], font=font(22), fill=COVER["muted"])
+            c.create_text(cx, y + 13 * k, text=second, font=font(24), fill=COVER["muted"])
+        c.create_text(cx, hgt - 64 * k, text=content["footer"], font=font(28), fill=COVER["foot"])
 
     def show(self, state: str, ends_at: dt.datetime | None, total_seconds: float) -> None:
         if not self.visible:
@@ -583,7 +675,7 @@ class QueueLogHandler(logging.Handler):
 
 
 class AgentWindow:
-    """Geaspec Agent のウィンドウ。はじめての設定も、カレンダーも、すべてこの 1 つのウィンドウの中で行う。"""
+    """Geaspec Agent のウィンドウ。はじめての設定も、ホームも、すべてこの 1 つのウィンドウの中で行う。"""
 
     MAX_LOG_LINES = 1000
 
@@ -603,8 +695,8 @@ class AgentWindow:
             root.iconbitmap(default=str(tray.ICON_PATH))  # ウィンドウとタスクバーに Geaspec のロゴを出す (Windows)
         except tk.TclError:
             pass
-        root.geometry("700x760")
-        root.minsize(640, 600)
+        # 高さは中身に合わせる (たたんだり開いたりすると、ウィンドウもそれに合わせて伸び縮みする)
+        root.minsize(600, 300)
         root.configure(bg=COLORS["bg"])
         family = pick_font_family(root)
         self.font = (family, 10)
@@ -613,25 +705,49 @@ class AgentWindow:
         self.font_title = (family, 16, "bold")
         self.font_brand = (family, 13, "bold")
 
+        # ボタンや入力欄も Windows の標準の見た目ではなく、サイトと同じ色にそろえる (clam は色を変えられる)
         style = ttk.Style(root)
         try:
-            style.theme_use("vista" if sys.platform == "win32" else "clam")
+            style.theme_use("clam")
         except tk.TclError:
             pass
-        style.configure("TButton", font=self.font, padding=(12, 6))
-        style.configure("Primary.TButton", font=self.font_bold)
-        style.configure("Big.TButton", font=(family, 12, "bold"), padding=(18, 10))
-        style.configure("TCheckbutton", font=self.font, background=COLORS["bg"])
+        flat = {"borderwidth": 1, "relief": "flat", "focuscolor": COLORS["mint"]}
+        style.configure("TButton", font=self.font, padding=(12, 6), background=COLORS["card"], foreground=COLORS["ink"],
+                        bordercolor="#c9d0d1", lightcolor=COLORS["card"], darkcolor=COLORS["card"], **flat)
+        style.map("TButton", background=[("disabled", COLORS["bg"]), ("active", COLORS["hover"])],
+                  foreground=[("disabled", COLORS["muted"])], bordercolor=[("focus", COLORS["mint"])])
+        for name, size, pad in (("Primary.TButton", 10, (14, 6)), ("Big.TButton", 12, (20, 10))):
+            style.configure(name, font=(family, size, "bold"), padding=pad, background=COLORS["mint"],
+                            foreground=COLORS["on_mint"], bordercolor=COLORS["mint"], lightcolor=COLORS["mint"],
+                            darkcolor=COLORS["mint"])
+            style.map(name, background=[("disabled", COLORS["line"]), ("active", "#6acdb0")],
+                      bordercolor=[("active", "#6acdb0")], foreground=[("disabled", COLORS["muted"])])
+        # 文字だけのボタン (補助の操作)
+        style.configure("Link.TButton", font=self.font, padding=(6, 4), background=COLORS["bg"],
+                        foreground=COLORS["primary"], bordercolor=COLORS["bg"], lightcolor=COLORS["bg"],
+                        darkcolor=COLORS["bg"], relief="flat", borderwidth=0)
+        style.map("Link.TButton", background=[("active", COLORS["hover"])], bordercolor=[("active", COLORS["hover"])],
+                  foreground=[("disabled", COLORS["muted"])])
+        style.configure("TCheckbutton", font=self.font, background=COLORS["bg"], foreground=COLORS["ink"],
+                        indicatorbackground=COLORS["card"], indicatorforeground=COLORS["primary"])
+        style.map("TCheckbutton", background=[("active", COLORS["bg"])])
+        for name in ("TEntry", "TSpinbox"):
+            style.configure(name, fieldbackground=COLORS["card"], foreground=COLORS["ink"], bordercolor=COLORS["line"],
+                            lightcolor=COLORS["card"], darkcolor=COLORS["card"], arrowcolor=COLORS["muted"],
+                            background=COLORS["card"], padding=4)
+            style.map(name, bordercolor=[("focus", COLORS["mint"])], lightcolor=[("focus", COLORS["mint"])])
+        style.configure("TScrollbar", background=COLORS["line"], troughcolor=COLORS["bg"], bordercolor=COLORS["bg"],
+                        lightcolor=COLORS["line"], darkcolor=COLORS["line"], arrowcolor=COLORS["muted"], relief="flat")
+        style.configure("TMenubutton", font=self.font, padding=(10, 4), background=COLORS["bg"],
+                        foreground=COLORS["primary"], bordercolor=COLORS["bg"], lightcolor=COLORS["bg"],
+                        darkcolor=COLORS["bg"], arrowcolor=COLORS["primary"], relief="flat")
+        style.map("TMenubutton", background=[("active", COLORS["hover"])])
 
         header = tk.Frame(root, bg=COLORS["bg"])
-        header.pack(fill="x", padx=18, pady=(12, 4))
-        tk.Label(header, text="Geaspec", font=self.font_brand, fg=COLORS["primary"], bg=COLORS["bg"]).pack(side="left")
-        tk.Label(header, text=f" Agent {h.AGENT_VERSION}", font=self.font, fg=COLORS["muted"], bg=COLORS["bg"]).pack(side="left")
-        tk.Label(
-            header, text=f"PC ユーザー: {h.current_windows_user()}", font=self.font, fg=COLORS["muted"], bg=COLORS["bg"]
-        ).pack(side="right")
+        header.pack(fill="x", padx=18, pady=(14, 6))
+        tk.Label(header, text="Geaspec", font=self.font_brand, fg=COLORS["ink"], bg=COLORS["bg"]).pack(side="left")
 
-        # ここに「はじめての設定」か「ホーム（状態とカレンダー）」のどちらかを入れる
+        # ここに「はじめての設定」か「ホーム（時刻・次の貸し出し・準備のチェック）」のどちらかを入れる
         self.content = tk.Frame(root, bg=COLORS["bg"])
         self.content.pack(fill="both", expand=True)
 
@@ -707,8 +823,6 @@ class AgentWindow:
                 self.tray.notify("新しい予約が入りました。時間になると自動で準備します")
             else:
                 self.bring_to_front()
-            if self.home is not None:
-                self.home.schedule.load()  # 予約が入ったマスを紫にする
         self.drain_logs()
         if self.closing and not self.c.running():
             self.tray.stop()
@@ -839,8 +953,7 @@ class AgentWindow:
         if self.closing:
             return
         if self.tray.active and self.home is not None:
-            if self.home.schedule.ask_discard():
-                self.hide_to_tray()
+            self.hide_to_tray()
             return
         self.quit_app()
 
@@ -848,8 +961,6 @@ class AgentWindow:
         from tkinter import messagebox
 
         if self.closing:
-            return
-        if self.home is not None and not self.home.schedule.ask_discard():
             return
         if self.c.in_session():
             message = "利用中です。終了すると今のセッションを終了し、PC のデータを削除します。\n終了しますか？"
@@ -920,7 +1031,7 @@ class SetupView:
         self.heading(
             "Geaspec のアカウントでログイン",
             "予約サイトで使っているメールアドレスとパスワードを入れてください。\n"
-            "アカウントがまだない人は、「アカウントを作る」から作れます（借りる人と同じアカウントで大丈夫です）。",
+            "アカウントがまだない人は、「アカウントを作る」から作れます（Geaspec で PC を借りるときのアカウントがあれば、それで大丈夫です）。",
         )
         c = self.w.c
         self.server = tk.StringVar(value=c.server)
@@ -939,10 +1050,11 @@ class SetupView:
         self.message.pack(fill="x")
         buttons = tk.Frame(self.body, bg=COLORS["bg"])
         buttons.pack(fill="x", pady=(10, 0))
-        self.login_button = ttk.Button(buttons, text="ログイン", style="Big.TButton", command=self.login)
+        self.login_button = ttk.Button(buttons, text="ログイン", style="Primary.TButton", command=self.login)
         self.login_button.pack(side="left")
         ttk.Button(buttons, text="アカウントを作る", command=self.signup).pack(side="left", padx=10)
-        ttk.Button(buttons, text="詳しい設定", command=lambda: SettingsDialog(self.w)).pack(side="right")
+        ttk.Button(buttons, text="詳しい設定", style="Link.TButton",
+                   command=lambda: SettingsDialog(self.w)).pack(side="right")
         self.w.root.bind("<Return>", lambda e: self.login())
 
     def say(self, text: str, tone: str = "muted") -> None:
@@ -989,22 +1101,40 @@ class SetupView:
         from tkinter import ttk
 
         user = h.current_windows_user()
+        admin = h.is_admin_account()
         self.heading(
-            f"Windows ユーザー「{user}」を貸し出し専用にします",
+            f"このユーザー（{user}）は貸し出しに使えません" if admin else f"Windows ユーザー「{user}」を貸し出し専用にします",
             "借りた人のデータを残さないよう、利用が終わるたびに、このユーザーの次のものを消します（元に戻せません）。",
         )
         for line in ("VRChat のログイン情報と設定", "VRChat のキャッシュと一時ファイル",
                      "VRChat で撮った写真（借りた人に届けてから消します）"):
             tk.Label(self.body, text=f"・{line}", font=self.w.font, fg=COLORS["ink"], bg=COLORS["bg"],
                      anchor="w").pack(fill="x", padx=(8, 0))
+        link = tk.Label(self.body, text="消す場所をくわしく見る", font=self.w.font_small, fg=COLORS["primary"],
+                        bg=COLORS["bg"], cursor="hand2", anchor="w")
+        link.pack(fill="x", padx=(8, 0), pady=(2, 8))
+        link.bind("<Button-1>", lambda e: self.w.show_targets())
+        if admin is not None:
+            kind = tk.Frame(self.body, bg=COLORS["bg"])
+            kind.pack(fill="x", pady=(10, 0))
+            tk.Label(kind, text="このユーザーの種類：", font=self.w.font, fg=COLORS["muted"], bg=COLORS["bg"]).pack(side="left")
+            tk.Label(kind, text="管理者 ⚠" if admin else "標準ユーザー ✓", font=self.w.font_bold,
+                     fg=COLORS["warn" if admin else "ok"], bg=COLORS["bg"]).pack(side="left")
+            if admin:
+                # 管理者のユーザーでは貸し出させない (借りる人が、ほかのユーザーのファイルも見られてしまうため)
+                tk.Label(self.body, text="ふだん使っているユーザーとは別に、貸し出し用の「標準ユーザー」を作り、"
+                         "そこで Agent を入れてください。", font=self.w.font, fg=COLORS["ink"], bg=COLORS["bg"],
+                         anchor="w", justify="left", wraplength=560).pack(fill="x", pady=(2, 0))
+                buttons = tk.Frame(self.body, bg=COLORS["bg"])
+                buttons.pack(fill="x", pady=(14, 0))
+                ttk.Button(buttons, text="やり方を見る", style="Primary.TButton",
+                           command=lambda: open_user_settings(self.w.root)).pack(side="left")
+                ttk.Button(buttons, text="アプリを閉じる", command=self.w.quit_app).pack(side="left", padx=10)
+                return
         warning = self.w.c.lending_warning()
         if warning:
             tk.Label(self.body, text=f"⚠ {warning}", font=self.w.font, fg=COLORS["warn"], bg=COLORS["bg"],
                      anchor="w", justify="left", wraplength=600).pack(fill="x", pady=(10, 0))
-        link = tk.Label(self.body, text="消す場所をくわしく見る", font=self.w.font_small, fg=COLORS["primary"],
-                        bg=COLORS["bg"], cursor="hand2", anchor="w")
-        link.pack(fill="x", pady=(8, 0))
-        link.bind("<Button-1>", lambda e: self.w.show_targets())
         self.agree = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             self.body, text=f"「{user}」は貸し出し専用です。上のデータを毎回削除してかまいません",
@@ -1012,7 +1142,7 @@ class SetupView:
         ).pack(anchor="w", pady=(12, 0))
         buttons = tk.Frame(self.body, bg=COLORS["bg"])
         buttons.pack(fill="x", pady=(14, 0))
-        self.start_button = ttk.Button(buttons, text="登録してはじめる", style="Big.TButton", command=self.register)
+        self.start_button = ttk.Button(buttons, text="登録してはじめる", style="Primary.TButton", command=self.register)
         self.start_button.pack(side="left")
         self.start_button.state(["disabled"])
 
@@ -1027,7 +1157,18 @@ class SetupView:
 
 
 class HomeView:
-    """ホーム: 今の状態 (次の予約まであと何分など) と、貸し出す時間のカレンダー。"""
+    """ホーム: いまどうなっているか (1 枚)、準備のチェック、利用中の守り だけを出す。
+
+    貸し出す時間を決めるのは Web サイト (このアプリではしない)。同じことを 2 か所に書かない。
+    """
+
+    MARKS = {"ok": ("✓", "ok"), "ng": ("!", "bad"), "wait": ("…", "muted")}
+    GUARDS = (
+        "キーボードとマウスの操作を止めます（VR の操作はそのまま使えます）",
+        "画面を幕でかくして、パソコンの中を見せません",
+        "終わったら VRChat から自動でログアウトして、借りた人のデータを消します",
+        "借りる人は、標準ユーザーの外（あなたのファイル）には入れません",
+    )
 
     def __init__(self, window: AgentWindow) -> None:
         tk = window.tk
@@ -1036,33 +1177,68 @@ class HomeView:
         self.w = window
         frame = self.frame = tk.Frame(window.content, bg=COLORS["bg"])
         frame.pack(fill="both", expand=True)
-
-        # --- 状態 ---
-        card = tk.Frame(frame, bg=COLORS["card"], highlightbackground=COLORS["line"], highlightthickness=1)
-        card.pack(fill="x", padx=18, pady=(4, 8))
-        row = tk.Frame(card, bg=COLORS["card"])
-        row.pack(fill="x", padx=16, pady=(12, 2))
-        self.dot = tk.Canvas(row, width=16, height=16, bg=COLORS["card"], highlightthickness=0)
-        self.dot.pack(side="left", padx=(0, 10))
-        self.dot_item = self.dot.create_oval(2, 2, 14, 14, fill=COLORS["warn"], outline="")
-        self.status_title = tk.Label(row, text="", font=window.font_title, fg=COLORS["ink"], bg=COLORS["card"])
-        self.status_title.pack(side="left")
-        self.status_detail = tk.Label(
-            card, text="", font=window.font, fg=COLORS["muted"], bg=COLORS["card"], justify="left", anchor="w",
-            wraplength=600,
-        )
-        self.status_detail.pack(fill="x", padx=(42, 16), pady=(0, 12))
-        web = tk.Frame(card, bg=COLORS["card"])
-        web.pack(fill="x", padx=(42, 16), pady=(0, 12))
-        ttk.Button(web, text="貸し出す時間を決める（Web サイト）", style="Primary.TButton",
-                   command=window.open_lend_page).pack(side="left")
-        tk.Label(web, text="下のカレンダーでも決められます", font=window.font_small, fg=COLORS["muted"],
-                 bg=COLORS["card"]).pack(side="left", padx=10)
-
-        # --- カレンダー / 動きの記録 (同じ場所を切り替える) ---
         self.middle = tk.Frame(frame, bg=COLORS["bg"])
         self.middle.pack(fill="both", expand=True)
-        self.schedule = ScheduleView(window, self.middle)
+        self.main = tk.Frame(self.middle, bg=COLORS["bg"])
+        self.main.pack(fill="both", expand=True)
+
+        # --- いまの状態 (1 枚だけ) ---
+        hero = self.card(self.main)
+        top = tk.Frame(hero, bg=COLORS["card"])
+        top.pack(fill="x", padx=18, pady=(14, 0))
+        self.kicker = tk.Label(top, text="", font=window.font_small, fg=COLORS["muted"], bg=COLORS["card"])
+        self.kicker.pack(side="left")
+        light = pick_light_family(window.root, window.font[0])
+        self.clock = tk.Label(top, text="", font=(light, 11), fg=COLORS["muted"], bg=COLORS["card"])
+        self.clock.pack(side="right")
+        row = tk.Frame(hero, bg=COLORS["card"])
+        row.pack(fill="x", padx=18, pady=(2, 0))
+        self.dot = tk.Canvas(row, width=14, height=14, bg=COLORS["card"], highlightthickness=0)
+        self.dot.pack(side="left", padx=(0, 8))
+        self.dot_item = self.dot.create_oval(2, 2, 12, 12, fill=COLORS["warn"], outline="")
+        self.headline = tk.Label(row, text="", font=(window.font[0], 16, "bold"), fg=COLORS["ink"], bg=COLORS["card"],
+                                 anchor="w")
+        self.headline.pack(side="left", fill="x")
+        self.sub = tk.Label(hero, text="", font=window.font, fg=COLORS["muted"], bg=COLORS["card"], anchor="w",
+                            justify="left", wraplength=520)
+        self.sub.pack(fill="x", padx=(40, 18), pady=(2, 16))
+
+        # --- 準備 (自動で確かめる)。全部できていれば 1 行にたたむ。貸し出し中は出さない ---
+        checks = self.checks_card = self.card(self.main)
+        self.check_head = tk.Label(checks, text="", font=window.font, fg=COLORS["ink"], bg=COLORS["card"], anchor="w",
+                                   cursor="hand2")
+        self.check_head.pack(fill="x", padx=18, pady=(12, 12))
+        self.check_head.bind("<Button-1>", lambda e: self.toggle_checks())
+        self.check_open: bool | None = None  # None: 自動 (問題があるときだけ開く)
+        self.check_body = tk.Frame(checks, bg=COLORS["card"])
+        self.check_rows: list[tuple] = []
+        for _ in range(len(window.c.readiness())):
+            r = tk.Frame(self.check_body, bg=COLORS["card"])
+            r.pack(fill="x", padx=18, pady=1)
+            mark = tk.Label(r, text="", width=2, font=window.font_bold, bg=COLORS["card"])
+            mark.pack(side="left")
+            name = tk.Label(r, text="", font=window.font, fg=COLORS["ink"], bg=COLORS["card"], anchor="w")
+            name.pack(side="left")
+            hint = tk.Label(r, text="", font=window.font_small, fg=COLORS["bad"], bg=COLORS["card"], anchor="e")
+            hint.pack(side="right")
+            self.check_rows.append((mark, name, hint))
+        tk.Frame(self.check_body, height=12, bg=COLORS["card"]).pack()
+
+        # --- 貸し出し中の守り (いつも自動で行う約束なので、チェックとは別の印。ふだんはたたむ) ---
+        guard = self.guard_card = self.card(self.main)
+        self.guard_head = tk.Label(guard, text="", font=window.font, fg=COLORS["primary"], bg=COLORS["card"],
+                                   anchor="w", cursor="hand2")
+        self.guard_head.pack(fill="x", padx=18, pady=(12, 12))
+        self.guard_head.bind("<Button-1>", lambda e: self.toggle_guard())
+        self.guard_body = tk.Frame(guard, bg=COLORS["card"])
+        for text in self.GUARDS:
+            tk.Label(self.guard_body, text=f"・{text}", font=window.font, fg=COLORS["ink"], bg=COLORS["card"],
+                     anchor="w").pack(fill="x", padx=(26, 18), pady=1)
+        tk.Frame(self.guard_body, height=12, bg=COLORS["card"]).pack()
+        self.guard_open = False
+        self.show_guard()
+
+        # --- 動きの記録 (同じ場所に切り替えて出す) ---
         self.log_frame = tk.Frame(self.middle, bg=COLORS["line"])
         self.log_text = tk.Text(
             self.log_frame, wrap="word", font=window.font, bg=COLORS["card"], fg=COLORS["ink"],
@@ -1074,29 +1250,109 @@ class HomeView:
         self.log_text.pack(side="left", fill="both", expand=True, padx=1, pady=1)
         self.append_log(window.log_lines)
 
-        # --- その他の操作 ---
+        # --- 操作: 貸し出す時間は Web サイトで決める。ふだん使わないものは「その他」 ---
         actions = tk.Frame(frame, bg=COLORS["bg"])
-        actions.pack(fill="x", padx=18, pady=(6, 4))
-        self.log_button = ttk.Button(actions, text="動きの記録", command=self.toggle_log)
-        self.log_button.pack(side="left")
-        ttk.Button(actions, text="消すものを確認", command=window.show_targets).pack(side="left", padx=6)
-        self.cleanup_button = ttk.Button(actions, text="今すぐ削除", command=window.cleanup_now)
-        self.cleanup_button.pack(side="left")
-        ttk.Button(actions, text="ログインし直す", command=self.relogin).pack(side="right")
-        tk.Label(
-            frame, text=("ウィンドウを閉じても、画面右下のアイコンで動き続けます。終了するときは、アイコンを右クリック →「終了」。"
-                         if window.tray.active else "ウィンドウを閉じると Agent も終了し、予約を受け付けなくなります。"),
-            font=window.font_small, fg=COLORS["muted"], bg=COLORS["bg"], anchor="w",
-        ).pack(fill="x", padx=18, pady=(0, 10))
+        actions.pack(fill="x", padx=18, pady=(2, 14))
+        self.web_button = ttk.Button(actions, text="", style="Primary.TButton", command=window.open_lend_page)
+        self.web_button.pack(side="left")
+        more = ttk.Menubutton(actions, text="その他", width=6)
+        self.menu = tk.Menu(more, tearoff=False, font=window.font, bg=COLORS["card"], fg=COLORS["ink"],
+                            activebackground=COLORS["hover"], activeforeground=COLORS["ink"], relief="flat", bd=1)
+        self.menu.add_command(label="動きの記録", command=self.toggle_log)
+        self.log_index = self.menu.index("end")
+        self.menu.add_command(label="消すものを確認", command=window.show_targets)
+        self.menu.add_command(label="今すぐ削除", command=window.cleanup_now)
+        self.cleanup_index = self.menu.index("end")
+        self.menu.add_command(label="ログインし直す", command=self.relogin)
+        self.menu.add_separator()
+        self.menu.add_command(label=f"PC ユーザー: {h.current_windows_user()}", state="disabled")
+        self.menu.add_command(label=f"バージョン {h.AGENT_VERSION}", state="disabled")
+        more["menu"] = self.menu
+        more.pack(side="right")
+        if not window.tray.active:  # アイコンで動き続けられないときだけ、閉じると止まることを書いておく
+            tk.Label(frame, text="ウィンドウを閉じると Agent も終了し、予約を受け付けなくなります。",
+                     font=window.font_small, fg=COLORS["muted"], bg=COLORS["bg"], anchor="w").pack(
+                fill="x", padx=18, pady=(0, 10))
         self.update_status()
+
+    def card(self, parent, title: str = ""):
+        tk = self.w.tk
+        box = tk.Frame(parent, bg=COLORS["card"], highlightbackground=COLORS["line"], highlightthickness=1)
+        box.pack(fill="x", padx=18, pady=(0, 12))
+        if title:
+            tk.Label(box, text=title, font=self.w.font_small, fg=COLORS["muted"], bg=COLORS["card"], anchor="w").pack(
+                fill="x", padx=18, pady=(12, 6))
+        return box
 
     def update_status(self) -> None:
         c = self.w.c
-        title, detail, tone = c.status_text()
-        self.status_title.configure(text=title)
-        self.status_detail.configure(text=detail)
-        self.dot.itemconfigure(self.dot_item, fill=COLORS.get(tone, COLORS["warn"]))
-        self.cleanup_button.state(["disabled"] if c.in_session() else ["!disabled"])
+        now = dt.datetime.now()
+        items = c.readiness()
+        kicker, headline, sub, tone = c.home_summary(items, now)
+        self.kicker.configure(text=kicker)
+        self.clock.configure(text=f"現在 {day_label(now)} {now:%H:%M:%S}")
+        self.headline.configure(text=headline)
+        self.sub.configure(text=sub)
+        self.dot.itemconfigure(self.dot_item, fill=COLORS.get(tone, COLORS["muted"]))
+        self.menu.entryconfigure(self.cleanup_index, state="disabled" if c.in_session() else "normal")
+        busy = h.STATUS.state in ("session", "cleaning")
+        self.web_button.configure(text="予約を Web で見る" if busy else "貸し出す時間を決める（Web サイト）",
+                                  style="TButton" if any(state == "ng" for _, state, _ in items) else "Primary.TButton")
+        if busy == bool(self.checks_card.winfo_ismapped()):
+            if busy:
+                self.checks_card.pack_forget()
+            else:
+                self.checks_card.pack(fill="x", padx=18, pady=(0, 12), before=self.guard_card)
+        for (mark, name, hint), (label, state, tip) in zip(self.check_rows, items):
+            symbol, color = self.MARKS[state]
+            mark.configure(text=symbol, fg=COLORS[color])
+            name.configure(text=label)
+            hint.configure(text="" if state == "ok" else tip, fg=COLORS["bad" if state == "ng" else "muted"])
+            action = self.fix_action(label) if state == "ng" else None
+            hint.configure(cursor="hand2" if action else "", font=self.w.font_small + (("underline",) if action else ()))
+            hint.unbind("<Button-1>")
+            if action:
+                hint.bind("<Button-1>", lambda e, run=action: run())
+        all_ok = all(state == "ok" for _, state, _ in items)
+        opened = (not all_ok) if self.check_open is None else self.check_open
+        arrow = "▾" if opened else "▸"
+        if all_ok:
+            self.check_head.configure(text=f"{arrow} 貸し出しの準備：すべて OK（{len(items)} 項目）", fg=COLORS["ok"])
+        else:
+            ng = sum(state == "ng" for _, state, _ in items)
+            wait = sum(state == "wait" for _, state, _ in items)
+            parts = ([f"要対応 {ng} 件"] if ng else []) + ([f"確認中 {wait} 件"] if wait else [])
+            self.check_head.configure(text=f"{arrow} 貸し出しの準備：{'・'.join(parts)}",
+                                      fg=COLORS["bad"] if ng else COLORS["ink"])
+        if opened != self.check_body.winfo_ismapped():
+            if opened:
+                self.check_body.pack(fill="x")
+            else:
+                self.check_body.pack_forget()
+
+    def fix_action(self, label: str):
+        """その行で直せるもの (押すと開く)。"""
+        if label.startswith("貸し出し用の標準ユーザー"):
+            return lambda: open_user_settings(self.w.root)
+        if label.startswith("VRChat"):
+            return lambda: open_uri("steam://store/438100")
+        return None
+
+    def toggle_checks(self) -> None:
+        shown = bool(self.check_body.winfo_ismapped())
+        self.check_open = not shown
+        self.update_status()
+
+    def show_guard(self) -> None:
+        self.guard_head.configure(text=("▾ " if self.guard_open else "▸ ") + "貸し出し中のあなたの PC の守り方")
+        if self.guard_open:
+            self.guard_body.pack(fill="x")
+        else:
+            self.guard_body.pack_forget()
+
+    def toggle_guard(self) -> None:
+        self.guard_open = not self.guard_open
+        self.show_guard()
 
     def append_log(self, lines: list[str]) -> None:
         if not lines:
@@ -1113,15 +1369,15 @@ class HomeView:
         return bool(self.log_frame.winfo_ismapped())
 
     def toggle_log(self) -> None:
-        """カレンダーと動きの記録を切り替える (ウィンドウは増やさない)。"""
+        """ホームと動きの記録を切り替える (ウィンドウは増やさない)。"""
         if self.log_frame.winfo_ismapped():
             self.log_frame.pack_forget()
-            self.schedule.frame.pack(fill="both", expand=True)
-            self.log_button.configure(text="動きの記録")
+            self.main.pack(fill="both", expand=True)
+            self.menu.entryconfigure(self.log_index, label="動きの記録")
         else:
-            self.schedule.frame.pack_forget()
+            self.main.pack_forget()
             self.log_frame.pack(fill="both", expand=True, padx=18, pady=(0, 4))
-            self.log_button.configure(text="カレンダーに戻る")
+            self.menu.entryconfigure(self.log_index, label="ホームに戻る")
             self.log_text.see("end")
 
     def relogin(self) -> None:
@@ -1130,299 +1386,7 @@ class HomeView:
         if self.w.c.in_session():
             messagebox.showinfo("ログインし直す", "利用中はログインし直せません。終わってからもう一度押してください。", parent=self.w.root)
             return
-        if self.schedule.ask_discard():
-            self.w.show_setup(step=0)
-
-
-class ScheduleView:
-    """「貸し出す時間」のカレンダー。マスをクリック (ドラッグでまとめて) して受付時間を選ぶ。"""
-
-    CELL_W, CELL_H, GAP = 78, 22, 3
-    LEFT = 52
-    VISIBLE_HOURS = 12
-
-    def __init__(self, window: AgentWindow, parent) -> None:
-        tk = window.tk
-        from tkinter import ttk
-
-        self.w = window
-        self.model = ScheduleModel(dt.datetime.now())
-        self.paint: bool | None = None
-        self.rects: dict[dt.datetime, int] = {}
-        self.busy = False
-        font = window.font
-
-        frame = self.frame = tk.Frame(parent, bg=COLORS["bg"])
-        frame.pack(fill="both", expand=True)
-
-        bar = tk.Frame(frame, bg=COLORS["bg"])
-        bar.pack(fill="x", padx=18, pady=(0, 4))
-        tk.Label(bar, text="貸し出す時間", font=window.font_title, bg=COLORS["bg"], fg=COLORS["ink"]).pack(side="left")
-        ttk.Button(bar, text="次の週 ▶", command=lambda: self.move(7)).pack(side="right")
-        ttk.Button(bar, text="今日", command=lambda: self.move(0)).pack(side="right", padx=4)
-        ttk.Button(bar, text="◀ 前の週", command=lambda: self.move(-7)).pack(side="right")
-
-        info = tk.Frame(frame, bg=COLORS["bg"])
-        info.pack(fill="x", padx=18, pady=(0, 4))
-        self.range_label = tk.Label(info, text="", font=window.font_bold, bg=COLORS["bg"], fg=COLORS["ink"])
-        self.range_label.pack(side="left")
-        for key, label in (("past", "過ぎた時間"), ("holding", "支払い待ち"), ("booked", "予約あり"), ("open", "受付中")):
-            tk.Label(info, text=label, font=window.font_small, bg=COLORS["bg"], fg=COLORS["muted"]).pack(side="right", padx=(3, 10))
-            sample = tk.Canvas(info, width=16, height=12, bg=COLORS["bg"], highlightthickness=0)
-            sample.create_rectangle(1, 1, 15, 11, fill=COLORS[f"cell_{key}"], outline=COLORS["line"])
-            sample.pack(side="right")
-        tk.Label(
-            frame, text="貸せる時間のマスをクリックしてください（なぞるとまとめて選べます）。1 マス = 1 時間です。",
-            font=window.font_small, bg=COLORS["bg"], fg=COLORS["muted"], anchor="w",
-        ).pack(fill="x", padx=18)
-
-        # 曜日の見出し (スクロールしない) と、時間のマス (縦にスクロール)
-        grid_w = self.LEFT + 7 * self.CELL_W
-        self.head = tk.Canvas(frame, width=grid_w, height=40, bg=COLORS["bg"], highlightthickness=0)
-        self.head.pack(padx=18, anchor="w")
-        grid = tk.Frame(frame, bg=COLORS["bg"])
-        grid.pack(padx=18, anchor="w")
-        self.canvas = tk.Canvas(
-            grid, width=grid_w, height=self.VISIBLE_HOURS * self.CELL_H, bg=COLORS["bg"], highlightthickness=0,
-            scrollregion=(0, 0, grid_w, 24 * self.CELL_H),
-        )
-        scroll = ttk.Scrollbar(grid, command=self.canvas.yview)
-        self.canvas.configure(yscrollcommand=scroll.set)
-        self.canvas.pack(side="left")
-        scroll.pack(side="left", fill="y")
-        self.canvas.bind("<Button-1>", self.on_press)
-        self.canvas.bind("<B1-Motion>", self.on_drag)
-        self.canvas.bind("<ButtonRelease-1>", lambda e: setattr(self, "paint", None))
-        self.canvas.bind("<MouseWheel>", lambda e: self.canvas.yview_scroll(-1 if e.delta > 0 else 1, "units"))
-        self.canvas.bind("<Button-4>", lambda e: self.canvas.yview_scroll(-1, "units"))
-        self.canvas.bind("<Button-5>", lambda e: self.canvas.yview_scroll(1, "units"))
-
-        footer = tk.Frame(frame, bg=COLORS["bg"])
-        footer.pack(fill="x", padx=18, pady=(8, 0))
-        tk.Label(footer, text="1 時間の料金", font=window.font_bold, bg=COLORS["bg"], fg=COLORS["ink"]).pack(side="left")
-        self.price = tk.StringVar(value="500")
-        ttk.Spinbox(footer, from_=50, to=100000, increment=50, width=7, textvariable=self.price, font=font).pack(
-            side="left", padx=6
-        )
-        tk.Label(footer, text="円", font=font, bg=COLORS["bg"], fg=COLORS["ink"]).pack(side="left")
-        self.save_button = ttk.Button(footer, text="保存", style="Primary.TButton", command=self.save)
-        self.save_button.pack(side="right")
-        ttk.Button(footer, text="前の週と同じにする", command=self.copy_previous).pack(side="right", padx=6)
-        ttk.Button(footer, text="すべて外す", command=self.clear_week).pack(side="right")
-
-        self.summary = tk.Label(
-            frame, text="", font=window.font_small, bg=COLORS["bg"], fg=COLORS["muted"], anchor="w", justify="left",
-            wraplength=640,
-        )
-        self.summary.pack(fill="x", padx=18, pady=(4, 0))
-
-        self.draw_grid()
-        self.canvas.yview_moveto(12 / 24)  # はじめは 12 時から (夜の時間が見えるように)
-        self.load()
-
-    @property
-    def parent_window(self):
-        return self.w.root
-
-    # --- 表示 ---------------------------------------------------------------
-
-    def cell_box(self, day: int, hour: int) -> tuple[int, int, int, int]:
-        x = self.LEFT + day * self.CELL_W
-        y = hour * self.CELL_H
-        return x + 1, y + 1, x + self.CELL_W - self.GAP, y + self.CELL_H - self.GAP
-
-    def draw_grid(self) -> None:
-        m, font = self.model, self.w.font
-        self.head.delete("all")
-        self.canvas.delete("all")
-        self.rects.clear()
-        for d in range(m.days):
-            day = m.cell(d, 0)
-            color = "#2456d6" if day.weekday() == 5 else ("#c41f4b" if day.weekday() == 6 else COLORS["ink"])
-            x = self.LEFT + d * self.CELL_W + (self.CELL_W - self.GAP) / 2
-            self.head.create_text(x, 12, text=f"{day:%m/%d}", font=self.w.font_bold, fill=color)
-            self.head.create_text(x, 30, text=WEEKDAYS[day.weekday()], font=font, fill=color)
-        for hr in range(24):
-            self.canvas.create_text(
-                self.LEFT - 8, hr * self.CELL_H + self.CELL_H / 2, text=f"{hr}:00", anchor="e", font=font,
-                fill=COLORS["muted"],
-            )
-            for d in range(m.days):
-                self.rects[m.cell(d, hr)] = self.canvas.create_rectangle(*self.cell_box(d, hr), width=1)
-        self.range_label.configure(text=f"{day_label(m.week_start)} 〜 {day_label(m.end - dt.timedelta(days=1))}")
-        self.refresh()
-
-    def refresh(self) -> None:
-        now = dt.datetime.now()
-        for t, rect in self.rects.items():
-            self.paint_cell(t, rect, now)
-        counts = self.model.counts(now)
-        text = f"この週の受付: {counts.get('open', 0)} 時間 · 予約あり: {counts.get('booked', 0)} 時間"
-        if self.model.dirty():
-            text += " · まだ保存していません"
-        if self.model.trial_minutes:
-            text += f"\nはじめて利用する人は最初の {self.model.trial_minutes} 分が無料です（その分は貸し手の負担になります）。"
-        self.summary.configure(text=text, fg=COLORS["warn"] if self.model.dirty() else COLORS["muted"])
-
-    def paint_cell(self, t: dt.datetime, rect: int, now: dt.datetime) -> None:
-        state = self.model.state(t, now)
-        outline = COLORS["line"] if state in ("empty", "past") else COLORS["ink"]
-        self.canvas.itemconfigure(rect, fill=COLORS[f"cell_{state}"], outline=outline)
-
-    # --- 操作 ---------------------------------------------------------------
-
-    def cell_at(self, event) -> dt.datetime | None:
-        x, y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
-        day, hour = int((x - self.LEFT) // self.CELL_W), int(y // self.CELL_H)
-        if x < self.LEFT or not (0 <= day < self.model.days and 0 <= hour < 24):
-            return None
-        return self.model.cell(day, hour)
-
-    def on_press(self, event) -> None:
-        t = self.cell_at(event)
-        now = dt.datetime.now()
-        if self.busy or t is None or not self.model.can_edit(t, now):
-            self.paint = None
-            return
-        self.paint = t not in self.model.selected
-        self.apply(t, now)
-
-    def on_drag(self, event) -> None:
-        t = self.cell_at(event)
-        if self.paint is not None and t is not None:
-            self.apply(t, dt.datetime.now())
-
-    def apply(self, t: dt.datetime, now: dt.datetime) -> None:
-        if self.model.set(t, bool(self.paint), now):
-            self.refresh()
-
-    def clear_week(self) -> None:
-        now = dt.datetime.now()
-        for t in list(self.model.selected):
-            self.model.set(t, False, now)
-        self.refresh()
-
-    def ask_discard(self) -> bool:
-        """保存していない変更があれば聞く。続けてよければ True。"""
-        from tkinter import messagebox
-
-        if not self.model.dirty():
-            return True
-        answer = messagebox.askyesnocancel("貸し出す時間", "カレンダーの変更を保存しますか？", parent=self.parent_window)
-        if answer is None:
-            return False
-        if answer:
-            self.save()
-            return False  # 保存が終わってから操作し直してもらう
-        return True
-
-    def move(self, days: int) -> None:
-        if self.busy or not self.ask_discard():
-            return
-        start = self.model.week_start + dt.timedelta(days=days) if days else dt.datetime.now()
-        self.model = ScheduleModel(start)
-        self.draw_grid()
-        self.load()
-
-    # --- 通信 ---------------------------------------------------------------
-
-    def set_busy(self, busy: bool, text: str = "") -> None:
-        self.busy = busy
-        self.save_button.state(["disabled"] if busy else ["!disabled"])
-        if text:
-            self.summary.configure(text=text, fg=COLORS["muted"])
-
-    def alive(self) -> bool:
-        return bool(self.frame.winfo_exists())
-
-    def load(self) -> None:
-        if self.busy:
-            return
-        model, client = self.model, self.w.c.client()
-        self.set_busy(True, "予約サイトから読み込んでいます…")
-
-        def done(data, error) -> None:
-            if not self.alive() or model is not self.model:
-                return
-            self.set_busy(False)
-            if error or data is None:
-                self.summary.configure(text="読み込めませんでした。インターネットにつながっているか確認してください。", fg=COLORS["bad"])
-                return
-            keep = model.selected - model.original if model.dirty() else set()
-            model.load(data)
-            now = dt.datetime.now()
-            for t in keep:  # 予約が入って読み直したときも、保存前の選択は残す
-                model.set(t, True, now)
-            self.price.set(str(model.price_yen))
-            self.refresh()
-
-        self.w.run_async(lambda: client.get_schedule(model.week_start, model.days), done)
-
-    def copy_previous(self) -> None:
-        if self.busy:
-            return
-        model, client = self.model, self.w.c.client()
-        previous = ScheduleModel(model.week_start - dt.timedelta(days=7))
-        self.set_busy(True, "前の週を読み込んでいます…")
-
-        def done(data, error) -> None:
-            if not self.alive() or model is not self.model:
-                return
-            self.set_busy(False)
-            if error or data is None:
-                self.summary.configure(text="前の週を読み込めませんでした。", fg=COLORS["bad"])
-                return
-            previous.load(data)
-            added = model.copy_from(previous, dt.datetime.now())
-            self.refresh()
-            if not added:
-                self.summary.configure(text="前の週と同じ時間はすでに選ばれているか、選べる時間がありません。")
-
-        self.w.run_async(lambda: client.get_schedule(previous.week_start, previous.days), done)
-
-    def save(self) -> None:
-        from tkinter import messagebox
-
-        if self.busy:
-            return
-        try:
-            price = int(self.price.get())
-        except ValueError:
-            price = 0
-        if price < 50:
-            messagebox.showwarning("貸し出す時間", "料金は 50 円以上の数字で入力してください。", parent=self.parent_window)
-            return
-        model, client = self.model, self.w.c.client()
-        starts = model.starts_to_save(dt.datetime.now())
-        self.set_busy(True, "保存しています…")
-
-        def done(result, error) -> None:
-            if not self.alive():
-                return
-            self.set_busy(False)
-            if error or result is None:
-                messagebox.showwarning(
-                    "貸し出す時間", "保存できませんでした。インターネットにつながっているか確認してください。",
-                    parent=self.parent_window,
-                )
-                self.refresh()
-                return
-            if result.get("error"):
-                messagebox.showwarning("貸し出す時間", f"保存できませんでした: {result['error']}", parent=self.parent_window)
-                self.refresh()
-                return
-            model.load(result)
-            self.refresh()
-            message = f"保存しました（追加 {result.get('added', 0)} 件・取り消し {result.get('removed', 0)} 件）"
-            h.log.info("貸し出す時間: %s", message)
-            if result.get("errors"):
-                messagebox.showwarning(
-                    "貸し出す時間", "保存できなかった時間があります:\n" + "\n".join(result["errors"]), parent=self.parent_window
-                )
-            else:
-                self.summary.configure(text=message + "。予約サイトに並びました。", fg=COLORS["ok"])
-
-        self.w.run_async(lambda: client.put_schedule(model.week_start, model.days, price, starts), done)
+        self.w.show_setup(step=0)
 
 
 class SettingsDialog:
