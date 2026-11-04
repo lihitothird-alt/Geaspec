@@ -141,3 +141,76 @@ class SteamGuardTest(unittest.TestCase):
         self.assertEqual(h.steam_logged_in_account(self.steam), "geaspec_lend")
         self.assertIsNone(h.steam_logged_in_account(None))
         self.assertIsNone(h.steam_logged_in_account(self.tmp))
+
+
+class FakeAudio:
+    """音の機器とアプリの音 (Windows の代わり)。"""
+
+    def __init__(self):
+        self.mute = {"spk": False, "mic": False, "hp": True, "vd": False}
+        self.names = {"spk": "スピーカー (Realtek)", "mic": "マイク (Realtek)", "hp": "ヘッドホン", "vd": "Virtual Desktop Audio"}
+        self.apps = {"chrome.exe": False, "VRChat.exe": False, "": False}
+        self.pids = {"chrome.exe": 100, "VRChat.exe": 200, "": 0}
+
+    def endpoints(self):
+        return [h.AudioEndpoint(i, n) for i, n in self.names.items()]
+
+    def get_mute(self, i):
+        return self.mute[i]
+
+    def set_mute(self, i, m):
+        self.mute[i] = m
+
+    def sessions(self):
+        return [h.AudioSessionInfo(name or "system", self.pids[name], name) for name in self.apps]
+
+    def set_session_mute(self, key, m):
+        self.apps["" if key == "system" else key] = m
+
+
+class AudioGuardTest(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+
+        self.home = Path(tempfile.mkdtemp())
+        self.audio = FakeAudio()
+        self.guard = h.AudioGuard(self.home, backend_factory=lambda: self.audio)
+
+    def test_only_vrchat_reaches_the_headset_and_the_pc_stays_silent(self):
+        self.assertEqual(self.guard.apply(), [])
+        # PC のスピーカー・ヘッドホン・マイクは消音。VD の出入り口はそのまま
+        self.assertEqual(self.audio.mute, {"spk": True, "mic": True, "hp": True, "vd": False})
+        # VRChat 以外のアプリと Windows の音は止める
+        self.assertEqual(self.audio.apps, {"chrome.exe": True, "VRChat.exe": False, "": True})
+        # 途中でつないだイヤホンも消音する
+        self.audio.names["usb"] = "USB イヤホン"
+        self.audio.mute["usb"] = False
+        self.guard.apply()
+        self.assertTrue(self.audio.mute["usb"])
+        # 終わったら元どおり (はじめから消音だったヘッドホンは消音のまま)
+        self.assertEqual(self.guard.restore(), [])
+        self.assertEqual(self.audio.mute, {"spk": False, "mic": False, "hp": True, "vd": False, "usb": False})
+        self.assertEqual(self.audio.apps, {"chrome.exe": False, "VRChat.exe": False, "": False})
+        self.assertFalse(self.guard.backup.exists())
+
+    def test_restore_after_a_crash(self):
+        self.guard.apply()
+        again = h.AudioGuard(self.home, backend_factory=lambda: self.audio)
+        self.assertEqual(again.restore(), [])
+        self.assertFalse(self.audio.mute["spk"])
+
+    def test_problems_do_not_stop_lending(self):
+        def broken():
+            raise OSError("no audio service")
+
+        guard = h.AudioGuard(self.home, backend_factory=broken)
+        self.assertEqual(len(guard.apply()), 1)
+        self.assertEqual(guard.restore(), [])
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows の音の設定は Windows でだけ読める")
+    def test_windows_audio_can_be_listed(self):
+        try:
+            endpoints = h.PycawAudio().endpoints()
+        except OSError as exc:  # CI の PC には音のしくみがないことがある
+            self.skipTest(f"audio service unavailable: {exc}")
+        self.assertIsInstance(endpoints, list)
