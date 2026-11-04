@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}お知らせの登録 | 管理{% endblock %}
+{% block content %}
+<section class="wrap section tight">
+  <header class="page-head">
+    <h1>お知らせの登録（{{ rows|length }} 件）</h1>
+    <p class="muted">準備中のサービスが始まったら知らせてほしい人です。</p>
+  </header>
+  {% if rows %}
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>日時</th><th>サービス</th><th>立場</th><th>メール</th><th>メモ</th></tr></thead>
+    <tbody>
+      {% for r in rows %}<tr><td>{{ r.created_at|jst }}</td><td>{{ services.get(r.service, r.service) }}</td><td>{{ roles.get(r.role, r.role) }}</td><td>{{ r.email }}</td><td>{{ r.note }}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="muted">まだ登録はありません。</p>{% endif %}
+</section>
+{% endblock %}

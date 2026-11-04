@@ -1,0 +1,15 @@
+{# 準備中のサービスが始まったら知らせる登録。role は "guest" (頼みたい) か "host" (パソコンを貸したい) #}
+{% macro waitlist_form(service, role, user, back, note_label, note_placeholder) -%}
+<div class="waitlist-card">
+  <h2>始まったら知らせてもらう</h2>
+  <form class="form" method="post" action="/waitlist">
+    <input type="hidden" name="service" value="{{ service }}">
+    <input type="hidden" name="role" value="{{ role }}">
+    <input type="hidden" name="back" value="{{ back }}">
+    <label>メールアドレス<input type="email" name="email" required autocomplete="email" inputmode="email" value="{{ user.email if user else '' }}"></label>
+    <label>{{ note_label }}<span class="muted small">なくてもかまいません</span><textarea name="note" rows="2" maxlength="1000" placeholder="{{ note_placeholder }}"></textarea></label>
+    <button class="btn">登録する</button>
+  </form>
+  <p class="muted small">このお知らせ以外には使いません。料金はまだ決まっていません。</p>
+</div>
+{%- endmacro %}

@@ -142,23 +142,25 @@ def test_landing_page_renders(tmp_path, now):
     c = TestClient(app)
     r = c.get("/")
     assert r.status_code == 200
-    # トップは業務委託で AI の仕事を分ける基盤。用途別のページへ案内し、VR は別の仕組み
-    assert "あなただけの" in r.text and "AI 組織" in r.text and "準備中" in r.text and "頼むだけ" in r.text
-    for href in ('href="/ai"', 'href="/gamedev"', 'href="/vrchat"'):
-        assert href in r.text
+    # トップは入口だけ: Geaspec AI と Geaspec VR へ分かれる (ゲーム開発はやめた)
+    assert "頼むだけで" in r.text and 'href="/ai"' in r.text and 'href="/vrchat"' in r.text and "準備中" in r.text
+    assert "/gamedev" not in r.text and "ゲーム開発" not in r.text
+    assert c.get("/gamedev", follow_redirects=False).headers["location"] == "/"
     # レンタルの言葉や、VRAM を合算して 1 つのメモリに見せる表現は使わない
     assert "GPU をさがす" not in r.text and "VRAM増強" not in r.text and "28GB" not in r.text
     assert "何台ものパソコン" in r.text and "1 つの大きなメモリにはなりません" in c.get("/ai").text
-    for path in ("/ai", "/gamedev"):
+    # Geaspec AI: 頼む・依頼一覧・貸し出し (どれも準備中で、始まったら知らせる登録)
+    for path in ("/ai", "/ai/requests", "/ai/host"):
         page = c.get(path)
-        assert page.status_code == 200 and "準備中" in page.text and "料金も決まっていません" in page.text
+        assert page.status_code == 200 and "準備中" in page.text and 'action="/waitlist"' in page.text, path
+        assert 'href="/ai/requests"' in page.text and 'href="/ai/host"' in page.text
     # カタカナの読みでも見つかるように (タイトル・説明・検索エンジン向けのサイト名)
     assert "<title>Geaspec（ギアスペック）" in r.text and '"alternateName": ["ギアスペック"]' in r.text
     # もとのトップページは /vrchat にそのまま残っている
     v = c.get("/vrchat")
     assert v.status_code == 200
     # Geaspec VR のページは淡い青 (ロゴも Geaspec VR)。トップはミントのまま
-    assert 'class=" theme-vr"' in v.text and '<span class="logo-sub">VR</span>' in v.text
+    assert 'class=" theme-vr"' in v.text and '<a class="logo-sub" href="/vrchat">VR</a>' in v.text and '<a class="logo" href="/"' in v.text
     assert "theme-vr" not in r.text and "theme-vr" in c.get("/slots").text
     assert "PC版VRChat</mark>を。" in v.text and "<title>Geaspec VR | PC版VRChat" in v.text and 'href="/slots"' in v.text and "必要なもの" in v.text
 
@@ -684,7 +686,7 @@ def test_site_login_rejects_open_redirect(tmp_path, now, monkeypatch):
 def test_only_public_pages_are_indexed(tmp_path, now):
     app, _ = make_app(tmp_path)
     c = TestClient(app)
-    for path in ("/", "/ai", "/gamedev", "/vrchat", "/en", "/about", "/guide"):
+    for path in ("/", "/ai", "/vrchat", "/en", "/about", "/guide"):
         r = c.get(path)
         assert "x-robots-tag" not in r.headers, path
         assert 'name="robots"' not in r.text and f'rel="canonical" href="http://localhost:8000{path}"' in r.text, path
@@ -1759,12 +1761,14 @@ def test_geaspec_vr_has_its_own_address(tmp_path, now):
     home = vr.get("/")
     assert home.status_code == 200 and "PC版VRChat</mark>を。" in home.text and "theme-vr" in home.text
     assert '<link rel="canonical" href="https://vr.geaspec.test/">' in home.text
-    assert 'class="logo-sub">VR<' in home.text and 'href="https://geaspec.test/ai"' in home.text
+    # Geaspec のマークはどこからでもトップへ。横の「VR」は VR の入口へ
+    assert '<a class="logo" href="https://geaspec.test/"' in home.text
+    assert '<a class="logo-sub" href="https://vr.geaspec.test/">VR</a>' in home.text
     assert "theme-vr" in vr.get("/slots").text and "theme-vr" in vr.get("/login").text
 
     top = main.get("/").text
     assert "theme-" not in top.split("<body", 1)[1].split(">", 1)[0]
-    assert 'href="https://geaspec.test/#vr"' in top and 'href="https://vr.geaspec.test/"' in top
+    assert 'href="https://vr.geaspec.test/"' in top and 'href="https://geaspec.test/ai"' in top
     assert 'href="/slots"' not in top  # 予約まわりは VR のサイトの中だけ
     assert "<loc>https://vr.geaspec.test/</loc>" in main.get("/sitemap.xml").text
 
@@ -1781,5 +1785,31 @@ def test_each_service_has_its_own_colour(tmp_path, now):
     app, _ = make_app(tmp_path)
     c = TestClient(app)
     body = lambda path: c.get(path).text.split("<body", 1)[1].split(">", 1)[0]
-    assert "theme-ai" in body("/ai") and "theme-gamedev" in body("/gamedev") and "theme-vr" in body("/vrchat")
+    assert "theme-ai" in body("/ai") and "theme-ai" in body("/ai/host") and "theme-vr" in body("/vrchat")
     assert "theme-" not in body("/") and "theme-" not in body("/about")
+
+
+def test_waitlist_for_services_that_are_not_ready(tmp_path, now):
+    """準備中の Geaspec AI に「始まったら知らせて」と登録できる。同じ人の 2 回目は書き直し。管理画面で見られる。"""
+    app, _ = make_app(tmp_path)
+    c = TestClient(app)
+    r = c.post("/waitlist", data={"email": "Guest@Example.com", "service": "ai", "role": "guest",
+                                   "note": "会議の録音をまとめたい", "back": "/ai"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/ai"
+    assert "guest@example.com にお知らせします" in c.get("/ai").text
+    c.post("/waitlist", data={"email": "guest@example.com", "service": "ai", "role": "guest", "note": "毎週", "back": "/ai"})
+    c.post("/waitlist", data={"email": "host@example.com", "service": "ai", "role": "host", "note": "RTX 4070", "back": "/ai/host"})
+    # おかしな値は登録しない・よそのサイトへは戻さない
+    assert c.post("/waitlist", data={"email": "x", "service": "ai", "role": "guest", "back": "/ai"},
+                  follow_redirects=False).status_code == 303
+    r = c.post("/waitlist", data={"email": "a@b.co", "service": "gamedev", "role": "guest", "back": "//evil.example"},
+               follow_redirects=False)
+    assert r.headers["location"] == "/"
+    from app.models import WaitlistEntry
+    rows = db(app).query(WaitlistEntry).order_by(WaitlistEntry.id).all()
+    assert [(w.email, w.role, w.note) for w in rows] == [("guest@example.com", "guest", "毎週"), ("host@example.com", "host", "RTX 4070")]
+    admin = TestClient(app)
+    signup(admin, "admin@example.com")
+    page = admin.get("/admin/waitlist").text
+    assert "お知らせの登録（2 件）" in page and "host@example.com" in page and "パソコンを貸したい" in page
+    assert TestClient(app).get("/admin/waitlist", follow_redirects=False).status_code in (303, 401, 403)

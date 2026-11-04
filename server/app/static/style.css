@@ -1516,13 +1516,11 @@ body.theme-vr {
 .tier-list li { display: grid; align-content: start; gap: 4px; padding: 18px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
 .tier-list strong { font-size: 1.05rem; }
 .tier-list span { color: var(--text-muted); font-size: .92rem; }
-.uses.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .split-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .split-list h3 { margin: 0; font-size: 1.08rem; }
 .page-head .eyebrow { margin-bottom: 14px; }
-@media (max-width: 960px) { .uses.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) {
-  .tier-list, .split-list, .uses.four { grid-template-columns: 1fr; }
+  .tier-list, .split-list { grid-template-columns: 1fr; }
 }
 .page-head.big { padding-top: clamp(24px, 4vw, 48px); margin-bottom: clamp(16px, 3vw, 32px); }
 .page-head.big h1 { font-size: clamp(1.9rem, 1.2rem + 2.4vw, 2.8rem); line-height: 1.3; margin-bottom: 14px; }
@@ -1530,20 +1528,13 @@ body.theme-vr {
 .status-note { margin: 0 0 12px; }
 
 /* =====================================================================
-   サイトごとの色: 本体は緑 (ミント)、Geaspec AI は赤、ゲーム開発は紫 (VR の青は上)
+   サイトごとの色: 本体は緑 (ミント)、Geaspec AI は赤 (VR の青は上)
    ===================================================================== */
 .theme-ai {
   --bg: #f8f4f4; --surface-2: #f0e9e9; --surface-3: #e8dfdf; --edge: #ddd1d1; --line: #ece3e3;
   --link: #b13f3a; --primary: #f3a9a6; --primary-hover: #ee9692; --on-primary: #4a1514;
   --accent-text: #b13f3a; --mint: #f3a9a6; --mint-soft: #fbe7e6; --mint-ink: #9a2f2b; --hl: #f9dcda; --focus: #b13f3a;
   --area-pattern: rgba(190, 70, 64, .10);
-  background: var(--bg);
-}
-.theme-gamedev {
-  --bg: #f5f4f9; --surface-2: #ebe8f3; --surface-3: #e1ddee; --edge: #d3cde4; --line: #e6e2f0;
-  --link: #6a4fc4; --primary: #c3b2f2; --primary-hover: #b29ff0; --on-primary: #2a1a5c;
-  --accent-text: #6a4fc4; --mint: #c3b2f2; --mint-soft: #ede7fc; --mint-ink: #553aa8; --hl: #e4dbfa; --focus: #6a4fc4;
-  --area-pattern: rgba(110, 80, 200, .08);
   background: var(--bg);
 }
 @media (prefers-color-scheme: dark) {
@@ -1553,44 +1544,28 @@ body.theme-vr {
     --accent-text: #f2b1ad; --mint: #e89a96; --mint-soft: #3d2322; --mint-ink: #f4bdb9; --hl: #4a2826; --focus: #f2b1ad;
     --area-pattern: rgba(240, 160, 150, .12);
   }
-  .theme-gamedev {
-    --bg: #1e1c24; --surface: #26232e; --surface-2: #2f2b38; --surface-3: #383343; --edge: #4a4456; --line: #312c3a;
-    --link: #c9bbf5; --primary: #b4a2ec; --primary-hover: #c3b2f2; --on-primary: #22154d;
-    --accent-text: #c9bbf5; --mint: #b4a2ec; --mint-soft: #2e2747; --mint-ink: #cfc2f7; --hl: #362d55; --focus: #c9bbf5;
-    --area-pattern: rgba(180, 160, 240, .1);
-  }
 }
-/* AI はつながった点 (ニューラルネットの点)、ゲーム開発はドット絵のマス目を、うしろにうすく敷く */
-body.theme-ai, body.theme-gamedev { position: relative; }
-body.theme-ai::before, body.theme-gamedev::before {
+/* AI は、つながった点 (ニューラルネットの点) をうしろにうすく敷く */
+body.theme-ai { position: relative; }
+body.theme-ai::before {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image: radial-gradient(var(--area-pattern) 2px, transparent 2.5px);
+  background-size: 28px 28px;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 45%, #000 100%);
           mask-image: linear-gradient(to bottom, transparent 0%, #000 45%, #000 100%);
 }
-body.theme-ai::before {
-  background-image: radial-gradient(var(--area-pattern) 2px, transparent 2.5px);
-  background-size: 28px 28px;
-}
-body.theme-gamedev::before {
-  background-image:
-    linear-gradient(var(--area-pattern) 1px, transparent 1px),
-    linear-gradient(90deg, var(--area-pattern) 1px, transparent 1px);
-  background-size: 16px 16px;
-}
 
 /* 本体トップの「Geaspec のサービス」: それぞれのサイトの色で見せる */
-.svc-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.svc-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .svc {
   --svc: #9ccdf2; --svc-soft: #e1eefa; --svc-ink: #1b5c8c;
   display: flex; flex-direction: column; gap: 10px; padding: 22px; scroll-margin-top: calc(var(--header-h) + 24px);
   border-radius: var(--radius-l); background: var(--surface); box-shadow: var(--shadow); border-top: 5px solid var(--svc);
 }
 .svc-ai { --svc: #f3a9a6; --svc-soft: #fbe7e6; --svc-ink: #9a2f2b; }
-.svc-gamedev { --svc: #c3b2f2; --svc-soft: #ede7fc; --svc-ink: #553aa8; }
 .svc-vr { --svc: #9ccdf2; --svc-soft: #e1eefa; --svc-ink: #1b5c8c; }
 @media (prefers-color-scheme: dark) {
   .svc-ai { --svc: #e89a96; --svc-soft: #3d2322; --svc-ink: #f4bdb9; }
-  .svc-gamedev { --svc: #b4a2ec; --svc-soft: #2e2747; --svc-ink: #cfc2f7; }
   .svc-vr { --svc: #84bde8; --svc-soft: #1b3244; --svc-ink: #a8d5f5; }
 }
 .svc-top { display: flex; align-items: center; justify-content: space-between; }
@@ -1640,3 +1615,32 @@ a:hover { text-decoration-color: currentColor; }
   border-radius: var(--radius); background: var(--mint-soft); color: var(--mint-ink); font-weight: 700;
 }
 .multi-result .i { width: 18px; height: 18px; }
+
+/* ロゴ (トップへ) と、横のサイトの印 (そのサイトの入口へ) */
+.logo-wrap { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+a.logo-sub { text-decoration: none; line-height: 1.6; margin-left: 2px; }
+a.logo-sub:hover { filter: brightness(.95); }
+
+/* 準備中のサービス: 小見出し・「始まったら知らせてもらう」・くわしいしくみ */
+.sub-head { font-size: 1.3rem; margin: 0 0 16px; }
+.waitlist-card {
+  max-width: 560px; padding: 24px; border-radius: var(--radius-l); background: var(--surface); box-shadow: var(--shadow);
+  border-top: 4px solid var(--primary);
+}
+.waitlist-card h2 { margin: 0 0 12px; font-size: 1.2rem; }
+.waitlist-card .form { display: grid; gap: 14px; }
+.waitlist-card textarea { width: 100%; font: inherit; padding: 10px 12px; border-radius: var(--radius); border: 1.5px solid var(--edge); background: var(--surface); color: var(--text); }
+.waitlist-card .form label > .small { font-weight: 500; }
+.waitlist-card .btn { justify-self: start; }
+.waitlist-card > p { margin: 12px 0 0; }
+.empty + .waitlist-card, .uses + .waitlist-card { margin-top: 24px; }
+details.more { max-width: 900px; margin-top: 28px; }
+details.more > summary { cursor: pointer; font-weight: 700; color: var(--text-muted); }
+details.more .more-body { margin-top: 14px; display: grid; gap: 12px; }
+/* トップ: 3 つのサイトへの入口 (カード全体がリンク) */
+a.svc { color: var(--text); text-decoration: none; transition: transform .15s ease, box-shadow .15s ease; }
+a.svc:hover { transform: translateY(-2px); box-shadow: var(--shadow-l); }
+a.svc:focus-visible { outline: 3px solid var(--svc); outline-offset: 3px; }
+.svc-go { margin-top: auto; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--svc-ink); }
+.svc-go .i { width: 18px; height: 18px; }
+.hero.hub { padding-bottom: clamp(24px, 4vw, 40px); }

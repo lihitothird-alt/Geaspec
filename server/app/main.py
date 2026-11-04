@@ -31,7 +31,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import account_links, clock, feedback, invite, services, social, web_test
 from .config import Settings
 from .db import Base, add_missing_columns, make_engine, make_sessionmaker
-from .models import Booking, BookingStatus, Feedback, Host, Slot, User
+from .models import Booking, BookingStatus, Feedback, Host, Slot, User, WaitlistEntry
 from .payments import PROVIDER_LABELS, PaymentGateway, build_payments
 from .security import connection_code, hash_password, hash_token, new_agent_token, verify_password
 from .mail import Mailer, build_mailer
@@ -56,10 +56,10 @@ SITE_GATE_OPEN_PREFIXES = (
 # Geaspec VR の住所で見せるページ (本体の住所で開いたら VR の住所へ送る)
 VR_PREFIXES = ("/slots", "/bookings", "/lend", "/following", "/lenders", "/feedback", "/guide")
 # 本体の住所だけで見せるページ (VR の住所で開いたら本体へ送る)
-MAIN_ONLY_PATHS = ("/ai", "/gamedev", "/about")
-MAIN_ONLY_PREFIXES = ("/admin",)
+MAIN_ONLY_PATHS = ("/ai", "/about")
+MAIN_ONLY_PREFIXES = ("/admin", "/ai/")
 # 検索エンジンに載せるページ (だれでも見られる案内だけ。アカウントや予約、管理のページは載せない)
-INDEXABLE_PATHS = ("/", "/ai", "/gamedev", "/vrchat", "/en", "/en/vr", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
+INDEXABLE_PATHS = ("/", "/ai", "/vrchat", "/en", "/en/vr", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
 LEGAL_PAGES = {"tokushoho": "特定商取引法に基づく表記", "terms": "利用規約", "privacy": "プライバシーポリシー",
                "platforms": "VRChat・Steam などの規約について"}
 
@@ -195,14 +195,12 @@ def create_app(
     templates.env.globals["indexable"] = indexable
 
     def site_area(request: Request) -> str:
-        """どのサイトのページか: "vr" (青)・"ai" (赤)・"gamedev" (紫)・"main" (緑、Geaspec 本体)。"""
+        """どのサイトのページか: "vr" (青)・"ai" (赤)・"main" (緑、Geaspec 本体)。"""
         path = request.url.path
         if (vr_host and request.url.hostname == vr_host) or path in ("/vrchat", "/en/vr") or path.startswith(VR_PREFIXES):
             return "vr"
         if path == "/ai" or path.startswith("/ai/"):
             return "ai"
-        if path == "/gamedev" or path.startswith("/gamedev/"):
-            return "gamedev"
         return "main"
 
     def page_url(request: Request) -> str:
@@ -346,15 +344,56 @@ def create_app(
     def hosts_moved():
         return RedirectResponse("/ai", status_code=301)
 
+    # 準備中のサービス (Geaspec AI)。「頼む」「依頼一覧」「貸し出し」のページを持つ
+    SERVICES = {"ai": "Geaspec AI"}
+    WAITLIST_ROLES = {"guest": "頼みたい", "host": "パソコンを貸したい"}
+
     @app.get("/ai", response_class=HTMLResponse)
     def ai_page(request: Request, db: Session = Depends(get_db)):
-        """AI の仕事を、何台ものホストの PC に分けて頼む (準備中)。"""
-        return render(request, db, "ai.html", tiers=VRAM_TIERS)
+        """Geaspec AI: AI の仕事を、何台ものパソコンに分けて頼む (準備中)。"""
+        return render(request, db, "ai.html", tiers=VRAM_TIERS, service="ai")
 
-    @app.get("/gamedev", response_class=HTMLResponse)
-    def gamedev_page(request: Request, db: Session = Depends(get_db)):
-        """ゲーム開発の仕事を、AI の組織に分けて頼む (準備中)。"""
-        return render(request, db, "gamedev.html")
+    @app.get("/gamedev")
+    def gamedev_closed():
+        """ゲーム開発はやめた (AI と VR に絞る)。前のリンクはトップへ。"""
+        return RedirectResponse("/", status_code=301)
+
+    def service_page(service: str, page: str):
+        """依頼一覧 (requests) と貸し出し (host) のページ。どちらも準備中で、始まったら知らせる登録だけ。"""
+        def handler(request: Request, db: Session = Depends(get_db)):
+            return render(request, db, "service_soon.html", service=service, page=page)
+        return handler
+
+    for _service in SERVICES:
+        for _page in ("requests", "host"):
+            app.add_api_route(f"/{_service}/{_page}", service_page(_service, _page), methods=["GET"],
+                              response_class=HTMLResponse)
+
+    @app.post("/waitlist")
+    def waitlist_join(request: Request, email: str = Form(""), service: str = Form(""), role: str = Form(""),
+                      note: str = Form(""), back: str = Form("/"), db: Session = Depends(get_db)):
+        """「始まったら知らせる」に登録する (同じメール・サービス・立場なら書き直す)。"""
+        email = email.strip().lower()
+        if not back.startswith("/") or back.startswith("//"):
+            back = "/"
+        if service not in SERVICES or role not in WAITLIST_ROLES or not EMAIL_RE.match(email) or len(email) > 255:
+            flash(request, "メールアドレスを確かめて、もう一度送ってください。", "error")
+            return redirect(back)
+        row = db.scalar(select(WaitlistEntry).where(WaitlistEntry.email == email, WaitlistEntry.service == service,
+                                                    WaitlistEntry.role == role))
+        if row is None:
+            row = WaitlistEntry(email=email, service=service, role=role)
+            db.add(row)
+        row.note = note.strip()[:1000]
+        db.commit()
+        flash(request, f"登録しました。{SERVICES[service]}が始まったら、{email} にお知らせします。")
+        return redirect(back)
+
+    @app.get("/admin/waitlist", response_class=HTMLResponse)
+    def admin_waitlist(request: Request, db: Session = Depends(get_db)):
+        require_admin(request, db)
+        rows = db.scalars(select(WaitlistEntry).order_by(WaitlistEntry.created_at.desc())).all()
+        return render(request, db, "admin/waitlist.html", rows=rows, services=SERVICES, roles=WAITLIST_ROLES)
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request, ref: str = "", db: Session = Depends(get_db)):

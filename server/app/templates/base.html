@@ -1,10 +1,10 @@
 {%- set en = page_lang == "en" -%}
 {%- set path = request.url.path -%}
-{#- どのサイトのページか。本体は緑、Geaspec AI は赤、Geaspec VR は青、ゲーム開発は紫にして、別の場所に来たとわかるようにする -#}
+{#- どのサイトのページか。本体は緑、Geaspec AI は赤、Geaspec VR は青にして、別の場所に来たとわかるようにする -#}
 {%- set area = site_area(request) -%}
 {%- set vr_area = area == "vr" -%}
-{%- set area_label = {"vr": "VR", "ai": "AI", "gamedev": "Game Dev" if en else "ゲーム開発"}.get(area, "") -%}
-{%- set area_home = {"vr": vr_en_home if en else vr_home, "ai": main_url ~ "/ai", "gamedev": main_url ~ "/gamedev"}.get(area, main_url ~ ("/en" if en else "/")) -%}
+{%- set area_label = {"vr": "VR", "ai": "AI"}.get(area, "") -%}
+{%- set area_home = {"vr": vr_en_home if en else vr_home, "ai": main_url ~ "/ai"}.get(area, main_url ~ ("/en" if en else "/")) -%}
 <!doctype html>
 <html lang="{{ 'en' if en else 'ja' }}">
 <head>
@@ -92,24 +92,33 @@
   {% endif %}
   <header class="site-header">
     <div class="wrap header-inner">
-      <a class="logo" href="{{ area_home }}">{{ logo_mark() }}<span class="logo-text">{{ settings.service_name }}{% if area_label %}<span class="logo-sub">{{ area_label }}</span>{% endif %}</span></a>
+      {# Geaspec のマークは、どのサイトからでもトップへ戻る。横の印 (AI・VR など) は、そのサイトの入口へ #}
+      <div class="logo-wrap">
+        <a class="logo" href="{{ main_url ~ ('/en' if en else '/') }}" aria-label="{{ settings.service_name }} トップ">{{ logo_mark() }}<span class="logo-text">{{ settings.service_name }}</span></a>
+        {% if area_label %}<a class="logo-sub" href="{{ area_home }}">{{ area_label }}</a>{% endif %}
+      </div>
+
+      {#- サイトごとのメニュー: 予約する・一覧・貸し出し -#}
+      {%- if vr_area -%}
+        {%- set site_nav = [("/slots", "Book" if en else "予約", "#i-calendar", true),
+                            ("/bookings", "Bookings" if en else "予約一覧", "#i-list", user),
+                            ("/lend", "Lend" if en else "貸し出し", "#i-pc", user)] -%}
+      {%- elif area == "ai" -%}
+        {%- set base_path = main_url ~ "/" ~ area -%}
+        {%- set site_nav = [(base_path, "頼む", "#i-mail", true),
+                            (base_path ~ "/requests", "依頼一覧", "#i-list", true),
+                            (base_path ~ "/host", "貸し出し", "#i-pc", true)] -%}
+      {%- elif en -%}
+        {%- set site_nav = [(main_url ~ "/en#services", "Services", "#i-sparkle", true),
+                            (vr_en_home, "Geaspec VR", "#i-quest", true)] -%}
+      {%- else -%}
+        {%- set site_nav = [(main_url ~ "/ai", "Geaspec AI", "#i-sparkle", true),
+                            (vr_home, "Geaspec VR", "#i-quest", true)] -%}
+      {%- endif %}
 
       <nav class="nav-desktop" aria-label="メインメニュー">
-        {% if vr_area %}
-          <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}>{{ "Open slots" if en else "空き枠" }}</a>
-          {% if user %}
-          <a class="nav-link" href="/bookings"{% if path.startswith("/bookings") %} aria-current="page"{% endif %}>{{ "Bookings" if en else "予約一覧" }}</a>
-          {% if not simple %}<a class="nav-link" href="/following"{% if path == "/following" %} aria-current="page"{% endif %}>{{ "Following" if en else "フォロー中" }}</a>{% endif %}
-          {% if is_lender %}<a class="nav-link" href="/lend"{% if path == "/lend" %} aria-current="page"{% endif %}>{{ "Lend" if en else "貸し出し" }}</a>{% endif %}
-          {% endif %}
-        {% else %}
-          {# 本体のメニューは、トップの各サービスの紹介へ飛ぶ (そこから各サイトへ) #}
-          {% if en %}<a class="nav-link" href="{{ main_url }}/en#services">Services</a>
-          <a class="nav-link nav-vr" href="{{ vr_en_home }}">Geaspec VR</a>
-          {% else %}<a class="nav-link nav-ai" href="{{ main_url }}/#ai">Geaspec AI</a>
-          <a class="nav-link nav-gamedev" href="{{ main_url }}/#gamedev">ゲーム開発</a>
-          <a class="nav-link nav-vr" href="{{ main_url }}/#vr">Geaspec VR</a>{% endif %}
-        {% endif %}
+        {% for href, label, icon, show in site_nav if show %}<a class="nav-link" href="{{ href }}"{% if href.endswith(path) and path != "/" %} aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
         {% if user %}
           <a class="nav-link" href="/account"{% if path == "/account" %} aria-current="page"{% endif %}>{{ "Account" if en else "アカウント" }}</a>
           {% if is_admin %}<a class="nav-link" href="{{ main_url }}/admin"{% if path.startswith("/admin") %} aria-current="page"{% endif %}>{{ "Admin" if en else "管理" }}</a>{% endif %}
@@ -121,22 +130,14 @@
       </nav>
 
       <div class="nav-mobile">
-        {% if vr_area and path != "/slots" %}<a class="btn small" href="/slots">{{ "Open slots" if en else "空き枠" }}</a>{% endif %}
+        {% if vr_area and path != "/slots" %}<a class="btn small" href="/slots">{{ "Book" if en else "空き枠を見る" }}</a>{% endif %}
         <details class="menu">
           <summary><svg class="i ic-open"><use href="#i-menu"/></svg><svg class="i ic-close"><use href="#i-close"/></svg><span class="visually-hidden">メニュー</span></summary>
           <nav class="menu-panel" aria-label="メニュー">
-            {% if not en %}<a class="nav-link" href="{{ main_url }}/"><svg class="i"><use href="#i-sparkle"/></svg>Geaspec トップ</a>
-            <a class="nav-link" href="{{ main_url }}/ai"{% if area == "ai" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-sparkle"/></svg>Geaspec AI</a>
-            <a class="nav-link" href="{{ main_url }}/gamedev"{% if area == "gamedev" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-monitor"/></svg>ゲーム開発</a>
-            <a class="nav-link" href="{{ vr_home }}"{% if path == "/vrchat" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-quest"/></svg>Geaspec VR（PC版VRChat）</a>{% endif %}
-            {% if vr_area %}
-            <a class="nav-link" href="/slots"{% if path == "/slots" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-calendar"/></svg>{{ "Open slots" if en else "VR の空き枠" }}</a>
-            {% if user %}
-              <a class="nav-link" href="/bookings"{% if path.startswith("/bookings") %} aria-current="page"{% endif %}><svg class="i"><use href="#i-list"/></svg>{{ "Bookings" if en else "予約一覧" }}</a>
-              {% if not simple %}<a class="nav-link" href="/following"{% if path == "/following" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-heart"/></svg>{{ "Following" if en else "フォロー中" }}</a>{% endif %}
-              {% if is_lender %}<a class="nav-link" href="/lend"{% if path == "/lend" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-pc"/></svg>{{ "Lend" if en else "貸し出し" }}</a>{% endif %}
-            {% endif %}
-            {% endif %}
+            {% for href, label, icon, show in site_nav if show %}<a class="nav-link" href="{{ href }}"{% if href.endswith(path) and path != "/" %} aria-current="page"{% endif %}><svg class="i"><use href="{{ icon }}"/></svg>{{ label }}</a>
+            {% endfor %}
+            {% if area != "main" %}<a class="nav-link" href="{{ main_url ~ ('/en' if en else '/') }}"><svg class="i"><use href="#i-back"/></svg>{{ "Geaspec home" if en else "Geaspec トップへ" }}</a>{% endif %}
+            <hr>
             {% if user %}
               <a class="nav-link" href="/account"{% if path == "/account" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-user"/></svg>{{ "Account" if en else "アカウント" }}</a>
               {% if is_admin %}<a class="nav-link" href="{{ main_url }}/admin"{% if path.startswith("/admin") %} aria-current="page"{% endif %}><svg class="i"><use href="#i-gear"/></svg>{{ "Admin" if en else "管理" }}</a>{% endif %}
@@ -188,7 +189,6 @@
         {% else %}
         <a href="{{ main_url }}/">Geaspec トップ</a>
         <a href="{{ main_url }}/ai">Geaspec AI</a>
-        <a href="{{ main_url }}/gamedev">ゲーム開発</a>
         <a href="{{ vr_home }}">Geaspec VR（PC版VRChat）</a>
         <a href="/guide">VR のはじめ方</a>
         <a href="{{ main_url }}/about">名前の由来</a>
