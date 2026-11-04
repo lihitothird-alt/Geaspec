@@ -239,21 +239,21 @@ class ReadinessTest(unittest.TestCase):
         with mock.patch.object(h, "steam_root", return_value=steam), mock.patch.object(h, "is_admin_account", return_value=True):
             items = {label: (state, tip) for label, state, tip in c.readiness(now=0)}
         self.assertNotIn("Geaspec にログイン", items)  # できていなければ設定の画面が出るので、ホームには出さない
-        self.assertEqual(items["予約サイトとつながっている"][0], "wait")
+        self.assertEqual(items["予約サイトにつながっている"][0], "wait")
         self.assertEqual(items["運営の承認"][0], "wait")
-        self.assertEqual(items["Steam"][0], "ok")
-        self.assertEqual(items["VRChat"], ("ng", "Steam で入れてください"))
-        self.assertEqual(items["Virtual Desktop Streamer"][0], "ng")
-        self.assertEqual(items["標準ユーザーで貸し出す"], ("ng", "Windows の設定で「標準ユーザー」に"))
+        self.assertEqual(items["Steam が入っている"][0], "ok")
+        self.assertEqual(items["VRChat が入っている"], ("ng", "Steam で入れてください"))
+        self.assertEqual(items["Virtual Desktop Streamer が入っている"][0], "ng")
+        self.assertEqual(items["貸し出し用の標準ユーザーを使っている"], ("ng", "別に作ってください（やり方）"))
 
         h.STATUS.state, h.STATUS.last_poll_at, h.STATUS.host_state = "unreachable", self.NOW, "pending"
         (steam / "steamapps" / "appmanifest_438100.acf").write_text("")
         with mock.patch.object(h, "steam_root", return_value=steam), mock.patch.object(h, "is_admin_account", return_value=False):
             cached = {label: state for label, state, _ in c.readiness(now=10)}
             fresh = {label: state for label, state, _ in c.readiness(now=40)}
-        self.assertEqual(cached["VRChat"], "ng")  # ファイルは 30 秒ごとにだけ見直す
-        self.assertEqual((fresh["VRChat"], fresh["標準ユーザーで貸し出す"]), ("ok", "ok"))
-        self.assertEqual((fresh["予約サイトとつながっている"], fresh["運営の承認"]), ("ng", "wait"))
+        self.assertEqual(cached["VRChat が入っている"], "ng")  # ファイルは 30 秒ごとにだけ見直す
+        self.assertEqual((fresh["VRChat が入っている"], fresh["貸し出し用の標準ユーザーを使っている"]), ("ok", "ok"))
+        self.assertEqual((fresh["予約サイトにつながっている"], fresh["運営の承認"]), ("ng", "wait"))
 
     def test_home_summary_says_one_thing_at_a_time(self):
         c = self.controller()
@@ -263,6 +263,11 @@ class ReadinessTest(unittest.TestCase):
         self.assertEqual(c.home_summary(ready + [("VRChat", "ng", "x"), ("Steam", "ng", "y")], self.NOW)[1],
                          "準備があと 2 つ必要です")
         self.assertEqual(c.home_summary(ready + [("運営の承認", "wait", "")], self.NOW)[1], "確認しています")
+        st.last_poll_at, st.host_state = self.NOW, "pending"
+        self.assertEqual(c.home_summary(ready, self.NOW)[1:4:2], ("運営の承認を待っています", "warn"))
+        st.host_state, st.state = "ok", "unreachable"
+        self.assertEqual(c.home_summary(ready, self.NOW)[1], "予約サイトにつながりません")
+        st.state = "idle"
         st.state = "idle"
         st.next_starts_at, st.next_ends_at = self.NOW + dt.timedelta(hours=2, minutes=15), self.NOW + dt.timedelta(hours=4)
         kicker, headline, sub, tone = c.home_summary(ready, self.NOW)
