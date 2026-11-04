@@ -1378,3 +1378,19 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 .gpu-body p { margin: 0; color: var(--text-muted); font-size: .9rem; }
 .gpu-body .gpu-uses { margin: 8px 0 6px; }
 .gpu-body .gpu-next { color: var(--text); font-weight: 600; }
+
+/* トップの「まとめ借り」の図 */
+.pool-cap { margin: 0; padding: 18px 22px 0; color: var(--text-muted); font-size: .8rem; font-weight: 600; }
+.pool { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 18px 6px; }
+.pool-gpu {
+  display: grid; justify-items: center; gap: 6px; padding: 12px 10px; min-width: 70px;
+  border-radius: var(--radius); background: var(--surface-2); font: 700 .86rem/1.2 var(--font-round);
+}
+.pool-gpu .i { width: 30px; height: 30px; color: var(--text-muted); }
+.pool-gpu .num { font-size: 1.15rem; font-weight: 800; }
+.pool-op { color: var(--text-muted); font-weight: 700; }
+.pool-sum {
+  margin: 8px 22px 16px; padding: 10px; border-radius: var(--radius); text-align: center;
+  background: var(--mint-soft); color: var(--mint-ink); font-weight: 700;
+}
+.pool-sum .num { font-size: 1.6rem; font-weight: 800; margin: 0 2px; }

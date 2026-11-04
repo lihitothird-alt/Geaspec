@@ -279,8 +279,8 @@ def create_app(
         slots = services.available_slots(db, clock.utcnow(), settings.hold_minutes)
         min_price = min((s.price_yen for s in slots), default=None)
         gpus = gpu_listing(db, slots)
-        max_vram = max((g["vram"] for g in gpus if g["vram"]), default=None)
-        return render(request, db, template, slot_count=len(slots), min_price=min_price, max_vram=max_vram,
+        total_vram = sum(g["vram"] or 0 for g in gpus)
+        return render(request, db, template, slot_count=len(slots), min_price=min_price, total_vram=total_vram,
                       gpus=gpus, now=clock.utcnow())
 
     VRAM_FILTERS = (8, 12, 16, 24)

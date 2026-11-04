@@ -140,7 +140,7 @@ def test_landing_page_renders(tmp_path, now):
     r = c.get("/")
     assert r.status_code == 200
     # トップは GPU の貸し借り (VRAM 増強)。VR はその中の専用ページ
-    assert "VRAM増強" in r.text and 'href="/gpus"' in r.text and "VR 専用ページへ" in r.text and "対応予定" in r.text
+    assert "VRAM増強" in r.text and 'href="/gpus"' in r.text and "VR 専用ページへ" in r.text and "まとめ借りは準備中" in r.text
     # もとのトップページは /vrchat にそのまま残っている
     v = c.get("/vrchat")
     assert v.status_code == 200
@@ -1361,9 +1361,8 @@ def test_lender_pc_specs_are_shown_to_borrowers(tmp_path, now):
     signup(user, "user@example.com")
     line = "NVIDIA GeForce RTX 4070（12GB）・AMD Ryzen 7 7700 8-Core・メモリ 32GB"
     assert line in user.get("/slots").text
-    # VRAM は一覧で目立たせ、トップには登録中の PC でいちばん大きい VRAM を出す
-    assert '<span class="chip vram">VRAM 12GB</span>' in user.get("/slots").text
-    assert '最大 <span class="num">12</span>GB' in user.get("/").text
+    # トップには、貸し出されている GPU の VRAM の合計を出す (まとめ借りの目安)
+    assert '<dt>VRAM の合計</dt><dd><span class="num">12</span>GB' in user.get("/").text
     # GPU をさがす: VRAM でしぼれて、その PC の空き枠だけに飛べる
     gpus = user.get("/gpus").text
     assert "NVIDIA GeForce RTX 4070" in gpus and 'href="/slots?host=1"' in gpus and "（1 枠）" in gpus
