@@ -143,7 +143,7 @@ def test_landing_page_renders(tmp_path, now):
     r = c.get("/")
     assert r.status_code == 200
     # トップは入口だけ: Geaspec AI と Geaspec VR へ分かれる (ゲーム開発はやめた)
-    assert "頼むだけで" in r.text and 'href="/ai"' in r.text and 'href="/vrchat"' in r.text and "準備中" in r.text
+    assert "みんなで使う、" in r.text and "必要な人と分け合う" in r.text and 'href="#lend"' in r.text and 'href="/ai"' in r.text and 'href="/vrchat"' in r.text and "準備中" in r.text
     assert "/gamedev" not in r.text and "ゲーム開発" not in r.text
     assert c.get("/gamedev", follow_redirects=False).headers["location"] == "/"
     # レンタルの言葉や、VRAM を合算して 1 つのメモリに見せる表現は使わない

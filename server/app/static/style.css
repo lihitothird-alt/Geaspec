@@ -1672,3 +1672,10 @@ a.svc:focus-visible { outline: 3px solid var(--svc); outline-offset: 3px; }
 @media (max-width: 420px) { .hflow-pcs .who { font-size: .72rem; } }
 .hflow-pcs li { overflow: hidden; }
 .hflow-pcs .task, .hflow-pcs .who { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* トップ: 「分け合う」の一文と、使う人・貸す人の入口 */
+.lead-key { display: block; color: var(--text); font-weight: 700; margin-bottom: 4px; }
+.role-row { margin-top: 4px; }
+.lend-roles { margin-top: 24px; scroll-margin-top: calc(var(--header-h) + 24px); }
+.lend-roles h2 { font-size: 1.15rem; }
+.lend-roles .btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
