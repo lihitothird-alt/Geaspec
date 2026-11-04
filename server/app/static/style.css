@@ -1536,14 +1536,14 @@ body.theme-vr::before {
   --bg: #f8f4f4; --surface-2: #f0e9e9; --surface-3: #e8dfdf; --edge: #ddd1d1; --line: #ece3e3;
   --link: #b13f3a; --primary: #f3a9a6; --primary-hover: #ee9692; --on-primary: #4a1514;
   --accent-text: #b13f3a; --mint: #f3a9a6; --mint-soft: #fbe7e6; --mint-ink: #9a2f2b; --hl: #f9dcda; --focus: #b13f3a;
-  --area-pattern: rgba(190, 70, 64, .16);
+  --area-pattern: rgba(190, 70, 64, .10);
   background: var(--bg);
 }
 .theme-gamedev {
   --bg: #f5f4f9; --surface-2: #ebe8f3; --surface-3: #e1ddee; --edge: #d3cde4; --line: #e6e2f0;
   --link: #6a4fc4; --primary: #c3b2f2; --primary-hover: #b29ff0; --on-primary: #2a1a5c;
   --accent-text: #6a4fc4; --mint: #c3b2f2; --mint-soft: #ede7fc; --mint-ink: #553aa8; --hl: #e4dbfa; --focus: #6a4fc4;
-  --area-pattern: rgba(110, 80, 200, .12);
+  --area-pattern: rgba(110, 80, 200, .08);
   background: var(--bg);
 }
 @media (prefers-color-scheme: dark) {
@@ -1598,7 +1598,22 @@ body.theme-gamedev::before {
 .svc-ic .i { width: 24px; height: 24px; }
 .svc h3 { margin: 4px 0 0; font-size: 1.25rem; }
 .svc p { margin: 0; color: var(--text-muted); font-size: .95rem; }
-.svc .svc-btn { margin-top: auto; align-self: flex-start; background: var(--svc); color: var(--svc-ink); }
-.svc .svc-btn:hover { background: var(--svc); filter: brightness(.96); }
+/* ボタンは色をつけすぎない (色は上の線とアイコンだけ) */
+.svc .svc-btn { margin-top: auto; align-self: flex-start; background: var(--surface-3); color: var(--text); }
+.svc .svc-btn:hover { background: var(--edge); }
 .svc:target { box-shadow: 0 0 0 3px var(--svc), var(--shadow); }
 @media (max-width: 860px) { .svc-list { grid-template-columns: 1fr; } }
+
+/* リンクは、色の濃い下線を引きすぎない。本文中は文字の色を少し変えて、下線はうすく。もくじは一覧の形にする */
+a { text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-decoration-thickness: 1px; }
+a:hover { text-decoration-color: currentColor; }
+.guide-toc {
+  gap: 0; padding: 6px 0; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
+  max-width: 520px;
+}
+.guide-toc a {
+  display: block; padding: 10px 18px; color: var(--text); text-decoration: none; font-weight: 600;
+  border-left: 3px solid transparent;
+}
+.guide-toc a + a { border-top: 1px solid var(--line); }
+.guide-toc a:hover { background: var(--surface-2); border-left-color: var(--primary); }
