@@ -73,8 +73,11 @@ class StubPayPal:
         return self.result
 
 
-def make_app(tmp_path, payments=None, vpn=None, trial_minutes=0, screenshot_max_mb=250, site_password="", free_mode=False, invite_only=False, simple_mode=False, max_booking_hours=0, tester_db=""):
+def make_app(tmp_path, payments=None, vpn=None, trial_minutes=0, screenshot_max_mb=250, site_password="", free_mode=False, invite_only=False, simple_mode=False, max_booking_hours=0, tester_db="", base_url="", vr_base_url=""):
+    extra = {"base_url": base_url, "secure_cookies": base_url.startswith("https://")} if base_url else {}
     settings = Settings(
+        **extra,
+        vr_base_url=vr_base_url,
         tester_db=tester_db,
         max_booking_hours=max_booking_hours,
         database_url=f"sqlite:///{tmp_path / 'test.db'}",
@@ -140,12 +143,12 @@ def test_landing_page_renders(tmp_path, now):
     r = c.get("/")
     assert r.status_code == 200
     # トップは業務委託で AI の仕事を分ける基盤。用途別のページへ案内し、VR は別の仕組み
-    assert "業務委託の基盤" in r.text and "AI 組織" in r.text and "準備中" in r.text
+    assert "あなただけの" in r.text and "AI 組織" in r.text and "準備中" in r.text and "頼むだけ" in r.text
     for href in ('href="/ai"', 'href="/gamedev"', 'href="/vrchat"'):
         assert href in r.text
     # レンタルの言葉や、VRAM を合算して 1 つのメモリに見せる表現は使わない
     assert "GPU をさがす" not in r.text and "VRAM増強" not in r.text and "28GB" not in r.text
-    assert "1 つの大きなメモリにはなりません" in r.text
+    assert "何台ものパソコン" in r.text and "1 つの大きなメモリにはなりません" in c.get("/ai").text
     for path in ("/ai", "/gamedev"):
         page = c.get(path)
         assert page.status_code == 200 and "準備中" in page.text and "料金も決まっていません" in page.text
@@ -1693,10 +1696,14 @@ def test_english_top_page(tmp_path, now):
     """海外の人・会社に見せる英語のトップページ。ヘッダーとフッターも英語になる。"""
     app, _ = make_app(tmp_path)
     c = TestClient(app)
+    # 英語の Geaspec 全体の紹介と、英語の Geaspec VR の紹介 (VR の英語は青)
     r = c.get("/en")
+    assert r.status_code == 200 and '<html lang="en">' in r.text and "AI organization" in r.text
+    assert "geaspec.contact@gmail.com" in r.text and 'href="/"' in r.text and 'href="/en/vr"' in r.text
+    r = c.get("/en/vr")
     assert r.status_code == 200
-    assert '<html lang="en">' in r.text and "Play VRChat in <mark" in r.text and "Sign up" in r.text
-    assert "geaspec.contact@gmail.com" in r.text and 'href="/"' in r.text  # 日本語へ戻るリンク
+    assert '<html lang="en">' in r.text and "Play VRChat in <mark" in r.text and "Sign up" in r.text and "theme-vr" in r.text
+    assert "geaspec.contact@gmail.com" in r.text and 'href="/vrchat"' in r.text  # 日本語の VR へ戻るリンク
     ja = c.get("/").text
     assert '<html lang="ja">' in ja and 'href="/en"' in ja and "新規登録" in ja
 
@@ -1731,3 +1738,48 @@ def test_bookings_list_shows_upcoming_first_and_folds_the_past(setup, now):
     session.commit()
     page = user.get("/bookings").text
     assert "予約 #1" not in page and "終わった予約" not in page
+
+
+def test_geaspec_vr_has_its_own_address(tmp_path, now):
+    """Geaspec VR は vr.geaspec.com で見せる。本体で VR のページを開いたら VR の住所へ、その逆も送る。ログインは共通。"""
+    app, _ = make_app(tmp_path, base_url="https://geaspec.test", vr_base_url="https://vr.geaspec.test")
+    main = TestClient(app, base_url="https://geaspec.test")
+    vr = TestClient(app, base_url="https://vr.geaspec.test")
+    for path, to in (("/vrchat", "https://vr.geaspec.test/"), ("/slots", "https://vr.geaspec.test/slots"),
+                     ("/guide?for=lend", "https://vr.geaspec.test/guide?for=lend"),
+                     ("/bookings/3", "https://vr.geaspec.test/bookings/3")):
+        r = main.get(path, follow_redirects=False)
+        assert r.status_code == 301 and r.headers["location"] == to, path
+    assert main.get("/en/vr", follow_redirects=False).headers["location"] == "https://vr.geaspec.test/en"
+    assert "Play VRChat in <mark" in vr.get("/en").text and "AI organization" in main.get("/en").text
+    for path, to in (("/ai", "https://geaspec.test/ai"), ("/vrchat", "/"), ("/en/vr", "/en")):
+        r = vr.get(path, follow_redirects=False)
+        assert r.status_code == 301 and r.headers["location"] == to, path
+
+    home = vr.get("/")
+    assert home.status_code == 200 and "PC版VRChat</mark>を。" in home.text and "theme-vr" in home.text
+    assert '<link rel="canonical" href="https://vr.geaspec.test/">' in home.text
+    assert 'class="logo-sub">VR<' in home.text and 'href="https://geaspec.test/ai"' in home.text
+    assert "theme-vr" in vr.get("/slots").text and "theme-vr" in vr.get("/login").text
+
+    top = main.get("/").text
+    assert "theme-" not in top.split("<body", 1)[1].split(">", 1)[0]
+    assert 'href="https://geaspec.test/#vr"' in top and 'href="https://vr.geaspec.test/"' in top
+    assert 'href="/slots"' not in top  # 予約まわりは VR のサイトの中だけ
+    assert "<loc>https://vr.geaspec.test/</loc>" in main.get("/sitemap.xml").text
+
+    # ログインのクッキーは本体のドメイン全体 (VR の住所にも届く) に付ける
+    r = main.post("/signup", data={"email": "user@example.com", "password": "password123", "agree": "1"},
+                  follow_redirects=False)
+    cookie = r.headers["set-cookie"]
+    assert cookie.startswith("geaspec_session=") and "domain=geaspec.test" in cookie.lower() and "secure" in cookie.lower()
+    vr.cookies.set("geaspec_session", main.cookies.get("geaspec_session"), domain=".geaspec.test")
+    assert vr.get("/account", follow_redirects=False).status_code == 200
+
+
+def test_each_service_has_its_own_colour(tmp_path, now):
+    app, _ = make_app(tmp_path)
+    c = TestClient(app)
+    body = lambda path: c.get(path).text.split("<body", 1)[1].split(">", 1)[0]
+    assert "theme-ai" in body("/ai") and "theme-gamedev" in body("/gamedev") and "theme-vr" in body("/vrchat")
+    assert "theme-" not in body("/") and "theme-" not in body("/about")

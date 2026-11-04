@@ -53,8 +53,13 @@ SITE_GATE_OPEN_PREFIXES = (
     # ホーム画面アプリの設定と裏方のスクリプト。ブラウザは合言葉の Cookie を付けずに読みに来る
     "/manifest.webmanifest", "/sw.js",
 )
+# Geaspec VR の住所で見せるページ (本体の住所で開いたら VR の住所へ送る)
+VR_PREFIXES = ("/slots", "/bookings", "/lend", "/following", "/lenders", "/feedback", "/guide")
+# 本体の住所だけで見せるページ (VR の住所で開いたら本体へ送る)
+MAIN_ONLY_PATHS = ("/ai", "/gamedev", "/about")
+MAIN_ONLY_PREFIXES = ("/admin",)
 # 検索エンジンに載せるページ (だれでも見られる案内だけ。アカウントや予約、管理のページは載せない)
-INDEXABLE_PATHS = ("/", "/ai", "/gamedev", "/vrchat", "/en", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
+INDEXABLE_PATHS = ("/", "/ai", "/gamedev", "/vrchat", "/en", "/en/vr", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
 LEGAL_PAGES = {"tokushoho": "特定商取引法に基づく表記", "terms": "利用規約", "privacy": "プライバシーポリシー",
                "platforms": "VRChat・Steam などの規約について"}
 
@@ -83,6 +88,7 @@ def create_app(
     media_root = Path(settings.media_dir)
     (media_root / "screenshots").mkdir(parents=True, exist_ok=True)
     public_host = urlsplit(settings.base_url).hostname if settings.secure_cookies else None
+    vr_host = urlsplit(settings.vr_base_url).hostname if settings.vr_base_url else None
     # パスワードの再設定メールを最後に送った時刻 (ユーザー番号ごと)
     reset_sent: dict[int, float] = {}
 
@@ -94,7 +100,7 @@ def create_app(
         この PC で開く localhost はそのまま。
         """
         visitor = request.headers.get("cf-visitor", "")  # Cloudflare が付ける {"scheme":"https"} (念のため、行ったり来たりを防ぐ)
-        if (public_host and request.url.hostname == public_host and request.url.scheme == "http"
+        if (public_host and request.url.hostname in (public_host, vr_host) and request.url.scheme == "http"
                 and '"https"' not in visitor):
             code = 301 if request.method in ("GET", "HEAD") else 308
             return RedirectResponse(str(request.url.replace(scheme="https", port=None)), status_code=code)
@@ -121,6 +127,43 @@ def create_app(
             response.headers["Cache-Control"] = "public, max-age=86400"
         return response
 
+    def vr_address(path: str) -> str:
+        """VR の住所でのこのページの住所 (中の名前 /vrchat・/en/vr を、VR の住所の / と /en に戻す)。"""
+        return settings.vr_base_url + {"/vrchat": "/", "/en/vr": "/en"}.get(path, path)
+
+    def public_address(path: str) -> str:
+        """このページの正式な住所。VR を別の住所で見せているときは、VR のページは VR の住所。"""
+        if settings.vr_base_url and (path in ("/vrchat", "/en/vr") or path.startswith(VR_PREFIXES)):
+            return vr_address(path)
+        return settings.base_url + path
+
+    @app.middleware("http")
+    async def vr_site(request: Request, call_next):
+        """Geaspec VR を別の住所 (vr.geaspec.com) で見せる。
+
+        VR の住所の「/」は VR の紹介ページ。本体の住所で VR のページ (空き枠・予約など) を開いた人は VR の住所へ送り、
+        VR の住所で本体だけのページ (AI など) を開いた人は本体へ送る。ログインは両方の住所で共通。
+        """
+        if not vr_host or request.method not in ("GET", "HEAD"):
+            return await call_next(request)
+        path, query = request.url.path, (f"?{request.url.query}" if request.url.query else "")
+        if request.url.hostname == vr_host:
+            if path in ("/vrchat", "/en/vr"):
+                return RedirectResponse(("/" if path == "/vrchat" else "/en") + query, status_code=301)
+            if path == "/en":
+                request.scope["path"] = "/en/vr"  # VR の住所の英語ページは、VR の英語の紹介
+                return await call_next(request)
+            if path in MAIN_ONLY_PATHS or path.startswith(MAIN_ONLY_PREFIXES):
+                return RedirectResponse(settings.base_url + path + query, status_code=301)
+            if path == "/":
+                request.scope["path"] = "/vrchat"
+            return await call_next(request)
+        if path in ("/vrchat", "/en/vr"):
+            return RedirectResponse(settings.vr_base_url + ("/" if path == "/vrchat" else "/en") + query, status_code=301)
+        if path.startswith(VR_PREFIXES):
+            return RedirectResponse(settings.vr_base_url + path + query, status_code=301)
+        return await call_next(request)
+
     # HTML と CSS を圧縮して送る (Funnel 経由でも速く表示されるように)
     app.add_middleware(GZipMiddleware, minimum_size=1000)
     # SessionMiddleware を後から追加して外側にし、上の合言葉チェックでセッションを読めるようにする
@@ -129,6 +172,8 @@ def create_app(
         secret_key=settings.secret_key,
         same_site="lax",
         https_only=settings.secure_cookies,
+        # VR を別の住所で見せるときは、ログインを両方の住所で共通にする (名前を変えて、前の住所だけのクッキーと混ざらないように)
+        **({"domain": public_host, "session_cookie": "geaspec_session"} if vr_host and public_host else {}),
         max_age=14 * 24 * 3600,
     )
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
@@ -148,6 +193,28 @@ def create_app(
     templates.env.globals["free_mode"] = settings.free_mode
     templates.env.globals["asset_version"] = VERSION
     templates.env.globals["indexable"] = indexable
+
+    def site_area(request: Request) -> str:
+        """どのサイトのページか: "vr" (青)・"ai" (赤)・"gamedev" (紫)・"main" (緑、Geaspec 本体)。"""
+        path = request.url.path
+        if (vr_host and request.url.hostname == vr_host) or path in ("/vrchat", "/en/vr") or path.startswith(VR_PREFIXES):
+            return "vr"
+        if path == "/ai" or path.startswith("/ai/"):
+            return "ai"
+        if path == "/gamedev" or path.startswith("/gamedev/"):
+            return "gamedev"
+        return "main"
+
+    def page_url(request: Request) -> str:
+        """このページの正式な住所 (検索エンジン・SNS 向け)。VR の住所で見ているときは VR の住所。"""
+        return vr_address(request.url.path) if (vr_host and request.url.hostname == vr_host) else public_address(request.url.path)
+
+    templates.env.globals["site_area"] = site_area
+    templates.env.globals["vr_en_home"] = settings.vr_base_url + "/en" if settings.vr_base_url else "/en/vr"
+    templates.env.globals["page_url"] = page_url
+    # VR のサイトの入口と、本体の住所 (VR の住所から本体のページへ戻るリンクに付ける)
+    templates.env.globals["vr_home"] = settings.vr_base_url + "/" if settings.vr_base_url else "/vrchat"
+    templates.env.globals["main_url"] = settings.base_url if settings.vr_base_url else ""
     templates.env.globals["simple"] = settings.simple_mode
     templates.env.globals["mail_enabled"] = app.state.mailer.enabled
 
@@ -308,9 +375,14 @@ def create_app(
 
     @app.get("/en", response_class=HTMLResponse)
     def index_en(request: Request, db: Session = Depends(get_db)):
-        """英語のトップページ (海外の人・VRChat などの会社向け)。予約などのページは日本語のまま。"""
+        """英語の Geaspec 全体の紹介 (海外の人・会社向け)。"""
+        return render(request, db, "index_en.html", page_lang="en")
+
+    @app.get("/en/vr", response_class=HTMLResponse)
+    def vrchat_en(request: Request, db: Session = Depends(get_db)):
+        """英語の Geaspec VR の紹介 (VRChat などの会社・海外の人向け)。予約などのページは日本語のまま。"""
         slots = services.available_slots(db, clock.utcnow(), settings.hold_minutes)
-        return render(request, db, "index_en.html", slot_count=len(slots), page_lang="en")
+        return render(request, db, "vrchat_en.html", slot_count=len(slots), page_lang="en")
 
     @app.get("/guide", response_class=HTMLResponse)
     def guide(request: Request, db: Session = Depends(get_db)):
@@ -349,7 +421,7 @@ def create_app(
     def sitemap():
         if site_gated():
             raise HTTPException(404)
-        urls = "".join(f"<url><loc>{settings.base_url}{p}</loc></url>" for p in INDEXABLE_PATHS)
+        urls = "".join(f"<url><loc>{public_address(p)}</loc></url>" for p in INDEXABLE_PATHS)
         xml = f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
         return Response(xml, media_type="application/xml")
 

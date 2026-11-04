@@ -1,60 +1,75 @@
 {% extends "base.html" %}
-{% block title %}Geaspec — VRChat in PCVR, without a gaming PC{% endblock %}
+{% block title %}Geaspec — Your own AI organization, on everyday PCs{% endblock %}
+{% block description %}Geaspec is an outsourcing platform that splits AI work across many people's PCs. Guests request work; hosts run it on their own PCs and return only the results (AI work is coming soon).{% endblock %}
 {% block content %}
 <section class="hero" aria-labelledby="hero-title">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <h1 id="hero-title"><span class="ln">No gaming PC?</span><br><span class="ln">Play VRChat in <mark class="hl">PCVR</mark> anyway.</span></h1>
-      <p class="lead">Stream VRChat to your Quest from someone's idle gaming PC — PC-only worlds and avatars, in VR, only for the time you want to play.</p>
+      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>AI work, shared across people's PCs</p>
+      <h1 id="hero-title"><span class="ln">Your own <mark class="hl">AI organization</mark>,</span><br><span class="ln">on everyday PCs.</span></h1>
+      <p class="lead">Just say what you need. Many PCs share the work, and only checked results come back to you.</p>
       <div class="cta-row">
-        <a class="btn lg" href="/slots">See open slots{% if slot_count %} ({{ slot_count }}){% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <a class="btn lg" href="#services">See our services<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
       </div>
-      <ul class="trust" aria-label="Why it is safe">
-        <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-user"/></svg></span>Play with your own VRChat account</li>
-        <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-trash"/></svg></span>Your login data is deleted after each session</li>
-      </ul>
     </div>
-
     <div class="hero-visual">
       <figure class="hud">
-        <div class="hud-link" role="img" aria-label="Your VR headset connects over the internet to a gaming PC">
-          <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>Your<br>headset</div>
-          <div class="wire"><span class="tag"><svg class="i"><use href="#i-globe"/></svg>Internet</span></div>
-          <div class="node pc"><span class="node-ic"><svg class="i"><use href="#i-pc"/></svg></span>Gaming<br>PC</div>
+        <figcaption class="pool-cap">How an AI organization works</figcaption>
+        <div class="org" role="img" aria-label="A commander splits work and sends it to three hosts; a checker verifies the results. Three AIs run at once.">
+          <div class="org-boss"><svg class="i" aria-hidden="true"><use href="#i-sparkle"/></svg>Commander<small>split, assign, check</small></div>
+          <div class="org-hosts">
+            <div class="pool-gpu"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span>Summarize</span><small>8GB</small></div>
+            <div class="pool-gpu"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span>Classify</span><small>8GB</small></div>
+            <div class="pool-gpu"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span>Heavy job</span><small>24GB</small></div>
+          </div>
+          <div class="org-check"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>A checker verifies the results</div>
         </div>
-        <dl class="hud-specs">
-          <div><dt>App</dt><dd>Virtual Desktop</dd></div>
-          <div><dt>Latency</dt><dd><span class="num">50–60</span>ms <small>in our tests</small></dd></div>
-        </dl>
+        <p class="pool-sum" aria-hidden="true">AIs running at once <span class="num">3</span></p>
       </figure>
     </div>
   </div>
 </section>
 
-<section class="section" aria-labelledby="how">
+<section class="section" aria-labelledby="flow">
   <div class="wrap">
     <div class="section-head">
-      <h2 id="how">How it works</h2>
+      <h2 id="flow">From request to result</h2>
+      <p>Guests never operate a host's PC, and no accounts are shared.</p>
     </div>
-    <ol class="steps three">
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg></div><h3>Book</h3><p>Pick an open time slot on a PC.{% if free_mode %} Free during the test.{% endif %}</p></li>
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-play"/></svg></div><h3>Connect and play</h3><p>Connect with Virtual Desktop and log in to VRChat with <strong>your own</strong> account.</p></li>
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg></div><h3>Ends automatically</h3><p>When time is up, the session ends and your login data is deleted.</p></li>
+    <ol class="steps">
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-mail"/></svg></div><h3>Request</h3><p>The guest describes the work and the form of the result.</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></div><h3>Approval</h3><p>Requests that fit the host's conditions (hours, uses, time limit, specs) are approved automatically; others are up to the host.</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg></div><h3>Run</h3><p>The host runs it on their own PC, with the models and tools they choose.</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></div><h3>Result</h3><p>Only the result comes back, after a checker has verified it.</p></li>
     </ol>
-    <p class="section-note">The VR video goes directly between the PC and your headset. Geaspec's servers only handle booking.</p>
+    <p class="muted small uses-note">VRAM on several PCs does not become one big memory. More PCs means more AIs running at once, each with its own context.</p>
   </div>
 </section>
 
-<section class="section flush-top" aria-labelledby="about">
+<section class="section flush-top" aria-labelledby="services">
   <div class="wrap">
     <div class="section-head">
-      <h2 id="about">About Geaspec</h2>
+      <h2 id="services">Our services</h2>
     </div>
-    <div class="about-en">
-      <p>Geaspec is an independent project from Japan. We are running a small, free, invite-only test with players in Japan, and the booking site is currently in Japanese.</p>
-      <p>We do not charge fees, use VRChat logos or official images, or advertise inside VRChat. We are in contact with VRChat and Steam, and will only offer a paid service in a way their terms allow. Geaspec is not affiliated with VRChat, Valve, Meta or Virtual Desktop.</p>
-      <p>Contact (players, partners and press): <a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a></p>
+    <div class="svc-list">
+      <article class="svc svc-ai" aria-labelledby="svc-ai">
+        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span><span class="badge completed">Coming soon</span></div>
+        <h3 id="svc-ai">Geaspec AI</h3>
+        <p>From summarizing, classifying and transcription to larger models: AI work split across many PCs and reviewed again and again by many AIs.</p>
+      </article>
+      <article class="svc svc-gamedev" aria-labelledby="svc-gamedev">
+        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span><span class="badge completed">Coming soon</span></div>
+        <h3 id="svc-gamedev">Geaspec Game Dev</h3>
+        <p>Game systems, object generation, colour and lighting, and optimization, handed to an AI organization with separate roles.</p>
+      </article>
+      <article class="svc svc-vr" aria-labelledby="svc-vr">
+        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-quest"/></svg></span><span class="badge confirmed">Available</span></div>
+        <h3 id="svc-vr">Geaspec VR</h3>
+        <p>The one exception: connect your Quest to a host's gaming PC in real time and play VRChat in PCVR.</p>
+        <a class="btn svc-btn" href="{{ vr_en_home }}">Open Geaspec VR<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </article>
     </div>
+    <p class="muted small uses-note">Geaspec is an independent project from Japan. AI and game development work are not available yet and have no prices. Contact: <a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a></p>
   </div>
 </section>
 {% endblock %}

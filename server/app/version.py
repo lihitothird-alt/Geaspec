@@ -1,12 +1,20 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.46"
+VERSION = "0.7.47"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 # 貸す人の Windows アプリ (サイトと同じ版のもの)
 AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.47": [
+        "Geaspec VR を別のサイト（vr.geaspec.com）に分けました。空き枠・予約一覧・貸し出しは VR のサイトの中だけにあります。前の住所（geaspec.com/vrchat など）を開いても、自動で VR のサイトに移ります。ログインは共通です",
+        "サイトごとに色を分けました。Geaspec 本体は緑、Geaspec AI は赤、Geaspec VR は青、ゲーム開発は紫です",
+        "本体の上のメニューは、トップの各サービスの紹介へ移るようにしました（そこから各サイトへ）",
+        "英語のページを、Geaspec 全体の紹介（geaspec.com/en）と、Geaspec VR の紹介（vr.geaspec.com/en）に分けました",
+        "リンクの下線をうすくし、「はじめての方へ」のもくじを一覧の形にしました",
+        "トップページの言葉を、使う人の目線に書き直しました。「1 つの仕事を何台ものパソコンで手分けする」ことが伝わる図にしました",
+    ],
     "0.7.46": [
         "トップページを、AI の仕事を何台もの PC に分けて頼める「業務委託の基盤」の案内にしました（依頼 → 承認 → 実行 → 結果の返却、司令塔・ホスト・検証役の役割、頼む中身の扱い）。AI の仕事は準備中です",
         "AI のページと、ゲーム開発のページを足しました（どちらも準備中）",

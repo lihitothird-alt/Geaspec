@@ -94,13 +94,24 @@ def ensure_tunnel(exe: Path, data: Path, domain: str, run: Runner = subprocess.r
     return True
 
 
-def write_config(data: Path, domain: str, port: int) -> Path:
-    """トンネルの設定: このドメインへの通信を、この PC のサイトに渡す (ほかは 404)。"""
+def route_dns(exe: Path, data: Path, host: str, run: Runner = subprocess.run) -> bool:
+    """別の住所 (例: vr.geaspec.com) も、このトンネルにつなぐ。はじめての許可はいらない (ensure_tunnel のあとに呼ぶ)。"""
+    cert = tunnel_dir(data) / "cert.pem"
+    if not cert.exists() or not tunnel_id(data):
+        return False
+    base = [str(exe), "tunnel", "--origincert", str(cert)]
+    result = run(base + ["route", "dns", "--overwrite-dns", tunnel_id(data), host], check=False)
+    return result.returncode == 0
+
+
+def write_config(data: Path, domain: str, port: int, extra_hosts: tuple[str, ...] = ()) -> Path:
+    """トンネルの設定: このドメイン (と extra_hosts) への通信を、この PC のサイトに渡す (ほかは 404)。"""
     d = tunnel_dir(data)
     cred = (d / "tunnel.json").as_posix()
     path = d / "config.yml"
+    rules = "".join(f"  - hostname: {h}\n    service: http://localhost:{port}\n" for h in (domain, *extra_hosts))
     path.write_text(f"tunnel: {tunnel_id(data)}\ncredentials-file: {cred}\n"
-                    f"ingress:\n  - hostname: {domain}\n    service: http://localhost:{port}\n"
+                    f"ingress:\n{rules}"
                     "  - service: http_status:404\n", encoding="utf-8")
     return path
 
@@ -152,11 +163,12 @@ def _close_with_this_window(proc: subprocess.Popen) -> None:
 _JOBS: list = []
 
 
-def start_tunnel(exe: Path, data: Path, domain: str, port: int, popen=subprocess.Popen) -> subprocess.Popen | None:
+def start_tunnel(exe: Path, data: Path, domain: str, port: int, popen=subprocess.Popen,
+                 extra_hosts: tuple[str, ...] = ()) -> subprocess.Popen | None:
     """トンネルを動かし続ける (この画面を閉じると止まる)。様子は cloudflared/tunnel.log に書く。"""
     if not tunnel_id(data):
         return None
-    config = write_config(data, domain, port)
+    config = write_config(data, domain, port, extra_hosts)
     kwargs = {}
     if sys.platform == "win32":
         kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)

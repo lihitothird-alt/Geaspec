@@ -168,7 +168,7 @@ def start_funnel(tailscale: str) -> bool:
     return result.returncode == 0
 
 
-def site_environment(config: dict, address: str, data: Path) -> dict[str, str]:
+def site_environment(config: dict, address: str, data: Path, vr_address: str = "") -> dict[str, str]:
     password, invite_only = site_gate(config)
     env = {
         "SECRET_KEY": config["secret_key"],
@@ -181,6 +181,8 @@ def site_environment(config: dict, address: str, data: Path) -> dict[str, str]:
         # テストの記録は Discord ボットと同じファイル。予約ページで進めたテストも、ボットの集計に入る
         "TESTER_DB": str(data / "tester_bot.db"),
         "BASE_URL": address or f"http://localhost:{PORT}",
+        # Geaspec VR を別の住所で見せる (Cloudflare につなげたときだけ)
+        "VR_BASE_URL": vr_address,
         "SMTP_USER": config.get("mail_user", ""),
         "SMTP_PASSWORD": config.get("mail_password", ""),
     }
@@ -216,6 +218,17 @@ def wait_until_ready(port: int, timeout: float = 60.0) -> bool:
     return False
 
 
+# Geaspec VR を見せる別の住所 (例: vr.geaspec.com)。Cloudflare につなげたときだけ入る
+VR_DOMAIN: list[str] = []
+
+
+def vr_domain_for(config: dict) -> str:
+    """VR の住所。設定の "vr_subdomain" (ふだんは "vr") を自分のドメインの前に付ける。空にすると分けない。"""
+    domain = str(config.get("domain") or "")
+    sub = str(config.get("vr_subdomain", "vr") or "").strip(".")
+    return f"{sub}.{domain}" if domain and sub else ""
+
+
 def prepare_cloudflare(config: dict, data: Path):
     """自分のドメインがあれば、Cloudflare のトンネルを用意する。用意できたら cloudflared の場所を返す。
 
@@ -233,6 +246,13 @@ def prepare_cloudflare(config: dict, data: Path):
         print(f"【注意】https://{domain} に公開できませんでした。しばらくは前のアドレスで動かします。")
         print_diagnosis(data, domain, exe)
         return None
+    vr = vr_domain_for(config)
+    VR_DOMAIN.clear()
+    if vr:
+        if cf.route_dns(exe, data, vr):
+            VR_DOMAIN.append(vr)
+        else:
+            print(f"【注意】https://{vr} をつなげませんでした。Geaspec VR は https://{domain}/vrchat で見せます。")
     return exe
 
 
@@ -251,7 +271,7 @@ def start_cloudflare(config: dict, data: Path, exe) -> bool:
     import cloudflare_tunnel as cf
 
     cf.stop_leftovers(exe)
-    proc = cf.start_tunnel(exe, data, str(config["domain"]), PORT)
+    proc = cf.start_tunnel(exe, data, str(config["domain"]), PORT, extra_hosts=tuple(VR_DOMAIN))
     if proc is not None:
         TUNNELS.append(proc)
     return proc is not None
@@ -300,6 +320,9 @@ def after_start(tailscale: str | None, address: str, data: Path, bot_on: bool = 
         url = public_url(config or {}, address)
         if reachable(url):
             print(f" サイトのアドレス（ほかの人に伝える）: {url}  ← インターネットから開けることを確かめました")
+            for vr in VR_DOMAIN:
+                ok = reachable(f"https://{vr}", attempts=6)
+                print(f" Geaspec VR のアドレス: https://{vr}" + ("  ← 開けることを確かめました" if ok else "  【注意】まだ開けません"))
         else:
             print(f" 【注意】{url} がまだ開けません。")
             print_diagnosis(data, str((config or {}).get("domain") or ""), cloudflared)
@@ -437,7 +460,8 @@ def main() -> int:
     cloudflared = prepare_cloudflare(config, data)
     # 自分のドメインに公開できたときだけ、そのアドレスをリンクに使う (できなければ Tailscale のアドレス)
     site_url = public_url(config, address) if cloudflared else address
-    os.environ.update(site_environment(config, site_url, data))
+    vr_url = f"https://{VR_DOMAIN[0]}" if cloudflared and VR_DOMAIN else ""
+    os.environ.update(site_environment(config, site_url, data, vr_url))
     bot_on = start_discord_bot(config, site_url, data)
     print()
     print("サイトを起動しています…")
