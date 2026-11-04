@@ -1556,7 +1556,7 @@ body.theme-ai::before {
 }
 
 /* 本体トップの「Geaspec のサービス」: それぞれのサイトの色で見せる */
-.svc-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.svc-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .svc {
   --svc: #9ccdf2; --svc-soft: #e1eefa; --svc-ink: #1b5c8c;
   display: flex; flex-direction: column; gap: 10px; padding: 22px; scroll-margin-top: calc(var(--header-h) + 24px);
@@ -1679,3 +1679,36 @@ a.svc:focus-visible { outline: 3px solid var(--svc); outline-offset: 3px; }
 .lend-roles { margin-top: 24px; scroll-margin-top: calc(var(--header-h) + 24px); }
 .lend-roles h2 { font-size: 1.15rem; }
 .lend-roles .btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* ゲーム開発 (紫) */
+.theme-gamedev {
+  --bg: #f5f4f9; --surface-2: #ebe8f3; --surface-3: #e1ddee; --edge: #d3cde4; --line: #e6e2f0;
+  --link: #6a4fc4; --primary: #c3b2f2; --primary-hover: #b29ff0; --on-primary: #2a1a5c;
+  --accent-text: #6a4fc4; --mint: #c3b2f2; --mint-soft: #ede7fc; --mint-ink: #553aa8; --hl: #e4dbfa; --focus: #6a4fc4;
+  --area-pattern: rgba(110, 80, 200, .08);
+  background: var(--bg);
+}
+@media (prefers-color-scheme: dark) {
+  .theme-gamedev {
+    --bg: #1e1c24; --surface: #26232e; --surface-2: #2f2b38; --surface-3: #383343; --edge: #4a4456; --line: #312c3a;
+    --link: #c9bbf5; --primary: #b4a2ec; --primary-hover: #c3b2f2; --on-primary: #22154d;
+    --accent-text: #c9bbf5; --mint: #b4a2ec; --mint-soft: #2e2747; --mint-ink: #cfc2f7; --hl: #362d55; --focus: #c9bbf5;
+    --area-pattern: rgba(180, 160, 240, .1);
+  }
+  .svc-gamedev { --svc: #b4a2ec; --svc-soft: #2e2747; --svc-ink: #cfc2f7; }
+}
+/* ゲーム開発は、ドット絵のマス目をうしろにうすく敷く */
+body.theme-gamedev { position: relative; }
+body.theme-gamedev::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    linear-gradient(var(--area-pattern) 1px, transparent 1px),
+    linear-gradient(90deg, var(--area-pattern) 1px, transparent 1px);
+  background-size: 16px 16px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 45%, #000 100%);
+          mask-image: linear-gradient(to bottom, transparent 0%, #000 45%, #000 100%);
+}
+.svc-gamedev { --svc: #c3b2f2; --svc-soft: #ede7fc; --svc-ink: #553aa8; }
+.uses.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 960px) { .uses.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .uses.four { grid-template-columns: 1fr; } }

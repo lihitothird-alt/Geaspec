@@ -144,16 +144,19 @@ def test_landing_page_renders(tmp_path, now):
     assert r.status_code == 200
     # トップは入口だけ: Geaspec AI と Geaspec VR へ分かれる (ゲーム開発はやめた)
     assert "みんなで使う、" in r.text and "必要な人と分け合う" in r.text and 'href="#lend"' in r.text and 'href="/ai"' in r.text and 'href="/vrchat"' in r.text and "準備中" in r.text
-    assert "/gamedev" not in r.text and "ゲーム開発" not in r.text
-    assert c.get("/gamedev", follow_redirects=False).headers["location"] == "/"
+    assert 'href="/gamedev"' in r.text and "Geaspec ゲーム開発" in r.text
+    # 本体の上のメニューには、サービスへのリンクを並べない (入口はページの中のカード)
+    nav = r.text.split('<nav class="nav-desktop"', 1)[1].split("</nav>", 1)[0]
+    assert 'href="/ai"' not in nav and 'href="/gamedev"' not in nav and 'href="/vrchat"' not in nav
     # レンタルの言葉や、VRAM を合算して 1 つのメモリに見せる表現は使わない
     assert "GPU をさがす" not in r.text and "VRAM増強" not in r.text and "28GB" not in r.text
     assert "何台ものパソコン" in r.text and "1 つの大きなメモリにはなりません" in c.get("/ai").text
     # Geaspec AI: 頼む・依頼一覧・貸し出し (どれも準備中で、始まったら知らせる登録)
-    for path in ("/ai", "/ai/requests", "/ai/host"):
+    for path in ("/ai", "/ai/requests", "/ai/host", "/gamedev", "/gamedev/requests", "/gamedev/host"):
         page = c.get(path)
         assert page.status_code == 200 and "準備中" in page.text and 'action="/waitlist"' in page.text, path
-        assert 'href="/ai/requests"' in page.text and 'href="/ai/host"' in page.text
+        base = "/" + path.split("/")[1]
+        assert f'href="{base}/requests"' in page.text and f'href="{base}/host"' in page.text
     # カタカナの読みでも見つかるように (タイトル・説明・検索エンジン向けのサイト名)
     assert "<title>Geaspec（ギアスペック）" in r.text and '"alternateName": ["ギアスペック"]' in r.text
     # もとのトップページは /vrchat にそのまま残っている
@@ -1786,6 +1789,7 @@ def test_each_service_has_its_own_colour(tmp_path, now):
     c = TestClient(app)
     body = lambda path: c.get(path).text.split("<body", 1)[1].split(">", 1)[0]
     assert "theme-ai" in body("/ai") and "theme-ai" in body("/ai/host") and "theme-vr" in body("/vrchat")
+    assert "theme-gamedev" in body("/gamedev") and "theme-gamedev" in body("/gamedev/host")
     assert "theme-" not in body("/") and "theme-" not in body("/about")
 
 
@@ -1802,7 +1806,7 @@ def test_waitlist_for_services_that_are_not_ready(tmp_path, now):
     # おかしな値は登録しない・よそのサイトへは戻さない
     assert c.post("/waitlist", data={"email": "x", "service": "ai", "role": "guest", "back": "/ai"},
                   follow_redirects=False).status_code == 303
-    r = c.post("/waitlist", data={"email": "a@b.co", "service": "gamedev", "role": "guest", "back": "//evil.example"},
+    r = c.post("/waitlist", data={"email": "a@b.co", "service": "xyz", "role": "guest", "back": "//evil.example"},
                follow_redirects=False)
     assert r.headers["location"] == "/"
     from app.models import WaitlistEntry

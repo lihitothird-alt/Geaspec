@@ -1,10 +1,10 @@
 {%- set en = page_lang == "en" -%}
 {%- set path = request.url.path -%}
-{#- どのサイトのページか。本体は緑、Geaspec AI は赤、Geaspec VR は青にして、別の場所に来たとわかるようにする -#}
+{#- どのサイトのページか。本体は緑、Geaspec AI は赤、Geaspec VR は青、ゲーム開発は紫にして、別の場所に来たとわかるようにする -#}
 {%- set area = site_area(request) -%}
 {%- set vr_area = area == "vr" -%}
-{%- set area_label = {"vr": "VR", "ai": "AI"}.get(area, "") -%}
-{%- set area_home = {"vr": vr_en_home if en else vr_home, "ai": main_url ~ "/ai"}.get(area, main_url ~ ("/en" if en else "/")) -%}
+{%- set area_label = {"vr": "VR", "ai": "AI", "gamedev": "Game Dev" if en else "ゲーム開発"}.get(area, "") -%}
+{%- set area_home = {"vr": vr_en_home if en else vr_home, "ai": main_url ~ "/ai", "gamedev": main_url ~ "/gamedev"}.get(area, main_url ~ ("/en" if en else "/")) -%}
 <!doctype html>
 <html lang="{{ 'en' if en else 'ja' }}">
 <head>
@@ -104,17 +104,14 @@
         {%- set site_nav = [("/slots", "Book" if en else "予約", "#i-calendar", true),
                             ("/bookings", "Bookings" if en else "予約一覧", "#i-list", user),
                             ("/lend", "Lend" if en else "貸し出し", "#i-pc", user)] -%}
-      {%- elif area == "ai" -%}
+      {%- elif area in ("ai", "gamedev") -%}
         {%- set base_path = main_url ~ "/" ~ area -%}
         {%- set site_nav = [(base_path, "頼む", "#i-mail", true),
                             (base_path ~ "/requests", "依頼一覧", "#i-list", true),
                             (base_path ~ "/host", "貸し出し", "#i-pc", true)] -%}
-      {%- elif en -%}
-        {%- set site_nav = [(main_url ~ "/en#services", "Services", "#i-list", true),
-                            (vr_en_home, "Geaspec VR", "#i-quest", true)] -%}
       {%- else -%}
-        {%- set site_nav = [(main_url ~ "/ai", "Geaspec AI", "#i-robot", true),
-                            (vr_home, "Geaspec VR", "#i-quest", true)] -%}
+        {#- 本体 (トップ) では、サービスへの入口はページの中のカードだけにする (上のメニューには並べない) -#}
+        {%- set site_nav = [] -%}
       {%- endif %}
 
       <nav class="nav-desktop" aria-label="メインメニュー">
@@ -190,6 +187,7 @@
         {% else %}
         <a href="{{ main_url }}/">Geaspec トップ</a>
         <a href="{{ main_url }}/ai">Geaspec AI</a>
+        <a href="{{ main_url }}/gamedev">ゲーム開発</a>
         <a href="{{ vr_home }}">Geaspec VR（PC版VRChat）</a>
         <a href="/guide">VR のはじめ方</a>
         <a href="{{ main_url }}/about">名前の由来</a>
