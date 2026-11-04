@@ -1,12 +1,15 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.47"
+VERSION = "0.7.48"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 # 貸す人の Windows アプリ (サイトと同じ版のもの)
 AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.48": [
+        "Geaspec VR のグリッドの床を、文字の後ろには出さず、入口の下のほう（接続の図のまわり）だけにしました",
+    ],
     "0.7.47": [
         "Geaspec VR を別のサイト（vr.geaspec.com）に分けました。空き枠・予約一覧・貸し出しは VR のサイトの中だけにあります。前の住所（geaspec.com/vrchat など）を開いても、自動で VR のサイトに移ります。ログインは共通です",
         "サイトごとに色を分けました。Geaspec 本体は緑、Geaspec AI は赤、Geaspec VR は青、ゲーム開発は紫です",

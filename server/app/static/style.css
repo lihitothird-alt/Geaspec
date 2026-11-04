@@ -1396,7 +1396,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
   --focus: #2a74ad;
   --vr-sky: #dcebfa;
   --vr-haze: #ebe4fb;
-  --vr-floor: rgba(70, 140, 205, .26);
+  --vr-floor: rgba(70, 140, 205, .22);
   background: var(--bg);
 }
 @media (prefers-color-scheme: dark) {
@@ -1435,18 +1435,18 @@ body.theme-vr {
     var(--bg);
   background-attachment: fixed;
 }
-body.theme-vr::before {
-  content: ""; position: fixed; left: -100%; right: -100%; bottom: 0; height: 160vh; z-index: -1; pointer-events: none;
+/* 床は入口の下のほう (接続の図のまわり) だけに敷く。文字の後ろには線を通さない */
+.theme-vr .hero { background: transparent; padding-bottom: clamp(56px, 7vw, 96px); }
+.theme-vr .hero::before {
+  display: block; inset: auto -60% 0 -60%; height: 1100px;
   background-image:
     linear-gradient(var(--vr-floor) 1px, transparent 1px),
     linear-gradient(90deg, var(--vr-floor) 1px, transparent 1px);
-  background-size: 72px 72px; background-position: center bottom;
-  transform: perspective(900px) rotateX(55deg); transform-origin: 50% 100%;
-  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 25%, transparent 80%);
-          mask-image: linear-gradient(to top, #000 0%, #000 25%, transparent 80%);
+  background-size: 64px 64px; background-position: center bottom;
+  transform: perspective(600px) rotateX(60deg); transform-origin: 50% 100%;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 20%, transparent 55%);
+          mask-image: linear-gradient(to top, #000 0%, #000 20%, transparent 55%);
 }
-.theme-vr .hero { background: transparent; padding-bottom: clamp(56px, 7vw, 96px); }
-.theme-vr .hero::before { display: none; }
 .theme-vr .hud { background: color-mix(in srgb, var(--surface) 88%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .theme-vr .node.quest .node-ic, .theme-vr .node.pc .node-ic { background: var(--mint-soft); color: var(--mint-ink); }
 @media (prefers-reduced-transparency: reduce) {
