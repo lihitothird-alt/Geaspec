@@ -1820,3 +1820,8 @@ body.theme-ai::before, body.theme-gamedev::before { display: none; }
 .nav-link.logout { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: var(--mint-ink); box-shadow: inset 0 0 0 1.5px var(--primary); }
 .nav-link.logout:hover { background: var(--mint-soft); color: var(--mint-ink); }
 .nav-link.logout .i { width: 16px; height: 16px; }
+
+/* 点は出さず、点線そのものをゆっくり流して、行き来していることだけを伝える */
+.jm-wire { animation: jm-flow 1.2s linear infinite; }
+@keyframes jm-flow { to { stroke-dashoffset: -11; } }
+@media (prefers-reduced-motion: reduce) { .jm-wire { animation: none; } }
