@@ -1,12 +1,19 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.44"
+VERSION = "0.7.45"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 # 貸す人の Windows アプリ (サイトと同じ版のもの)
 AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.45": [
+        "トップページを、GPU を個人どうしで貸し借りするサービスの案内にしました。何台もの GPU を集めて AI やレンダリングを同時に回す、複数台の貸し出しを準備中です",
+        "「GPU をさがす」のページを足しました。貸し出されている GPU を VRAM の大きい順に並べ、8GB 以上・12GB 以上などでしぼれます",
+        "カタカナの「ギアスペック」で検索しても見つかるように、サイトの名前に読み方を添えました",
+        "これまでのトップページは「Geaspec VR」（PC版VRChat）のページとして、そのまま残しています（上のメニューの「Geaspec VR」から開けます）",
+        "Geaspec VR のページと、予約まわりのページ（空き枠・予約一覧）は淡い青にしました。入口のページは中央寄せにし、使い方を道のりの形にしました",
+    ],
     "0.7.44": [
         "予約一覧は、これからの予約だけを上に出すようにしました。終わった予約は「終わった予約」にたたみ、支払わずに期限が切れた予約は出しません",
     ],

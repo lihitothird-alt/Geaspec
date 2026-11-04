@@ -1,31 +1,37 @@
 {% extends "base.html" %}
+{% block title %}{{ settings.service_name }}（ギアスペック） | GPU を集めて、あなただけの AI 組織を{% endblock %}
+{% block description %}Geaspec（ギアスペック）は、ゲーミングPCの GPU を個人どうしで時間単位で貸し借りするサービスです。何台もの GPU を集めて、AI やレンダリングに必要な VRAM を増強できます（準備中）。いまは Geaspec VR（PC版VRChat）で使えます。{% endblock %}
+{% from "_gpu.html" import gpu_card %}
 {% block content %}
 <section class="hero" aria-labelledby="hero-title">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <h1 id="hero-title"><span class="ln">ゲーミングPCが</span><span class="ln">なくても、</span><br><span class="ln"><mark class="hl">PC版VRChat</mark>を。</span></h1>
-      <p class="lead">Quest ひとつで、だれかのゲーミングPCに<span class="nowrap">インターネット越しに接続。</span><span class="nowrap">遊びたい時間だけ。</span></p>
+      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>ネット越しの外付け GPU</p>
+      <h1 id="hero-title"><span class="ln">GPU を集めて、</span><br><span class="ln">あなただけの</span><span class="ln"><mark class="hl">AI 組織</mark>を。</span></h1>
+      <p class="lead">何台もの GPU をひとつの組織のように動かして、AI やレンダリングを同時に回す。足りない VRAM は、台数で <strong>VRAM増強</strong>。Geaspec は、ゲーミングPCの GPU を<span class="nowrap">個人どうしで貸し借りする</span>サービスです。</p>
       <div class="cta-row">
-        <a class="btn lg" href="/slots">空き枠を見る{% if slot_count %}（{{ slot_count }} 件）{% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-        {% if not free_mode and min_price %}<p class="price-tag">1枠 <span class="num">{{ min_price|yen }}</span>〜</p>{% endif %}
+        <a class="btn lg" href="/gpus">GPU をさがす<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <a class="btn lg ghost" href="/guide?for=lend">GPU を貸す</a>
       </div>
-      <ul class="trust" aria-label="安心の理由">
-        <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-user"/></svg></span>自分の VRChat アカウントで</li>
-        <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-trash"/></svg></span>終わったらデータを自動で削除</li>
-      </ul>
     </div>
 
     <div class="hero-visual">
       <figure class="hud">
-        <div class="hud-link" role="img" aria-label="あなたの VR ヘッドセットから、インターネット越しにゲーミングPCに接続するイメージ">
-          <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>あなたの<br>ヘッドセット</div>
-          <div class="wire"><span class="tag"><svg class="i"><use href="#i-globe"/></svg>ネット</span></div>
-          <div class="node pc"><span class="node-ic"><svg class="i"><use href="#i-pc"/></svg></span>ゲーミング<br>PC</div>
+        <figcaption class="pool-cap">複数台で使うイメージ</figcaption>
+        <div class="pool" role="img" aria-label="VRAM 8GB・8GB・12GB の GPU を3台集めて、合計 28GB として使うイメージ">
+          <div class="pool-gpu"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span><span class="num">8</span>GB</span></div>
+          <span class="pool-op" aria-hidden="true">+</span>
+          <div class="pool-gpu"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span><span class="num">8</span>GB</span></div>
+          <span class="pool-op" aria-hidden="true">+</span>
+          <div class="pool-gpu"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg><span><span class="num">12</span>GB</span></div>
         </div>
+        <p class="pool-sum" aria-hidden="true">VRAM <span class="num">28</span>GB</p>
+        {% if gpus %}
         <dl class="hud-specs">
-          <div><dt>接続アプリ</dt><dd>Virtual Desktop</dd></div>
-          <div><dt>遅延</dt><dd><span class="num">50〜60</span>ms <small>検証時</small></dd></div>
+          <div><dt>貸し出し中の GPU</dt><dd><span class="num">{{ gpus|length }}</span> 台</dd></div>
+          {% if total_vram %}<div><dt>VRAM の合計</dt><dd><span class="num">{{ total_vram }}</span>GB</dd></div>{% endif %}
         </dl>
+        {% endif %}
       </figure>
     </div>
   </div>
@@ -34,42 +40,66 @@
 <section class="section" aria-labelledby="how">
   <div class="wrap">
     <div class="section-head">
-      <h2 id="how">使い方</h2>
+      <h2 id="how">1台で足りないなら、何台でも</h2>
+      <p>AI やレンダリングでは、GPU の速さより VRAM の量が効きます。VRAM が足りないと、AI のモデルはそもそも動きません。大きな GPU を1台買う代わりに、必要な台数の GPU を集めて、ひとつの組織のように動かします。</p>
     </div>
     <ol class="steps three">
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg></div><h3>予約する</h3><p>空き枠を選ぶだけ。{% if free_mode %}実験中は無料です。{% endif %}</p></li>
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-play"/></svg></div><h3>つないで遊ぶ</h3><p>Virtual Desktop で PC につなぎ、<strong>自分の</strong> VRChat アカウントでログイン。</p></li>
-      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg></div><h3>自動で終了</h3><p>時間になると終わり、ログイン情報は自動で消えます。</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></div><h3>VRAM でえらぶ</h3><p>GPU ごとの VRAM を見て、必要な量になるまで選びます。</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-pc"/></svg></div><h3>何台もまとめて借りる</h3><p>同じ時間に、何台もの GPU をまとめて予約します。</p></li>
+      <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg></div><h3>終われば元どおり</h3><p>時間になると自動で終了。データは消え、貸した PC も元に戻ります。</p></li>
     </ol>
+    <p class="muted small uses-note">複数台の貸し出しは準備中です。使いたい方は、<a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a> に「やりたいこと」と「ほしい VRAM の量」を送ってください。始めるときにお知らせします。</p>
   </div>
 </section>
 
-<section class="section flush-top" aria-labelledby="need">
+<section class="section flush-top" aria-labelledby="uses">
   <div class="wrap">
     <div class="section-head">
-      <h2 id="need">必要なもの</h2>
+      <h2 id="uses">用途</h2>
     </div>
-    <ul class="need">
-      <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>Meta Quest</strong><span>2 / 3 / 3S / Pro</span></li>
-      <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>Virtual Desktop</strong><span>Meta のストアで購入</span></li>
-      <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><strong>VRChat アカウント</strong><span>ご自身のもの</span></li>
+    <ul class="uses">
+      <li class="use-card">
+        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-sparkle"/></svg></span><span class="badge completed">準備中</span></div>
+        <h3>AI・画像生成</h3>
+        <p>AI エージェントや学習のお試しを、何台もの GPU で同時に回して、改善のくり返しを速く。</p>
+      </li>
+      <li class="use-card">
+        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span><span class="badge completed">準備中</span></div>
+        <h3>3D レンダリング</h3>
+        <p>フレームを何台もの GPU で分けて描いて、待ち時間を短く。</p>
+      </li>
+      <li class="use-card ready">
+        <div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-quest"/></svg></span><span class="badge confirmed">使えます</span></div>
+        <h3>Geaspec VR</h3>
+        <p>VR は、速い GPU を1台まるごと借ります。Quest ひとつで PC版VRChat。</p>
+        <a class="use-link" href="/vrchat">Geaspec VR へ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </li>
     </ul>
   </div>
 </section>
 
-<section class="section flush-top" aria-labelledby="faq">
-  <div class="wrap faq-layout">
-    <div class="section-head">
-      <h2 id="faq">よくある質問</h2>
+{% if gpus %}
+<section class="section flush-top" aria-labelledby="gpus">
+  <div class="wrap">
+    <div class="section-head split">
+      <h2 id="gpus">貸し出されている GPU</h2>
+      <a class="use-link" href="/gpus">すべての GPU を見る<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
     </div>
-    <div class="faq">
-      <details><summary>遅延はどのくらいですか？</summary><div class="answer"><p>検証では 50〜60ms 程度でした。光回線と 5GHz 帯以上の Wi-Fi をおすすめします。</p></div></details>
-      <details><summary>データ通信量はどのくらいですか？</summary><div class="answer"><p>画質によって 1 時間あたり数十 GB になることがあります。通信量に上限のある回線ではご注意ください。</p></div></details>
-      {% if free_mode %}
-      <details><summary>お金はかかりますか？</summary><div class="answer"><p>いいえ。いまは実験中なので、すべて無料です。</p></div></details>
-      {% else %}
-      <details><summary>支払い方法は？</summary><div class="answer"><p>クレジットカードと PayPal に対応しています。</p></div></details>
-      {% endif %}
+    <ul class="gpu-list">
+      {% for g in gpus[:3] %}{{ gpu_card(g, now) }}{% endfor %}
+    </ul>
+  </div>
+</section>
+{% endif %}
+
+<section class="section flush-top" aria-labelledby="lend">
+  <div class="wrap">
+    <div class="lend-band">
+      <div>
+        <h2 id="lend">使っていない GPU を貸す</h2>
+        <p>ゲーミングPCの空いている時間を貸し出せます。貸し出し中はキーボードとマウスを止め、終わったら自動で片づけます。</p>
+      </div>
+      <a class="btn ghost" href="/guide?for=lend">貸す人の手順</a>
     </div>
   </div>
 </section>

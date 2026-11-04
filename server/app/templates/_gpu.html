@@ -1,0 +1,17 @@
+{# GPU の一覧のカード。トップと「GPU をさがす」で使う #}
+{% macro gpu_card(g, now) -%}
+<li class="gpu-card">
+  <div class="gpu-vram" aria-label="VRAM {{ g.vram ~ 'GB' if g.vram else '未確認' }}">
+    {% if g.vram %}<span class="num">{{ g.vram }}</span><span class="unit">GB</span>{% else %}<span class="unknown">?</span>{% endif %}
+    <span class="lbl">VRAM</span>
+  </div>
+  <div class="gpu-body">
+    <h3>{{ g.gpu or "GPU 未確認" }}</h3>
+    {% set sp = g.host.spec %}
+    <p class="gpu-sub">{% if g.lender %}<a href="/lenders/{{ g.lender.id }}">{{ g.lender.display_name }} さん</a>の PC{% else %}{{ g.host.name }}{% endif %}{% if sp.get("cpu") %}・{{ sp["cpu"] }}{% endif %}{% if sp.get("ram_gb") %}・メモリ {{ sp["ram_gb"] }}GB{% endif %}</p>
+    <p class="gpu-uses"><span class="chip vram">VR</span></p>
+    <p class="gpu-next">{% if g.next %}{% if g.next.start_at <= now %}いま空いています{% else %}次の空き {{ g.next.start_at|jst("%m/%d %H:%M") }}〜{% endif %}（{{ g.open_count }} 枠）{% else %}いまは空きがありません{% endif %}</p>
+  </div>
+  {% if g.next %}<a class="btn small" href="/slots?host={{ g.host.id }}" aria-label="{{ g.gpu or g.host.name }} の空き枠を見る">空き枠を見る</a>{% endif %}
+</li>
+{%- endmacro %}

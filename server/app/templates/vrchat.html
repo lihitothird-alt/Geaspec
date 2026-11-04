@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Geaspec VR | PC版VRChat を Quest ひとつで{% endblock %}
+{% block content %}
+<section class="hero vr-hero" aria-labelledby="hero-title">
+  <div class="wrap vr-hero-copy">
+    <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Geaspec VR</p>
+    <h1 id="hero-title"><span class="ln">ゲーミングPCが</span><span class="ln">なくても、</span><br><span class="ln"><mark class="hl">PC版VRChat</mark>を。</span></h1>
+    <p class="lead">Quest ひとつで、だれかのゲーミングPCに<span class="nowrap">インターネット越しに接続。</span><span class="nowrap">遊びたい時間だけ。</span></p>
+    <div class="cta-row">
+      <a class="btn lg" href="/slots">空き枠を見る{% if slot_count %}（{{ slot_count }} 件）{% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      {% if not free_mode and min_price %}<p class="price-tag">1枠 <span class="num">{{ min_price|yen }}</span>〜</p>{% endif %}
+    </div>
+    <ul class="trust" aria-label="安心の理由">
+      <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-user"/></svg></span>自分の VRChat アカウントで</li>
+      <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-trash"/></svg></span>終わったらデータを自動で削除</li>
+    </ul>
+  </div>
+
+  <div class="wrap">
+    <figure class="hud vr-link">
+      <div class="hud-link" role="img" aria-label="あなたの VR ヘッドセットから、インターネット越しにゲーミングPCに接続するイメージ">
+        <div class="node quest"><span class="node-ic"><svg class="i"><use href="#i-quest"/></svg></span>あなたの<br>ヘッドセット</div>
+        <div class="wire"><span class="tag"><svg class="i"><use href="#i-globe"/></svg>ネット</span></div>
+        <div class="node pc"><span class="node-ic"><svg class="i"><use href="#i-pc"/></svg></span>ゲーミング<br>PC</div>
+      </div>
+      <dl class="hud-specs">
+        <div><dt>接続アプリ</dt><dd>Virtual Desktop</dd></div>
+        <div><dt>遅延</dt><dd><span class="num">50〜60</span>ms <small>検証時</small></dd></div>
+      </dl>
+    </figure>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="how">
+  <div class="wrap">
+    <div class="section-head vr-center">
+      <h2 id="how">使い方</h2>
+    </div>
+    <ol class="vr-route">
+      <li><span class="vr-route-num" aria-hidden="true"><svg class="i"><use href="#i-calendar"/></svg></span><h3>予約する</h3><p>空き枠を選ぶだけ。{% if free_mode %}実験中は無料です。{% endif %}</p></li>
+      <li><span class="vr-route-num" aria-hidden="true"><svg class="i"><use href="#i-play"/></svg></span><h3>つないで遊ぶ</h3><p>Virtual Desktop で PC につなぎ、<strong>自分の</strong> VRChat アカウントでログイン。</p></li>
+      <li><span class="vr-route-num" aria-hidden="true"><svg class="i"><use href="#i-power"/></svg></span><h3>自動で終了</h3><p>時間になると終わり、ログイン情報は自動で消えます。</p></li>
+    </ol>
+  </div>
+</section>
+
+<section class="section flush-top" aria-labelledby="need">
+  <div class="wrap">
+    <div class="vr-need">
+      <h2 id="need">必要なもの</h2>
+      <ul>
+        <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><span><strong>Meta Quest</strong><small>2 / 3 / 3S / Pro</small></span></li>
+        <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><span><strong>Virtual Desktop</strong><small>Meta のストアで購入</small></span></li>
+        <li><span class="box" aria-hidden="true"><svg class="i"><use href="#i-check"/></svg></span><span><strong>VRChat アカウント</strong><small>ご自身のもの</small></span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="section flush-top" aria-labelledby="faq">
+  <div class="wrap vr-faq">
+    <div class="section-head vr-center">
+      <h2 id="faq">よくある質問</h2>
+    </div>
+    <div class="faq">
+      <details><summary>遅延はどのくらいですか？</summary><div class="answer"><p>検証では 50〜60ms 程度でした。光回線と 5GHz 帯以上の Wi-Fi をおすすめします。</p></div></details>
+      <details><summary>データ通信量はどのくらいですか？</summary><div class="answer"><p>画質によって 1 時間あたり数十 GB になることがあります。通信量に上限のある回線ではご注意ください。</p></div></details>
+      {% if free_mode %}
+      <details><summary>お金はかかりますか？</summary><div class="answer"><p>いいえ。いまは実験中なので、すべて無料です。</p></div></details>
+      {% else %}
+      <details><summary>支払い方法は？</summary><div class="answer"><p>クレジットカードと PayPal に対応しています。</p></div></details>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -63,6 +63,21 @@ class Host(Base):
     slots: Mapped[list["Slot"]] = relationship(back_populates="host")
 
     @property
+    def spec(self) -> dict:
+        """アプリが調べた性能 (gpu・vram_gb・cpu・ram_gb)。読めなければ空。"""
+        try:
+            s = json.loads(self.specs or "{}")
+        except ValueError:
+            return {}
+        return s if isinstance(s, dict) else {}
+
+    @property
+    def vram_gb(self) -> int | None:
+        """GPU 専用メモリ (VRAM) の GB。アプリが調べられなかった PC は None。"""
+        v = self.spec.get("vram_gb")
+        return v if isinstance(v, int) and v > 0 else None
+
+    @property
     def spec_text(self) -> str:
         """「RTX 4070（12GB）・Ryzen 7 7700・メモリ 32GB」のような 1 行。"""
         try:

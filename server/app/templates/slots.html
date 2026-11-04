@@ -29,6 +29,10 @@
     <div class="notice warn"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg><p>予約の前に <a href="/account">Meta (Quest) のユーザー名</a> を登録してください。接続をあなたの Quest だけに許可するために使います。</p></div>
   {% endif %}
 
+  {% if only_host %}
+    <div class="notice"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg><p>{{ only_host.spec.get("gpu") or only_host.name }} の空き枠だけを表示しています。<a href="/slots">すべての空き枠を見る</a></p></div>
+  {% endif %}
+
   {% if not slots %}
     <div class="empty">
       <svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg>

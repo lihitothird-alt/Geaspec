@@ -136,9 +136,20 @@ def db(app):
 
 def test_landing_page_renders(tmp_path, now):
     app, _ = make_app(tmp_path)
-    r = TestClient(app).get("/")
+    c = TestClient(app)
+    r = c.get("/")
     assert r.status_code == 200
-    assert "PC版VRChat" in r.text
+    # トップは GPU の貸し借り (VRAM 増強)。VR はその中の専用ページ
+    assert "VRAM増強" in r.text and 'href="/gpus"' in r.text and "Geaspec VR へ" in r.text and "複数台の貸し出しは準備中" in r.text and "AI 組織" in r.text
+    # カタカナの読みでも見つかるように (タイトル・説明・検索エンジン向けのサイト名)
+    assert "<title>Geaspec（ギアスペック）" in r.text and '"alternateName": ["ギアスペック"]' in r.text
+    # もとのトップページは /vrchat にそのまま残っている
+    v = c.get("/vrchat")
+    assert v.status_code == 200
+    # Geaspec VR のページは淡い青 (ロゴも Geaspec VR)。トップはミントのまま
+    assert 'class=" theme-vr"' in v.text and '<span class="logo-sub">VR</span>' in v.text
+    assert "theme-vr" not in r.text and "theme-vr" in c.get("/slots").text
+    assert "PC版VRChat</mark>を。" in v.text and "<title>Geaspec VR | PC版VRChat" in v.text and 'href="/slots"' in v.text and "必要なもの" in v.text
 
 
 def test_slot_creation_converts_jst_to_utc(setup):
@@ -662,7 +673,7 @@ def test_site_login_rejects_open_redirect(tmp_path, now, monkeypatch):
 def test_only_public_pages_are_indexed(tmp_path, now):
     app, _ = make_app(tmp_path)
     c = TestClient(app)
-    for path in ("/", "/en", "/about", "/guide"):
+    for path in ("/", "/gpus", "/vrchat", "/en", "/about", "/guide"):
         r = c.get(path)
         assert "x-robots-tag" not in r.headers, path
         assert 'name="robots"' not in r.text and f'rel="canonical" href="http://localhost:8000{path}"' in r.text, path
@@ -1355,6 +1366,13 @@ def test_lender_pc_specs_are_shown_to_borrowers(tmp_path, now):
     signup(user, "user@example.com")
     line = "NVIDIA GeForce RTX 4070（12GB）・AMD Ryzen 7 7700 8-Core・メモリ 32GB"
     assert line in user.get("/slots").text
+    # トップには、貸し出されている GPU の VRAM の合計を出す (複数台で使うときの目安)
+    assert '<dt>VRAM の合計</dt><dd><span class="num">12</span>GB' in user.get("/").text
+    # GPU をさがす: VRAM でしぼれて、その PC の空き枠だけに飛べる
+    gpus = user.get("/gpus").text
+    assert "NVIDIA GeForce RTX 4070" in gpus and 'href="/slots?host=1"' in gpus and "（1 枠）" in gpus
+    assert "RTX 4070" in user.get("/gpus?vram=12").text and "RTX 4070" not in user.get("/gpus?vram=16").text
+    assert "の空き枠だけを表示しています" in user.get("/slots?host=1").text
     assert agent.post("/api/agent/specs", json={"gpu": "x" * 500, "ram_gb": -1}).json() == {"ok": True}
     assert "x" * 100 in user.get("/slots").text and "x" * 101 not in user.get("/slots").text
 
