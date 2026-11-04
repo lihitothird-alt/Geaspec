@@ -56,10 +56,10 @@ SITE_GATE_OPEN_PREFIXES = (
 # Geaspec VR の住所で見せるページ (本体の住所で開いたら VR の住所へ送る)
 VR_PREFIXES = ("/slots", "/bookings", "/lend", "/following", "/lenders", "/feedback", "/guide")
 # 本体の住所だけで見せるページ (VR の住所で開いたら本体へ送る)
-MAIN_ONLY_PATHS = ("/ai", "/about")
-MAIN_ONLY_PREFIXES = ("/admin", "/ai/")
+MAIN_ONLY_PATHS = ("/ai", "/gamedev", "/about")
+MAIN_ONLY_PREFIXES = ("/admin", "/ai/", "/gamedev/")
 # 検索エンジンに載せるページ (だれでも見られる案内だけ。アカウントや予約、管理のページは載せない)
-INDEXABLE_PATHS = ("/", "/ai", "/vrchat", "/en", "/en/vr", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
+INDEXABLE_PATHS = ("/", "/ai", "/gamedev", "/vrchat", "/en", "/en/vr", "/guide", "/about", "/slots", "/legal/terms", "/legal/privacy", "/legal/platforms")
 LEGAL_PAGES = {"tokushoho": "特定商取引法に基づく表記", "terms": "利用規約", "privacy": "プライバシーポリシー",
                "platforms": "VRChat・Steam などの規約について"}
 
@@ -195,12 +195,14 @@ def create_app(
     templates.env.globals["indexable"] = indexable
 
     def site_area(request: Request) -> str:
-        """どのサイトのページか: "vr" (青)・"ai" (赤)・"main" (緑、Geaspec 本体)。"""
+        """どのサイトのページか: "vr" (青)・"ai" (赤)・"gamedev" (紫)・"main" (緑、Geaspec 本体)。"""
         path = request.url.path
         if (vr_host and request.url.hostname == vr_host) or path in ("/vrchat", "/en/vr") or path.startswith(VR_PREFIXES):
             return "vr"
         if path == "/ai" or path.startswith("/ai/"):
             return "ai"
+        if path == "/gamedev" or path.startswith("/gamedev/"):
+            return "gamedev"
         return "main"
 
     def page_url(request: Request) -> str:
@@ -344,8 +346,8 @@ def create_app(
     def hosts_moved():
         return RedirectResponse("/ai", status_code=301)
 
-    # 準備中のサービス (Geaspec AI)。「頼む」「依頼一覧」「貸し出し」のページを持つ
-    SERVICES = {"ai": "Geaspec AI"}
+    # 準備中のサービス (Geaspec AI・ゲーム開発)。それぞれ「頼む」「依頼一覧」「貸し出し」のページを持つ
+    SERVICES = {"ai": "Geaspec AI", "gamedev": "Geaspec Studio"}
     WAITLIST_ROLES = {"guest": "頼みたい", "host": "パソコンを貸したい"}
 
     @app.get("/ai", response_class=HTMLResponse)
@@ -353,10 +355,10 @@ def create_app(
         """Geaspec AI: AI の仕事を、何台ものパソコンに分けて頼む (準備中)。"""
         return render(request, db, "ai.html", tiers=VRAM_TIERS, service="ai")
 
-    @app.get("/gamedev")
-    def gamedev_closed():
-        """ゲーム開発はやめた (AI と VR に絞る)。前のリンクはトップへ。"""
-        return RedirectResponse("/", status_code=301)
+    @app.get("/gamedev", response_class=HTMLResponse)
+    def gamedev_page(request: Request, db: Session = Depends(get_db)):
+        """Geaspec Studio: ゲーム作りの作業を、役割を分けた AI のチームに頼む (準備中)。"""
+        return render(request, db, "gamedev.html", service="gamedev")
 
     def service_page(service: str, page: str):
         """依頼一覧 (requests) と貸し出し (host) のページ。どちらも準備中で、始まったら知らせる登録だけ。"""

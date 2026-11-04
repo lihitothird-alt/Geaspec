@@ -15,7 +15,7 @@ from pathlib import Path
 log = logging.getLogger("geaspec.tray")
 
 # 状態の色 (画面の色と同じ)
-TONE_COLORS = {"ok": "#2fae8a", "busy": "#1d7a62", "warn": "#d9a520", "bad": "#d0464f"}
+TONE_COLORS = {"ok": "#2fae8a", "busy": "#1f6aa3", "warn": "#d9a520", "bad": "#d0464f"}
 # アプリのアイコン (Geaspec のロゴ)。インストール先ではアプリと同じフォルダに入る
 ICON_PATH = Path(__file__).with_name("geaspec.ico")
 

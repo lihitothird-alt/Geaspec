@@ -1,12 +1,16 @@
 {% extends "base.html" %}
-{% block title %}{{ settings.service_name }}（ギアスペック） | 頼むだけで、何台ものパソコンが動き出す{% endblock %}
-{% block description %}頼むだけで、何台ものパソコンが動き出す。Geaspec は、だれかのパソコンの力を借りられるサービスです。AI の仕事（準備中）と、PC版VRChat から選べます。{% endblock %}
+{% block title %}{{ settings.service_name }}（ギアスペック） | みんなで使う、みんなのパソコン{% endblock %}
+{% block description %}みんなで使う、みんなのパソコン。使っていない時間のパソコンを、必要な人と分け合う。AI やゲーム開発の仕事を頼んだり（準備中）、Quest からつないで PC版VRChat を遊んだりできます。{% endblock %}
 {% block content %}
 <section class="hero hub" aria-labelledby="hero-title">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <h1 id="hero-title"><span class="ln">頼むだけで、</span><br><span class="ln">何台ものパソコンが</span><span class="ln"><mark class="hl">動き出す</mark>。</span></h1>
-      <p class="lead">Geaspec は、だれかのパソコンの力を借りられるサービスです。<span class="nowrap">使いたいものを選んでください。</span></p>
+      <h1 id="hero-title"><span class="ln">みんなで使う、</span><br><span class="ln"><mark class="hl">みんなのパソコン</mark>。</span></h1>
+      <p class="lead"><strong class="lead-key">使っていない時間のパソコンを、必要な人と分け合う。</strong>AI の仕事を頼んだり、Quest からつないで PC版VRChat を遊んだりできます。</p>
+      <div class="cta-row role-row">
+        <a class="btn lg" href="#services">パソコンを使いたい<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <a class="btn lg ghost" href="#lend">パソコンを貸したい</a>
+      </div>
     </div>
     <div class="hero-visual">
       <figure class="hud hflow">
@@ -53,6 +57,12 @@
         <p>AI の仕事を、何台ものパソコンで手分け。録音のまとめ、文章の分類、画像づくりなど。</p>
         <span class="svc-go">Geaspec AI へ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></span>
       </a>
+      <a class="svc svc-gamedev" href="/gamedev">
+        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span><span class="badge completed">準備中</span></div>
+        <h3>Geaspec Studio</h3>
+        <p>ゲーム作りの作業を、AI のチームに。仕組みの設計、オブジェクトの生成、色の設定、軽量化など。</p>
+        <span class="svc-go">Geaspec Studio へ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></span>
+      </a>
       <a class="svc svc-vr" href="{{ vr_home }}">
         <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-quest"/></svg></span><span class="badge confirmed">使えます</span></div>
         <h3>Geaspec VR</h3>
@@ -60,7 +70,17 @@
         <span class="svc-go">Geaspec VR へ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></span>
       </a>
     </div>
-    <p class="muted small uses-note">パソコンを持っている人は、それぞれのサイトの「貸し出し」から、貸す側にもなれます。</p>
+    <div class="lend-band lend-roles" id="lend">
+      <div>
+        <h2>パソコンを貸したい人へ</h2>
+        <p>使っていない時間のパソコンを、必要な人と分け合えます。受ける時間や条件は、あなたが決めます。</p>
+      </div>
+      <div class="btn-row">
+        <a class="btn ghost" href="/guide?for=lend">Geaspec VR で貸す</a>
+        <a class="btn ghost" href="/ai/host">Geaspec AI で貸す（準備中）</a>
+        <a class="btn ghost" href="/gamedev/host">Geaspec Studio で貸す（準備中）</a>
+      </div>
+    </div>
   </div>
 </section>
 {% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_waitlist.html" import waitlist_form %}
+{% block title %}Geaspec Studio | ゲーム作りの作業を、AI のチームに{% endblock %}
+{% block description %}ゲームの仕組みの設計、オブジェクトの生成、色の設定、軽量化を、役割を分けた AI のチームに頼めます（準備中）。{% endblock %}
+{% block content %}
+<div class="wrap">
+  <header class="page-head big">
+    <p class="eyebrow"><span class="dot" aria-hidden="true"></span>準備中</p>
+    <h1>ゲーム作りの作業を、<br>AI のチームに。</h1>
+    <p class="muted">作る役、テストする役、確かめる役。何台ものパソコンで動く AI のチームが、くり返し直しながら仕上げます。</p>
+  </header>
+</div>
+
+<section class="wrap section tight" aria-labelledby="jobs">
+  <h2 id="jobs" class="sub-head">頼める作業</h2>
+  <ul class="uses four">
+    <li class="use-card ready"><div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-gear"/></svg></span></div><h3>ゲームの仕組み</h3><p>ゲームを動かす仕組みの設計と実装。</p></li>
+    <li class="use-card ready"><div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-pc"/></svg></span></div><h3>オブジェクトの生成</h3><p>ゲームに置く 3D の物体を作ります。</p></li>
+    <li class="use-card ready"><div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span></div><h3>色（RGB）の設定</h3><p>色や光の調整。</p></li>
+    <li class="use-card ready"><div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-power"/></svg></span></div><h3>軽量化</h3><p>重いゲームを軽く動かすための仕組みづくり。</p></li>
+  </ul>
+</section>
+
+<section class="wrap section flush-top" aria-labelledby="flow">
+  <h2 id="flow" class="sub-head">使い方</h2>
+  <ol class="steps three">
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></div><h3>作業を選ぶ</h3><p>頼みたい作業と、ほしい形を選びます。</p></li>
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-mail"/></svg></div><h3>一部を渡す</h3><p>プロジェクトから、頼みたい部分だけを切り出して渡します。公開前の秘密の部分は渡さないでください。</p></li>
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></div><h3>受け取って、直してもらう</h3><p>できたものを受け取り、直してほしいところを返します。</p></li>
+  </ol>
+</section>
+
+<section class="wrap section flush-top" aria-label="登録">
+  {{ waitlist_form("gamedev", "guest", user, "/gamedev", "作っているゲームと、頼みたいこと", "例：Unity で作っている VR ゲームの軽量化") }}
+</section>
+{% endblock %}

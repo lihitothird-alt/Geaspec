@@ -57,7 +57,7 @@ else:  # テスト・dry-run 用に Windows 以外でも import できるよう�
     winreg = None  # type: ignore[assignment]
 
 AGENT_NAME = "GeaspecAgent"
-AGENT_VERSION = "0.7.48"
+AGENT_VERSION = "0.7.49"
 log = logging.getLogger(AGENT_NAME)
 
 # ---------------------------------------------------------------------------

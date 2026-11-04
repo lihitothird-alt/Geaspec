@@ -507,19 +507,19 @@ class AgentController:
 # 画面 (tkinter は Windows 版 Python に標準で入っている)
 # ---------------------------------------------------------------------------
 
-# サイトと同じ色: 落ち着いた灰色の面に、ミントをひとつだけ使う (文字のミントは読めるよう濃いめ)
+# Geaspec VR のサイトと同じ色: 落ち着いた灰色の面に、淡い青をひとつだけ使う (文字の青は読めるよう濃いめ)
 COLORS = {
-    "bg": "#f3f5f5",
+    "bg": "#f1f5f9",
     "card": "#ffffff",
     "ink": "#2f3537",
     "muted": "#687073",
-    "line": "#e0e4e4",
-    "primary": "#1d7a62",
-    "mint": "#7fd9bf",
-    "on_mint": "#103a2e",
-    "hover": "#eceff0",
+    "line": "#dbe5ed",
+    "primary": "#1f6aa3",
+    "mint": "#9ccdf2",
+    "on_mint": "#0e3352",
+    "hover": "#e6edf3",
     "ok": "#2fae8a",
-    "busy": "#1d7a62",
+    "busy": "#1f6aa3",
     "warn": "#d9a520",
     "bad": "#d0464f",
     "warn_bg": "#fff3c2",
@@ -600,8 +600,8 @@ def virtual_screen(root) -> tuple[int, int, int, int]:
 
 
 COVER = {
-    "bg": "#1c2021", "text": "#e6ecec", "muted": "#8f989a", "accent": "#8fdfc7",
-    "primary": "#7fd9bf", "track": "#30373a", "yellow": "#f3d27a", "mint": "#7fd9bf", "logo": "#e6ecec",
+    "bg": "#1a2127", "text": "#e6ecec", "muted": "#8f989a", "accent": "#a8d5f5",
+    "primary": "#9ccdf2", "track": "#2c363e", "yellow": "#f3d27a", "mint": "#9ccdf2", "logo": "#e6ecec",
     "foot": "#c3cacb",
 }
 ENDING_SOON_SECONDS = 5 * 60
@@ -823,8 +823,8 @@ class AgentWindow:
             style.configure(name, font=(family, size, "bold"), padding=pad, background=COLORS["mint"],
                             foreground=COLORS["on_mint"], bordercolor=COLORS["mint"], lightcolor=COLORS["mint"],
                             darkcolor=COLORS["mint"])
-            style.map(name, background=[("disabled", COLORS["line"]), ("active", "#6acdb0")],
-                      bordercolor=[("active", "#6acdb0")], foreground=[("disabled", COLORS["muted"])])
+            style.map(name, background=[("disabled", COLORS["line"]), ("active", "#86c0ec")],
+                      bordercolor=[("active", "#86c0ec")], foreground=[("disabled", COLORS["muted"])])
         # 文字だけのボタン (補助の操作)
         style.configure("Link.TButton", font=self.font, padding=(6, 4), background=COLORS["bg"],
                         foreground=COLORS["primary"], bordercolor=COLORS["bg"], lightcolor=COLORS["bg"],
@@ -849,6 +849,9 @@ class AgentWindow:
         header = tk.Frame(root, bg=COLORS["bg"])
         header.pack(fill="x", padx=18, pady=(14, 6))
         tk.Label(header, text="Geaspec", font=self.font_brand, fg=COLORS["ink"], bg=COLORS["bg"]).pack(side="left")
+        # Geaspec VR の貸し手のアプリだとわかるように、サイトと同じ「VR」の印を付ける
+        tk.Label(header, text=" VR ", font=(family, 8, "bold"), fg=COLORS["on_mint"], bg=COLORS["mint"]).pack(
+            side="left", padx=(6, 0))
 
         # ここに「はじめての設定」か「ホーム（時刻・次の貸し出し・準備のチェック）」のどちらかを入れる
         self.content = tk.Frame(root, bg=COLORS["bg"])

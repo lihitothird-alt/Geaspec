@@ -1,10 +1,10 @@
 {%- set en = page_lang == "en" -%}
 {%- set path = request.url.path -%}
-{#- どのサイトのページか。本体は緑、Geaspec AI は赤、Geaspec VR は青にして、別の場所に来たとわかるようにする -#}
+{#- どのサイトのページか。本体は緑、Geaspec AI は赤、Geaspec VR は青、ゲーム開発は紫にして、別の場所に来たとわかるようにする -#}
 {%- set area = site_area(request) -%}
 {%- set vr_area = area == "vr" -%}
-{%- set area_label = {"vr": "VR", "ai": "AI"}.get(area, "") -%}
-{%- set area_home = {"vr": vr_en_home if en else vr_home, "ai": main_url ~ "/ai"}.get(area, main_url ~ ("/en" if en else "/")) -%}
+{%- set area_label = {"vr": "VR", "ai": "AI", "gamedev": "Studio"}.get(area, "") -%}
+{%- set area_home = {"vr": vr_en_home if en else vr_home, "ai": main_url ~ "/ai", "gamedev": main_url ~ "/gamedev"}.get(area, main_url ~ ("/en" if en else "/")) -%}
 <!doctype html>
 <html lang="{{ 'en' if en else 'ja' }}">
 <head>
@@ -104,17 +104,14 @@
         {%- set site_nav = [("/slots", "Book" if en else "予約", "#i-calendar", true),
                             ("/bookings", "Bookings" if en else "予約一覧", "#i-list", user),
                             ("/lend", "Lend" if en else "貸し出し", "#i-pc", user)] -%}
-      {%- elif area == "ai" -%}
+      {%- elif area in ("ai", "gamedev") -%}
         {%- set base_path = main_url ~ "/" ~ area -%}
         {%- set site_nav = [(base_path, "頼む", "#i-mail", true),
                             (base_path ~ "/requests", "依頼一覧", "#i-list", true),
                             (base_path ~ "/host", "貸し出し", "#i-pc", true)] -%}
-      {%- elif en -%}
-        {%- set site_nav = [(main_url ~ "/en#services", "Services", "#i-list", true),
-                            (vr_en_home, "Geaspec VR", "#i-quest", true)] -%}
       {%- else -%}
-        {%- set site_nav = [(main_url ~ "/ai", "Geaspec AI", "#i-robot", true),
-                            (vr_home, "Geaspec VR", "#i-quest", true)] -%}
+        {#- 本体 (トップ) では、サービスへの入口はページの中のカードだけにする (上のメニューには並べない) -#}
+        {%- set site_nav = [] -%}
       {%- endif %}
 
       <nav class="nav-desktop" aria-label="メインメニュー">
@@ -178,26 +175,16 @@
   <footer class="site-footer">
     <div class="wrap footer-inner">
       <span class="footer-brand">{{ logo_mark() }}{{ settings.service_name }}{% if area_label %} {{ area_label }}{% endif %}{% if not en %}<span class="footer-kana">ギアスペック</span>{% endif %}</span>
-      <nav class="footer-links" aria-label="規約・表記">
-        {% if not simple %}<a href="/app">{{ "Use as a phone app" if en else "スマホのアプリとして使う" }}</a>{% endif %}
-        {% if en %}<a href="{{ vr_home if vr_area else main_url ~ '/' }}" hreflang="ja" lang="ja">日本語</a>{% else %}<a href="{{ vr_en_home if vr_area else main_url ~ '/en' }}" hreflang="en" lang="en">English</a>{% endif %}
+      <nav class="footer-cols" aria-label="サイトの案内">
         {% if en %}
-        <a href="/guide" hreflang="ja">Getting started (Japanese)</a>
-        <a href="/about" hreflang="ja">Where the name comes from (Japanese)</a>
-        <a href="/legal/terms" hreflang="ja">Terms (Japanese)</a>
-        <a href="/legal/privacy" hreflang="ja">Privacy (Japanese)</a>
-        <a href="/legal/platforms" hreflang="ja">VRChat and Steam terms (Japanese)</a>
+        <div><h3>Geaspec</h3><a href="{{ vr_home if vr_area else main_url ~ '/' }}" hreflang="ja" lang="ja">日本語</a><a href="{{ main_url }}/about" hreflang="ja">Where the name comes from</a></div>
+        <div><h3>Geaspec VR</h3><a href="/guide" hreflang="ja">Getting started (Japanese)</a></div>
+        <div><h3>Terms</h3><a href="/legal/terms" hreflang="ja">Terms</a><a href="/legal/privacy" hreflang="ja">Privacy</a><a href="/legal/platforms" hreflang="ja">VRChat and Steam terms</a></div>
         {% else %}
-        <a href="{{ main_url }}/">Geaspec トップ</a>
-        <a href="{{ main_url }}/ai">Geaspec AI</a>
-        <a href="{{ vr_home }}">Geaspec VR（PC版VRChat）</a>
-        <a href="/guide">VR のはじめ方</a>
-        <a href="{{ main_url }}/about">名前の由来</a>
-        <a href="/legal/terms">利用規約</a>
-        <a href="/legal/privacy">プライバシーポリシー</a>
-        <a href="/legal/platforms">VRChat・Steam の規約について</a>
+        <div><h3>Geaspec</h3><a href="{{ main_url }}/">トップ</a><a href="{{ main_url }}/about">名前の由来</a><a href="{{ vr_en_home if vr_area else main_url ~ '/en' }}" hreflang="en" lang="en">English</a>{% if not simple %}<a href="/app">スマホのアプリとして使う</a>{% endif %}</div>
+        <div><h3>サービス</h3><a href="{{ main_url }}/ai">Geaspec AI</a><a href="{{ main_url }}/gamedev">Geaspec Studio</a><a href="{{ vr_home }}">Geaspec VR</a><a href="/guide">VR のはじめ方</a></div>
+        <div><h3>規約</h3><a href="/legal/terms">利用規約</a><a href="/legal/privacy">プライバシーポリシー</a><a href="/legal/platforms">VRChat・Steam の規約について</a>{% if not free_mode %}<a href="/legal/tokushoho">特定商取引法に基づく表記</a>{% endif %}</div>
         {% endif %}
-        {% if not free_mode %}<a href="/legal/tokushoho">特定商取引法に基づく表記</a>{% endif %}
       </nav>
       <p class="muted">{% if en %}VRChat is a trademark of VRChat Inc. Geaspec is not affiliated with VRChat Inc. or Meta.{% else %}VRChat は VRChat Inc. の商標です。本サービスは VRChat Inc. および Meta とは関係ありません。{% endif %}</p>
     </div>
