@@ -1617,3 +1617,26 @@ a:hover { text-decoration-color: currentColor; }
 }
 .guide-toc a + a { border-top: 1px solid var(--line); }
 .guide-toc a:hover { background: var(--surface-2); border-left-color: var(--primary); }
+.host-cta { margin-top: 20px; }
+
+/* トップの図: 1 つの仕事を何台ものパソコンで手分けする */
+.multi { padding-bottom: 18px; }
+.multi-you {
+  display: flex; align-items: center; gap: 10px; margin: 12px auto 0; width: max-content; max-width: calc(100% - 36px);
+  padding: 10px 16px; border-radius: 999px; background: var(--surface-2);
+}
+.multi-you .i { width: 22px; height: 22px; flex: none; }
+.multi-you span { display: grid; line-height: 1.35; }
+.multi-you small { color: var(--text-muted); font-size: .82rem; }
+.multi-lines { display: block; width: calc(100% - 36px); height: 28px; margin: 4px auto; }
+.multi-lines path { fill: none; stroke: var(--primary); stroke-width: 2; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+.multi-pcs { list-style: none; margin: 0 18px; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.multi-pcs li { display: grid; justify-items: center; gap: 4px; padding: 12px 6px; border-radius: var(--radius); background: var(--surface-2); text-align: center; }
+.multi-pcs .i { width: 30px; height: 30px; }
+.multi-pcs .who { font-size: .76rem; color: var(--text-muted); }
+.multi-pcs .task { font-weight: 700; font-size: .9rem; }
+.multi-result {
+  display: flex; align-items: center; justify-content: center; gap: 8px; margin: 4px 18px 0; padding: 12px;
+  border-radius: var(--radius); background: var(--mint-soft); color: var(--mint-ink); font-weight: 700;
+}
+.multi-result .i { width: 18px; height: 18px; }

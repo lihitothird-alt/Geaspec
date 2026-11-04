@@ -143,12 +143,12 @@ def test_landing_page_renders(tmp_path, now):
     r = c.get("/")
     assert r.status_code == 200
     # トップは業務委託で AI の仕事を分ける基盤。用途別のページへ案内し、VR は別の仕組み
-    assert "業務委託の基盤" in r.text and "AI 組織" in r.text and "準備中" in r.text
+    assert "あなただけの" in r.text and "AI 組織" in r.text and "準備中" in r.text and "頼むだけ" in r.text
     for href in ('href="/ai"', 'href="/gamedev"', 'href="/vrchat"'):
         assert href in r.text
     # レンタルの言葉や、VRAM を合算して 1 つのメモリに見せる表現は使わない
     assert "GPU をさがす" not in r.text and "VRAM増強" not in r.text and "28GB" not in r.text
-    assert "1 つの大きなメモリにはなりません" in r.text
+    assert "何台ものパソコン" in r.text and "1 つの大きなメモリにはなりません" in c.get("/ai").text
     for path in ("/ai", "/gamedev"):
         page = c.get(path)
         assert page.status_code == 200 and "準備中" in page.text and "料金も決まっていません" in page.text
