@@ -659,11 +659,31 @@ def test_site_login_rejects_open_redirect(tmp_path, now, monkeypatch):
     assert r.headers["location"] == "/"
 
 
-def test_pages_are_never_indexed(tmp_path, now):
+def test_only_public_pages_are_indexed(tmp_path, now):
     app, _ = make_app(tmp_path)
-    r = TestClient(app).get("/")
+    c = TestClient(app)
+    for path in ("/", "/en", "/about", "/guide"):
+        r = c.get(path)
+        assert "x-robots-tag" not in r.headers, path
+        assert 'name="robots"' not in r.text and f'rel="canonical" href="http://localhost:8000{path}"' in r.text, path
+    r = c.get("/login")
     assert r.headers["x-robots-tag"] == "noindex, nofollow"
     assert '<meta name="robots" content="noindex, nofollow">' in r.text
+    robots = c.get("/robots.txt").text
+    assert "Disallow: /admin\n" in robots and "Disallow: /account\n" in robots and "Allow: /\n" in robots
+    assert "Sitemap: http://localhost:8000/sitemap.xml" in robots
+    sitemap = c.get("/sitemap.xml")
+    assert sitemap.headers["content-type"].startswith("application/xml")
+    assert "<loc>http://localhost:8000/about</loc>" in sitemap.text and "/admin" not in sitemap.text
+
+
+def test_gated_site_is_never_indexed(tmp_path, now):
+    app, _ = make_app(tmp_path, invite_only=True)
+    c = TestClient(app)
+    r = c.get("/guide")
+    assert r.headers["x-robots-tag"] == "noindex, nofollow" and '<meta name="robots" content="noindex, nofollow">' in r.text
+    assert c.get("/robots.txt").text == "User-agent: *\nDisallow: /\n"
+    assert c.get("/sitemap.xml").status_code == 404
 
 
 def test_connection_code_carries_url_and_token(tmp_path, now):
