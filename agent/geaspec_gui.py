@@ -51,23 +51,66 @@ def day_label(value: dt.datetime) -> str:
     return f"{value:%m/%d}（{WEEKDAYS[value.weekday()]}）"
 
 
+STANDARD_USER_INTRO = (
+    "貸し出しには、ふだん使っているユーザーとは別の「標準ユーザー」を使います。",
+    "いま使っているユーザーを標準に変えるだけでは、あなたのファイルが借りる人に見えてしまいます。",
+)
 STANDARD_USER_STEPS = (
-    "貸し出しには、ふだん使っているユーザーとは別の「標準ユーザー」を使います。\n"
-    "いま使っているユーザーを標準に変えるだけでは、あなたのファイルが借りる人に見えてしまいます。\n\n"
-    "1. 設定 → アカウント → 他のユーザー で、新しいユーザーを作る\n"
-    "2. そのユーザーの種類を「標準ユーザー」にする（「アカウントの種類の変更」）\n"
-    "3. そのユーザーでサインインして、Geaspec Agent を入れる\n\n"
-    "「OK」を押すと、Windows の「他のユーザー」の設定を開きます。"
+    "設定 → アカウント → 他のユーザー で、新しいユーザーを作る",
+    "そのユーザーの種類を「標準ユーザー」にする（「アカウントの種類の変更」）",
+    "そのユーザーでサインインして、Geaspec Agent を入れる",
 )
 
 
-def open_user_settings(root) -> None:
-    """標準ユーザーの作り方を見せてから、Windows の「他のユーザー」の設定を開く。"""
-    from tkinter import messagebox
+def open_uri(uri: str) -> None:
+    """steam:// などを、その PC で開く。"""
+    if sys.platform == "win32":
+        os.startfile(uri)  # noqa: S606 - Steam のページなどを開くだけ
+    else:
+        import webbrowser
 
-    if messagebox.askokcancel("貸し出し用のユーザーを作る", STANDARD_USER_STEPS, parent=root):
+        webbrowser.open(uri)
+
+
+def open_user_settings(root) -> None:
+    """標準ユーザーの作り方をアプリと同じ見た目の小さな画面で見せ、Windows の「他のユーザー」の設定を開ける。"""
+    import tkinter as tk
+    from tkinter import ttk
+
+    family = pick_font_family(root)
+    top = tk.Toplevel(root)
+    top.title("貸し出し用のユーザーを作る")
+    top.configure(bg=COLORS["bg"])
+    top.transient(root)
+    top.resizable(False, False)
+    body = tk.Frame(top, bg=COLORS["bg"])
+    body.pack(fill="both", expand=True, padx=24, pady=20)
+    tk.Label(body, text="貸し出し用のユーザーを作る", font=(family, 14, "bold"), fg=COLORS["ink"],
+             bg=COLORS["bg"], anchor="w").pack(fill="x")
+    for i, line in enumerate(STANDARD_USER_INTRO):
+        tk.Label(body, text=line, font=(family, 10, "bold" if i else "normal"),
+                 fg=COLORS["bad"] if i else COLORS["muted"], bg=COLORS["bg"], anchor="w", justify="left",
+                 wraplength=460).pack(fill="x", pady=(8 if i == 0 else 4, 0))
+    steps = tk.Frame(body, bg=COLORS["card"], highlightbackground=COLORS["line"], highlightthickness=1)
+    steps.pack(fill="x", pady=(14, 0))
+    for n, line in enumerate(STANDARD_USER_STEPS, 1):
+        row = tk.Frame(steps, bg=COLORS["card"])
+        row.pack(fill="x", padx=14, pady=(10 if n == 1 else 4, 10 if n == len(STANDARD_USER_STEPS) else 0))
+        tk.Label(row, text=str(n), width=2, font=(family, 10, "bold"), fg=COLORS["on_mint"], bg=COLORS["mint"]).pack(
+            side="left", anchor="n")
+        tk.Label(row, text=line, font=(family, 10), fg=COLORS["ink"], bg=COLORS["card"], anchor="w", justify="left",
+                 wraplength=400).pack(side="left", padx=(10, 0), fill="x")
+    buttons = tk.Frame(body, bg=COLORS["bg"])
+    buttons.pack(fill="x", pady=(16, 0))
+
+    def go() -> None:
+        top.destroy()
         if sys.platform == "win32":
             os.startfile("ms-settings:otherusers")  # noqa: S606 - Windows の設定画面を開くだけ
+
+    ttk.Button(buttons, text="Windows の設定を開く", style="Primary.TButton", command=go).pack(side="left")
+    ttk.Button(buttons, text="閉じる", command=top.destroy).pack(side="left", padx=10)
+    top.grab_set()
 
 
 def validate_settings(server: str, token: str) -> str | None:
@@ -253,18 +296,18 @@ class AgentController:
         elif st.state == "auth_error":
             items.append((site, "ng", "「その他」→「ログインし直す」"))
         elif st.state == "unreachable":
-            items.append((site, "ng", "インターネットを確認してください"))
+            items.append((site, "ng", "未接続"))
         else:
             items.append((site, "wait", "確認中"))
         if st.last_poll_at is None:
             items.append(("運営の承認", "wait", "確認中"))
         else:
-            approval = {"pending": ("wait", "承認を待っています"), "paused": ("ng", "運営が受付を止めています")}
+            approval = {"pending": ("wait", "待機中"), "paused": ("ng", "停止中")}
             items.append(("運営の承認", *approval.get(st.host_state, ("ok", ""))))
         label = h.STREAMERS.get(self.cfg.streamer, {}).get("label", "Virtual Desktop")
         items.append((f"{label} Streamer が入っている", "ok" if streamer_ok else "ng", "この PC に入れてください"))
         items.append(("Steam が入っている", "ok" if steam_ok else "ng", "この PC に入れてください"))
-        items.append(("VRChat が入っている", "ok" if vrchat_ok else "ng", "Steam で入れてください"))
+        items.append(("VRChat が入っている", "ok" if vrchat_ok else "ng", "Steam で入れる"))
         items.append(("貸し出し用の標準ユーザーを使っている", {False: "ok", True: "ng", None: "wait"}[admin],
                       "別に作ってください（やり方）" if admin else "確認中"))
         return items
@@ -451,6 +494,7 @@ def virtual_screen(root) -> tuple[int, int, int, int]:
 COVER = {
     "bg": "#1c2021", "text": "#e6ecec", "muted": "#8f989a", "accent": "#8fdfc7",
     "primary": "#7fd9bf", "track": "#30373a", "yellow": "#f3d27a", "mint": "#7fd9bf", "logo": "#e6ecec",
+    "foot": "#c3cacb",
 }
 ENDING_SOON_SECONDS = 5 * 60
 
@@ -592,7 +636,7 @@ class CoverWindow:
             y += 32 * k * 1.5
         if second:
             c.create_text(cx, y + 13 * k, text=second, font=font(24), fill=COVER["muted"])
-        c.create_text(cx, hgt - 56 * k, text=content["footer"], font=font(20), fill=COVER["muted"])
+        c.create_text(cx, hgt - 64 * k, text=content["footer"], font=font(28), fill=COVER["foot"])
 
     def show(self, state: str, ends_at: dt.datetime | None, total_seconds: float) -> None:
         if not self.visible:
@@ -1062,6 +1106,10 @@ class SetupView:
                      "VRChat で撮った写真（借りた人に届けてから消します）"):
             tk.Label(self.body, text=f"・{line}", font=self.w.font, fg=COLORS["ink"], bg=COLORS["bg"],
                      anchor="w").pack(fill="x", padx=(8, 0))
+        link = tk.Label(self.body, text="消す場所をくわしく見る", font=self.w.font_small, fg=COLORS["primary"],
+                        bg=COLORS["bg"], cursor="hand2", anchor="w")
+        link.pack(fill="x", padx=(8, 0), pady=(2, 8))
+        link.bind("<Button-1>", lambda e: self.w.show_targets())
         admin = h.is_admin_account()
         if admin is not None:
             kind = tk.Frame(self.body, bg=COLORS["bg"])
@@ -1070,21 +1118,22 @@ class SetupView:
             tk.Label(kind, text="管理者 ⚠" if admin else "標準ユーザー ✓", font=self.w.font_bold,
                      fg=COLORS["warn" if admin else "ok"], bg=COLORS["bg"]).pack(side="left")
             if admin:
+                # 管理者のユーザーでは貸し出させない (借りる人が、ほかのユーザーのファイルも見られてしまうため)
+                tk.Label(self.body, text="このユーザーでは貸し出せません", font=self.w.font_bold, fg=COLORS["bad"],
+                         bg=COLORS["bg"], anchor="w").pack(fill="x", pady=(8, 0))
                 tk.Label(self.body, text="ふだん使っているユーザーとは別に、貸し出し用の「標準ユーザー」を作り、"
                          "そこで Agent を入れてください。", font=self.w.font, fg=COLORS["ink"], bg=COLORS["bg"],
-                         anchor="w", justify="left", wraplength=560).pack(fill="x", pady=(4, 0))
-                how = tk.Label(self.body, text="やり方を見る", font=self.w.font, fg=COLORS["primary"], bg=COLORS["bg"],
-                               cursor="hand2", anchor="w")
-                how.pack(fill="x")
-                how.bind("<Button-1>", lambda e: open_user_settings(self.w.root))
+                         anchor="w", justify="left", wraplength=560).pack(fill="x", pady=(2, 0))
+                buttons = tk.Frame(self.body, bg=COLORS["bg"])
+                buttons.pack(fill="x", pady=(14, 0))
+                ttk.Button(buttons, text="やり方を見る", style="Primary.TButton",
+                           command=lambda: open_user_settings(self.w.root)).pack(side="left")
+                ttk.Button(buttons, text="アプリを閉じる", command=self.w.quit_app).pack(side="left", padx=10)
+                return
         warning = self.w.c.lending_warning()
         if warning:
             tk.Label(self.body, text=f"⚠ {warning}", font=self.w.font, fg=COLORS["warn"], bg=COLORS["bg"],
                      anchor="w", justify="left", wraplength=600).pack(fill="x", pady=(10, 0))
-        link = tk.Label(self.body, text="消す場所をくわしく見る", font=self.w.font_small, fg=COLORS["primary"],
-                        bg=COLORS["bg"], cursor="hand2", anchor="w")
-        link.pack(fill="x", pady=(8, 0))
-        link.bind("<Button-1>", lambda e: self.w.show_targets())
         self.agree = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             self.body, text=f"「{user}」は貸し出し専用です。上のデータを毎回削除してかまいません",
@@ -1153,8 +1202,8 @@ class HomeView:
                             justify="left", wraplength=520)
         self.sub.pack(fill="x", padx=(40, 18), pady=(2, 16))
 
-        # --- 準備 (自動で確かめる)。全部できていれば 1 行にたたむ ---
-        checks = self.card(self.main)
+        # --- 準備 (自動で確かめる)。全部できていれば 1 行にたたむ。貸し出し中は出さない ---
+        checks = self.checks_card = self.card(self.main)
         self.check_head = tk.Label(checks, text="", font=window.font, fg=COLORS["ink"], bg=COLORS["card"], anchor="w",
                                    cursor="hand2")
         self.check_head.pack(fill="x", padx=18, pady=(12, 12))
@@ -1175,7 +1224,7 @@ class HomeView:
         tk.Frame(self.check_body, height=12, bg=COLORS["card"]).pack()
 
         # --- 貸し出し中の守り (いつも自動で行う約束なので、チェックとは別の印。ふだんはたたむ) ---
-        guard = self.card(self.main)
+        guard = self.guard_card = self.card(self.main)
         self.guard_head = tk.Label(guard, text="", font=window.font, fg=COLORS["primary"], bg=COLORS["card"],
                                    anchor="w", cursor="hand2")
         self.guard_head.pack(fill="x", padx=18, pady=(12, 12))
@@ -1247,32 +1296,45 @@ class HomeView:
         self.menu.entryconfigure(self.cleanup_index, state="disabled" if c.in_session() else "normal")
         busy = h.STATUS.state in ("session", "cleaning")
         self.web_button.configure(text="予約を Web で見る" if busy else "貸し出す時間を決める（Web サイト）")
+        if busy == bool(self.checks_card.winfo_ismapped()):
+            if busy:
+                self.checks_card.pack_forget()
+            else:
+                self.checks_card.pack(fill="x", padx=18, pady=(0, 12), before=self.guard_card)
         for (mark, name, hint), (label, state, tip) in zip(self.check_rows, items):
             symbol, color = self.MARKS[state]
             mark.configure(text=symbol, fg=COLORS[color])
             name.configure(text=label)
             hint.configure(text="" if state == "ok" else tip, fg=COLORS["bad" if state == "ng" else "muted"])
-            fixable = state == "ng" and label.startswith("貸し出し用の標準ユーザー")
-            hint.configure(cursor="hand2" if fixable else "", font=self.w.font_small + (("underline",) if fixable else ()))
+            action = self.fix_action(label) if state == "ng" else None
+            hint.configure(cursor="hand2" if action else "", font=self.w.font_small + (("underline",) if action else ()))
             hint.unbind("<Button-1>")
-            if fixable:
-                hint.bind("<Button-1>", lambda e: open_user_settings(self.w.root))
+            if action:
+                hint.bind("<Button-1>", lambda e, run=action: run())
         all_ok = all(state == "ok" for _, state, _ in items)
         opened = (not all_ok) if self.check_open is None else self.check_open
         arrow = "▾" if opened else "▸"
         if all_ok:
-            self.check_head.configure(text=f"{arrow} 貸し出しの準備：{len(items)} 項目すべて OK", fg=COLORS["ok"])
+            self.check_head.configure(text=f"{arrow} 貸し出しの準備：すべて OK（{len(items)} 項目）", fg=COLORS["ok"])
         else:
             ng = sum(state == "ng" for _, state, _ in items)
             wait = sum(state == "wait" for _, state, _ in items)
             parts = ([f"要対応 {ng} 件"] if ng else []) + ([f"確認中 {wait} 件"] if wait else [])
-            self.check_head.configure(text=f"{arrow} 貸し出しの準備（自動で確認）：{'・'.join(parts)}",
+            self.check_head.configure(text=f"{arrow} 貸し出しの準備：{'・'.join(parts)}",
                                       fg=COLORS["bad"] if ng else COLORS["ink"])
         if opened != self.check_body.winfo_ismapped():
             if opened:
                 self.check_body.pack(fill="x")
             else:
                 self.check_body.pack_forget()
+
+    def fix_action(self, label: str):
+        """その行で直せるもの (押すと開く)。"""
+        if label.startswith("貸し出し用の標準ユーザー"):
+            return lambda: open_user_settings(self.w.root)
+        if label.startswith("VRChat"):
+            return lambda: open_uri("steam://store/438100")
+        return None
 
     def toggle_checks(self) -> None:
         shown = bool(self.check_body.winfo_ismapped())

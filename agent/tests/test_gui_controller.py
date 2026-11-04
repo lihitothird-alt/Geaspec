@@ -242,7 +242,7 @@ class ReadinessTest(unittest.TestCase):
         self.assertEqual(items["予約サイトにつながっている"][0], "wait")
         self.assertEqual(items["運営の承認"][0], "wait")
         self.assertEqual(items["Steam が入っている"][0], "ok")
-        self.assertEqual(items["VRChat が入っている"], ("ng", "Steam で入れてください"))
+        self.assertEqual(items["VRChat が入っている"], ("ng", "Steam で入れる"))
         self.assertEqual(items["Virtual Desktop Streamer が入っている"][0], "ng")
         self.assertEqual(items["貸し出し用の標準ユーザーを使っている"], ("ng", "別に作ってください（やり方）"))
 
