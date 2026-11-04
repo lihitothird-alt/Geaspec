@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_waitlist.html" import waitlist_form %}
-{% set name = {"ai": "Geaspec AI", "gamedev": "Geaspec ゲーム開発"}[service] %}
+{% set name = {"ai": "Geaspec AI", "gamedev": "Geaspec Studio"}[service] %}
 {% block title %}{{ "依頼一覧" if page == "requests" else "貸し出し" }} | {{ name }}{% endblock %}
 {% block content %}
 <div class="wrap">

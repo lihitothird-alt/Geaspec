@@ -347,7 +347,7 @@ def create_app(
         return RedirectResponse("/ai", status_code=301)
 
     # 準備中のサービス (Geaspec AI・ゲーム開発)。それぞれ「頼む」「依頼一覧」「貸し出し」のページを持つ
-    SERVICES = {"ai": "Geaspec AI", "gamedev": "Geaspec ゲーム開発"}
+    SERVICES = {"ai": "Geaspec AI", "gamedev": "Geaspec Studio"}
     WAITLIST_ROLES = {"guest": "頼みたい", "host": "パソコンを貸したい"}
 
     @app.get("/ai", response_class=HTMLResponse)
@@ -357,7 +357,7 @@ def create_app(
 
     @app.get("/gamedev", response_class=HTMLResponse)
     def gamedev_page(request: Request, db: Session = Depends(get_db)):
-        """Geaspec ゲーム開発: ゲーム作りの作業を、役割を分けた AI のチームに頼む (準備中)。"""
+        """Geaspec Studio: ゲーム作りの作業を、役割を分けた AI のチームに頼む (準備中)。"""
         return render(request, db, "gamedev.html", service="gamedev")
 
     def service_page(service: str, page: str):

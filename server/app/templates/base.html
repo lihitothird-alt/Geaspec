@@ -3,7 +3,7 @@
 {#- どのサイトのページか。本体は緑、Geaspec AI は赤、Geaspec VR は青、ゲーム開発は紫にして、別の場所に来たとわかるようにする -#}
 {%- set area = site_area(request) -%}
 {%- set vr_area = area == "vr" -%}
-{%- set area_label = {"vr": "VR", "ai": "AI", "gamedev": "Game Dev" if en else "ゲーム開発"}.get(area, "") -%}
+{%- set area_label = {"vr": "VR", "ai": "AI", "gamedev": "Studio"}.get(area, "") -%}
 {%- set area_home = {"vr": vr_en_home if en else vr_home, "ai": main_url ~ "/ai", "gamedev": main_url ~ "/gamedev"}.get(area, main_url ~ ("/en" if en else "/")) -%}
 <!doctype html>
 <html lang="{{ 'en' if en else 'ja' }}">
@@ -182,7 +182,7 @@
         <div><h3>Terms</h3><a href="/legal/terms" hreflang="ja">Terms</a><a href="/legal/privacy" hreflang="ja">Privacy</a><a href="/legal/platforms" hreflang="ja">VRChat and Steam terms</a></div>
         {% else %}
         <div><h3>Geaspec</h3><a href="{{ main_url }}/">トップ</a><a href="{{ main_url }}/about">名前の由来</a><a href="{{ vr_en_home if vr_area else main_url ~ '/en' }}" hreflang="en" lang="en">English</a>{% if not simple %}<a href="/app">スマホのアプリとして使う</a>{% endif %}</div>
-        <div><h3>サービス</h3><a href="{{ main_url }}/ai">Geaspec AI</a><a href="{{ main_url }}/gamedev">Geaspec ゲーム開発</a><a href="{{ vr_home }}">Geaspec VR</a><a href="/guide">VR のはじめ方</a></div>
+        <div><h3>サービス</h3><a href="{{ main_url }}/ai">Geaspec AI</a><a href="{{ main_url }}/gamedev">Geaspec Studio</a><a href="{{ vr_home }}">Geaspec VR</a><a href="/guide">VR のはじめ方</a></div>
         <div><h3>規約</h3><a href="/legal/terms">利用規約</a><a href="/legal/privacy">プライバシーポリシー</a><a href="/legal/platforms">VRChat・Steam の規約について</a>{% if not free_mode %}<a href="/legal/tokushoho">特定商取引法に基づく表記</a>{% endif %}</div>
         {% endif %}
       </nav>

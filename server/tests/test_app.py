@@ -144,7 +144,7 @@ def test_landing_page_renders(tmp_path, now):
     assert r.status_code == 200
     # トップは入口だけ: Geaspec AI と Geaspec VR へ分かれる (ゲーム開発はやめた)
     assert "みんなで使う、" in r.text and "必要な人と分け合う" in r.text and 'href="#lend"' in r.text and 'href="/ai"' in r.text and 'href="/vrchat"' in r.text and "準備中" in r.text
-    assert 'href="/gamedev"' in r.text and "Geaspec ゲーム開発" in r.text
+    assert 'href="/gamedev"' in r.text and "Geaspec Studio" in r.text
     # 本体の上のメニューには、サービスへのリンクを並べない (入口はページの中のカード)
     nav = r.text.split('<nav class="nav-desktop"', 1)[1].split("</nav>", 1)[0]
     assert 'href="/ai"' not in nav and 'href="/gamedev"' not in nav and 'href="/vrchat"' not in nav
