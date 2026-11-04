@@ -85,7 +85,7 @@ class TrayTest(unittest.TestCase):
     def test_icon_image_has_the_state_color(self):
         img = tray.icon_image("bad")
         self.assertEqual(img.size, (64, 64))
-        self.assertEqual(img.getpixel((53, 53))[:3], (0xC4, 0x1F, 0x4B))
+        self.assertEqual(img.getpixel((53, 53))[:3], (0xD0, 0x46, 0x4F))
 
     def test_icon_image_uses_the_logo(self):
         from pathlib import Path
@@ -97,7 +97,7 @@ class TrayTest(unittest.TestCase):
         self.assertEqual(img.size, (64, 64))
         self.assertTrue(all(c < 80 for c in img.getpixel((12, 12))[:3]))  # ロゴの丸い背景 (墨色)
         self.assertEqual(img.getpixel((1, 1))[3], 0)  # 丸の外は透明
-        self.assertEqual(img.getpixel((53, 53))[:3], (0x13, 0xA0, 0x7A))  # 状態の点はそのまま
+        self.assertEqual(img.getpixel((53, 53))[:3], (0x2F, 0xAE, 0x8A))  # 状態の点はそのまま
 
 
 if __name__ == "__main__":
