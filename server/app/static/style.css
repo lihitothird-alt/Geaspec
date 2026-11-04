@@ -1843,3 +1843,6 @@ body.theme-ai::before, body.theme-gamedev::before { display: none; }
   .vr-route li:last-child { padding-bottom: 0; }
   .vr-route p { max-width: none; }
 }
+.footer-cols { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.footer-cols a { overflow-wrap: anywhere; }
+@media (max-width: 760px) { .footer-cols { grid-template-columns: 1fr 1fr; } }

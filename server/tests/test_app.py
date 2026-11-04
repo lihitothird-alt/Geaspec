@@ -1817,3 +1817,9 @@ def test_waitlist_for_services_that_are_not_ready(tmp_path, now):
     page = admin.get("/admin/waitlist").text
     assert "お知らせの登録（2 件）" in page and "host@example.com" in page and "パソコンを貸したい" in page
     assert TestClient(app).get("/admin/waitlist", follow_redirects=False).status_code in (303, 401, 403)
+
+
+def test_footer_has_contact_and_discord(tmp_path, now):
+    app, _ = make_app(tmp_path)
+    page = TestClient(app).get("/").text
+    assert 'href="mailto:geaspec.contact@gmail.com"' in page and "Discord へ" not in page  # 招待リンクがなければ出さない

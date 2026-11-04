@@ -9,6 +9,7 @@ AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download
 CHANGES: dict[str, list[str]] = {
     "0.7.52": [
         "スマホの Geaspec VR の「使い方」で、丸と丸の間の長さをそろえました",
+        "いちばん下の案内に「お問い合わせ」（メールアドレスと、フィードバック・相談の Discord）を足しました",
     ],
     "0.7.51": [
         "トップの図を、日本地図の上で近くのパソコンどうしが GPU を分け合う絵にしました",
