@@ -201,7 +201,7 @@ def test_full_session_flow(setup, now):
     assert vpn.issued == [("tag:borrower-pc1", 7200)]
 
     # 埋まった枠は一覧から消える
-    assert "予約する" not in user.get("/slots").text
+    assert '/confirm"' not in user.get("/slots").text  # 予約できる枠のボタンがない
 
     # 開始 2 分前より前は何もしない。次の予約だけ知らせる (Agent が「あと何分で開始」を出す)
     assert agent.get("/api/agent/poll").json() == {
@@ -774,7 +774,7 @@ def test_removed_slot_with_history_is_closed_not_deleted(setup, now):
     r = agent.put("/api/agent/schedule", json={"start": start, "days": 1, "price_yen": 500, "starts": []}).json()
     assert r["removed"] == 1
     assert [(s["state"], s["editable"]) for s in r["slots"]] == [("closed", True)]
-    assert "予約する" not in user.get("/slots").text
+    assert '/confirm"' not in user.get("/slots").text  # 予約できる枠のボタンがない
     # もう一度選ぶと受付を再開する
     r = agent.put("/api/agent/schedule", json={
         "start": start, "days": 1, "price_yen": 500, "starts": ["2026-10-10T04:00:00Z"]}).json()

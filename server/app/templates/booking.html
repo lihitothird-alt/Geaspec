@@ -14,7 +14,7 @@
 {% block content %}
 {% set live_states = ("confirmed", "active") %}
 <section class="wrap narrow section tight">
-  <a class="back" href="/bookings"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg>予約一覧</a>
+  <a class="back" href="/bookings"><svg class="i" aria-hidden="true"><use href="#i-back"/></svg>自分の予約</a>
 
   {% if booking.status in live_states %}
   <ol class="flow" aria-label="予約の流れ">
