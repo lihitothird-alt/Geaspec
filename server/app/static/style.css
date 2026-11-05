@@ -1846,3 +1846,12 @@ body.theme-ai::before, body.theme-gamedev::before { display: none; }
 .footer-cols { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .footer-cols a { overflow-wrap: anywhere; }
 @media (max-width: 760px) { .footer-cols { grid-template-columns: 1fr 1fr; } }
+
+/* 先行テストの申し込み (/test) */
+.test-facts { list-style: none; padding: 0; margin: 0 0 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.test-facts li { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 4px; background: var(--card, transparent); }
+.test-facts b { color: var(--primary); font-size: 1.05rem; }
+.test-facts span { color: var(--muted); font-size: .88rem; }
+.test-form { max-width: 560px; }
+.test-form fieldset { border: 0; padding: 0; margin: 0 0 6px; display: grid; gap: 2px; }
+.test-form legend { font-weight: 700; margin-bottom: 4px; display: flex; gap: 8px; align-items: baseline; }

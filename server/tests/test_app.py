@@ -1823,3 +1823,28 @@ def test_footer_has_contact_and_discord(tmp_path, now):
     app, _ = make_app(tmp_path)
     page = TestClient(app).get("/").text
     assert 'href="mailto:geaspec.contact@gmail.com"' in page and "Discord へ" not in page  # 招待リンクがなければ出さない
+
+
+
+def test_tester_signup(tmp_path, now):
+    """先行テストに申し込める。18歳と同意のチェックがないと受け付けない。管理画面で見られる。"""
+    app, _ = make_app(tmp_path)
+    c = TestClient(app)
+    page = c.get("/test").text
+    assert "1回 15〜30分" in page and "18歳以上" in page and 'name="agree"' in page
+    base = {"email": "Tester@Example.com", "device": "quest", "has_pc": "none", "area": "nagano",
+            "times": ["weekday_night", "holiday_day", "bogus"], "discord": "tester01"}
+    r = c.post("/test", data=base, follow_redirects=False)
+    assert r.headers["location"] == "/test"
+    r = c.post("/test", data={**base, "adult": "1", "agree": "1"}, follow_redirects=False)
+    assert r.headers["location"] == "/test?done=1"
+    assert "申し込みを受け付けました" in c.get("/test?done=1").text
+    from app.models import TesterSignup
+    rows = db(app).query(TesterSignup).all()
+    assert [(t.email, t.times, t.discord) for t in rows] == [("tester@example.com", "weekday_night,holiday_day", "tester01")]
+    assert "先行テストに参加する" in c.get("/vrchat").text
+    admin = TestClient(app)
+    signup(admin, "admin@example.com")
+    page = admin.get("/admin/testers").text
+    assert "テストの申し込み（1 件）" in page and "長野県" in page and "平日の夜" in page
+    assert TestClient(app).get("/admin/testers", follow_redirects=False).status_code in (303, 401, 403)

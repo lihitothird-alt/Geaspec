@@ -31,7 +31,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import account_links, clock, feedback, invite, services, social, web_test
 from .config import Settings
 from .db import Base, add_missing_columns, make_engine, make_sessionmaker
-from .models import Booking, BookingStatus, Feedback, Host, Slot, User, WaitlistEntry
+from .models import Booking, BookingStatus, Feedback, Host, Slot, TesterSignup, User, WaitlistEntry
 from .payments import PROVIDER_LABELS, PaymentGateway, build_payments
 from .security import connection_code, hash_password, hash_token, new_agent_token, verify_password
 from .mail import Mailer, build_mailer
@@ -47,14 +47,14 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 META_USERNAME_RE = re.compile(r"^[A-Za-z0-9._-]{2,64}$")
 # 合言葉なしで通すパス。Agent・決済サービスからの通知は機械が呼ぶので、それぞれ別の方法で認証している
 SITE_GATE_OPEN_PREFIXES = (
-    "/site-login", "/join", "/guide", "/about", "/legal/", "/healthz", "/robots.txt", "/sitemap.xml", "/static/",
+    "/site-login", "/join", "/guide", "/test", "/about", "/legal/", "/healthz", "/robots.txt", "/sitemap.xml", "/static/",
     "/api/agent/", "/api/bot/",
     "/stripe/webhook",
     # ホーム画面アプリの設定と裏方のスクリプト。ブラウザは合言葉の Cookie を付けずに読みに来る
     "/manifest.webmanifest", "/sw.js",
 )
 # Geaspec VR の住所で見せるページ (本体の住所で開いたら VR の住所へ送る)
-VR_PREFIXES = ("/slots", "/bookings", "/lend", "/following", "/lenders", "/feedback", "/guide")
+VR_PREFIXES = ("/slots", "/bookings", "/lend", "/following", "/lenders", "/feedback", "/guide", "/test")
 # 本体の住所だけで見せるページ (VR の住所で開いたら本体へ送る)
 MAIN_ONLY_PATHS = ("/ai", "/gamedev", "/about")
 MAIN_ONLY_PREFIXES = ("/admin", "/ai/", "/gamedev/")
@@ -390,6 +390,49 @@ def create_app(
         db.commit()
         flash(request, f"登録しました。{SERVICES[service]}が始まったら、{email} にお知らせします。")
         return redirect(back)
+
+    TEST_DEVICES = {"quest": "Quest など単体の VR ヘッドセット", "pcvr": "PC につなぐ VR ヘッドセット",
+                    "desktop": "VR なし（パソコンの画面）", "phone": "スマホ"}
+    TEST_PCS = {"gaming": "ゲーミング PC がある", "normal": "ふつうの PC はある", "none": "PC はない"}
+    TEST_AREAS = {"tokyo": "東京23区", "nagano": "長野県", "other": "そのほか"}
+    TEST_TIMES = {"weekday_day": "平日の昼", "weekday_night": "平日の夜", "holiday_day": "休日の昼",
+                  "holiday_night": "休日の夜"}
+    test_choices = dict(devices=TEST_DEVICES, pcs=TEST_PCS, areas=TEST_AREAS, times=TEST_TIMES)
+
+    @app.get("/test", response_class=HTMLResponse)
+    def test_page(request: Request, db: Session = Depends(get_db)):
+        return render(request, db, "test.html", discord_url=settings.discord_invite_url, **test_choices)
+
+    @app.post("/test")
+    async def test_join(request: Request, db: Session = Depends(get_db)):
+        form = await request.form()
+        email = str(form.get("email", "")).strip().lower()
+        device, has_pc, area = (str(form.get(k, "")) for k in ("device", "has_pc", "area"))
+        times = [t for t in form.getlist("times") if t in TEST_TIMES]
+        if not (EMAIL_RE.match(email) and len(email) <= 255 and device in TEST_DEVICES and has_pc in TEST_PCS
+                and area in TEST_AREAS and form.get("adult") and form.get("agree")):
+            flash(request, "入っていない項目があります。たしかめて、もう一度送ってください。", "error")
+            return redirect("/test")
+        row = db.scalar(select(TesterSignup).where(TesterSignup.email == email))
+        if row is None:
+            row = TesterSignup(email=email)
+            db.add(row)
+        row.discord = str(form.get("discord", "")).strip()[:64]
+        row.device, row.has_pc, row.area, row.times = device, has_pc, area, ",".join(times)
+        row.note = str(form.get("note", "")).strip()[:1000]
+        db.commit()
+        for admin_email in sorted(settings.admin_emails):
+            send_mail(admin_email, "先行テストに申し込みがありました",
+                      f"{TEST_AREAS[area]} / {TEST_DEVICES[device]} / {TEST_PCS[has_pc]}\n"
+                      f"時間帯: {'、'.join(TEST_TIMES[t] for t in times) or 'なし'}\n"
+                      f"Discord: {row.discord or 'なし'}\nメモ: {row.note or 'なし'}\n\n一覧: /admin/testers")
+        return redirect("/test?done=1")
+
+    @app.get("/admin/testers", response_class=HTMLResponse)
+    def admin_testers(request: Request, db: Session = Depends(get_db)):
+        require_admin(request, db)
+        rows = db.scalars(select(TesterSignup).order_by(TesterSignup.created_at.desc())).all()
+        return render(request, db, "admin/testers.html", rows=rows, **test_choices)
 
     @app.get("/admin/waitlist", response_class=HTMLResponse)
     def admin_waitlist(request: Request, db: Session = Depends(get_db)):

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}先行テストに参加する | Geaspec VR{% endblock %}
+{% block description %}Quest など VR ヘッドセットひとつで、PC版VRChat を遊ぶしくみの先行テスト。1回15〜30分、無料、18歳以上。{% endblock %}
+{% block content %}
+<section class="wrap section tight test-page">
+  {% if request.query_params.get("done") %}
+  <header class="page-head">
+    <h1>申し込みを受け付けました</h1>
+    <p>テストの日にちが決まったら、ご連絡します。</p>
+  </header>
+  {% if discord_url %}<p><a class="btn" href="{{ discord_url }}" target="_blank" rel="noopener">Discord に参加する</a></p>
+  <p class="muted small">テストの日程やお知らせは Discord で流します。</p>{% endif %}
+  <p><a href="/vrchat">Geaspec VR のトップへ</a></p>
+  {% else %}
+  <header class="page-head">
+    <h1>先行テストに参加する</h1>
+    <p>ゲーミングPCがなくても、VR ヘッドセットひとつで PC版VRChat を。そのしくみを、いっしょに試してくれる人を探しています。</p>
+  </header>
+  <ul class="test-facts">
+    <li><b>1回 15〜30分</b><span>つないで、少し遊んで、感想を教えてもらいます</span></li>
+    <li><b>無料</b><span>お金はかかりません</span></li>
+    <li><b>18歳以上</b><span>ご自身の VRChat アカウントで</span></li>
+    <li><b>東京23区・長野県から</b><span>近い場所の人から順にご案内します</span></li>
+  </ul>
+  <form class="form test-form" method="post" action="/test">
+    <fieldset><legend>使う機器</legend>
+      {% for k, v in devices.items() %}<label class="check"><input type="radio" name="device" value="{{ k }}" required> {{ v }}</label>{% endfor %}
+    </fieldset>
+    <fieldset><legend>パソコン</legend>
+      {% for k, v in pcs.items() %}<label class="check"><input type="radio" name="has_pc" value="{{ k }}" required> {{ v }}</label>{% endfor %}
+    </fieldset>
+    <fieldset><legend>住んでいるところ</legend>
+      {% for k, v in areas.items() %}<label class="check"><input type="radio" name="area" value="{{ k }}" required> {{ v }}</label>{% endfor %}
+    </fieldset>
+    <fieldset><legend>遊べる時間帯<span class="muted small">いくつでも</span></legend>
+      {% for k, v in times.items() %}<label class="check"><input type="checkbox" name="times" value="{{ k }}"> {{ v }}</label>{% endfor %}
+    </fieldset>
+    <label>メールアドレス<input type="email" name="email" required autocomplete="email" inputmode="email" value="{{ user.email if user else '' }}"></label>
+    <label>Discord のユーザー名<span class="muted small">なくてもかまいません</span><input name="discord" maxlength="64" autocomplete="off"></label>
+    <label>ひとこと<span class="muted small">なくてもかまいません</span><textarea name="note" rows="2" maxlength="1000"></textarea></label>
+    <label class="check"><input type="checkbox" name="adult" value="1" required> 18歳以上です</label>
+    <label class="check"><input type="checkbox" name="agree" value="1" required> <span><a href="/legal/terms" target="_blank">利用規約</a>と<a href="/legal/privacy" target="_blank">プライバシーポリシー</a>に同意します</span></label>
+    <button class="btn">申し込む</button>
+  </form>
+  <p class="muted small">いただいた連絡先は、テストのご案内にだけ使います。</p>
+  {% endif %}
+</section>
+{% endblock %}

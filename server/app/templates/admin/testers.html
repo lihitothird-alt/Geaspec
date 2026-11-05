@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}テストの申し込み | 管理{% endblock %}
+{% block content %}
+<section class="wrap section tight">
+  <header class="page-head"><h1>テストの申し込み（{{ rows|length }} 件）</h1></header>
+  {% if rows %}
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>日時</th><th>地域</th><th>機器</th><th>PC</th><th>時間帯</th><th>Discord</th><th>メール</th><th>メモ</th></tr></thead>
+    <tbody>
+      {% for r in rows %}<tr><td>{{ r.created_at|jst }}</td><td>{{ areas.get(r.area, r.area) }}</td><td>{{ devices.get(r.device, r.device) }}</td><td>{{ pcs.get(r.has_pc, r.has_pc) }}</td><td>{% for t in r.times.split(",") if t %}{{ times.get(t, t) }}{% if not loop.last %}、{% endif %}{% endfor %}</td><td>{{ r.discord }}</td><td>{{ r.email }}</td><td>{{ r.note }}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="muted">まだ申し込みはありません。</p>{% endif %}
+</section>
+{% endblock %}

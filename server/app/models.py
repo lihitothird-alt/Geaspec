@@ -253,3 +253,19 @@ class WaitlistEntry(Base):
     role: Mapped[str] = mapped_column(String(10))  # "guest" (頼みたい) | "host" (パソコンを貸したい)
     note: Mapped[str] = mapped_column(String(1000), default="")  # やりたいこと・パソコンの性能など
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+
+
+class TesterSignup(Base):
+    """Geaspec VR の先行テストへの申し込み (vr.geaspec.com/test)。"""
+
+    __tablename__ = "tester_signups"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), index=True, unique=True)
+    discord: Mapped[str] = mapped_column(String(64), default="")
+    device: Mapped[str] = mapped_column(String(20))  # quest | pcvr | desktop | phone
+    has_pc: Mapped[str] = mapped_column(String(10))  # gaming | normal | none
+    area: Mapped[str] = mapped_column(String(10))  # tokyo | nagano | other
+    times: Mapped[str] = mapped_column(String(100), default="")  # weekday_day,weekday_night,... のカンマ区切り
+    note: Mapped[str] = mapped_column(String(1000), default="")
+    created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
