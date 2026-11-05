@@ -77,7 +77,7 @@ class Settings:
             service_name=os.environ.get("SERVICE_NAME", cls.service_name),
             base_url=base_url,
             vr_base_url=os.environ.get("VR_BASE_URL", "").rstrip("/"),
-            discord_invite_url=os.environ.get("DISCORD_INVITE_URL", "").strip(),
+            discord_invite_url=os.environ.get("DISCORD_INVITE_URL", "https://discord.gg/rct4gGBCnR").strip(),
             database_url=os.environ.get("DATABASE_URL", cls.database_url),
             secret_key=secret,
             admin_emails=_split(os.environ.get("ADMIN_EMAILS")),
