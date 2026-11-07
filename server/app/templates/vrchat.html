@@ -8,7 +8,7 @@
     <p class="lead">Quest ひとつで、だれかのゲーミングPCに<span class="nowrap">インターネット越しに接続。</span><span class="nowrap">遊びたい時間だけ。</span></p>
     <div class="cta-row">
       <a class="btn lg" href="/slots">予約する{% if slot_count %}（空き {{ slot_count }} 件）{% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      <a class="btn lg ghost" href="/test">先行テストに参加する</a>
+      <a class="btn lg ghost" href="/test">先行登録する</a>
       {% if not free_mode and min_price %}<p class="price-tag">1枠 <span class="num">{{ min_price|yen }}</span>〜</p>{% endif %}
     </div>
     <ul class="trust" aria-label="安心の理由">

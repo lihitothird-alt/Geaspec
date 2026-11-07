@@ -422,7 +422,7 @@ def create_app(
         row.note = str(form.get("note", "")).strip()[:1000]
         db.commit()
         for admin_email in sorted(settings.admin_emails):
-            send_mail(admin_email, "先行テストに申し込みがありました",
+            send_mail(admin_email, "Geaspec VR の先行登録がありました",
                       f"{TEST_AREAS[area]} / {TEST_DEVICES[device]} / {TEST_PCS[has_pc]}\n"
                       f"時間帯: {'、'.join(TEST_TIMES[t] for t in times) or 'なし'}\n"
                       f"Discord: {row.discord or 'なし'}\nメモ: {row.note or 'なし'}\n\n一覧: /admin/testers")
