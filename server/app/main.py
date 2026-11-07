@@ -394,11 +394,17 @@ def create_app(
 
     TEST_DEVICES = {"quest": "Quest など単体の VR ヘッドセット", "pcvr": "PC につなぐ VR ヘッドセット",
                     "desktop": "VR なし（パソコンの画面）", "phone": "スマホ"}
-    TEST_PCS = {"gaming": "ゲーミング PC がある", "normal": "ふつうの PC はある", "none": "PC はない"}
-    TEST_AREAS = {"tokyo": "東京23区", "nagano": "長野県", "other": "そのほか"}
-    TEST_TIMES = {"weekday_day": "平日の昼", "weekday_night": "平日の夜", "holiday_day": "休日の昼",
+    TEST_PCS = {"gaming": "ゲーミング PC がある", "normal": "ふつうの PC はある", "none": "PC はない"}  # 前の版の登録の表示用
+    TEST_AREAS = {p: p for p in """北海道 青森県 岩手県 宮城県 秋田県 山形県 福島県 茨城県 栃木県 群馬県 埼玉県 千葉県 東京都 神奈川県 新潟県 富山県 石川県 福井県 山梨県 長野県 岐阜県 静岡県 愛知県 三重県 滋賀県 京都府 大阪府 兵庫県 奈良県 和歌山県 鳥取県 島根県 岡山県 広島県 山口県 徳島県 香川県 愛媛県 高知県 福岡県 佐賀県 長崎県 熊本県 大分県 宮崎県 鹿児島県 沖縄県""".split()}
+    TEST_AREAS.update({"overseas": "海外", "tokyo": "東京23区", "nagano": "長野県", "other": "そのほか"})
+    TEST_AREA_CHOICES = [p for p in TEST_AREAS if p not in ("tokyo", "nagano", "other")]
+    TEST_TIMES = {"morning": "朝（6〜12時）", "day": "昼（12〜17時）", "evening": "夕方（17〜20時）",
+                  "night": "夜（20〜24時）", "late": "深夜（0〜6時）",
+                  "weekday_day": "平日の昼", "weekday_night": "平日の夜", "holiday_day": "休日の昼",
                   "holiday_night": "休日の夜"}
-    test_choices = dict(devices=TEST_DEVICES, pcs=TEST_PCS, areas=TEST_AREAS, times=TEST_TIMES)
+    TEST_TIME_CHOICES = ["morning", "day", "evening", "night", "late"]
+    test_choices = dict(devices=TEST_DEVICES, pcs=TEST_PCS, areas=TEST_AREAS, times=TEST_TIMES,
+                        area_choices=TEST_AREA_CHOICES, time_choices=TEST_TIME_CHOICES)
 
     @app.get("/test", response_class=HTMLResponse)
     def test_page(request: Request, db: Session = Depends(get_db)):
@@ -408,26 +414,23 @@ def create_app(
     async def test_join(request: Request, db: Session = Depends(get_db)):
         form = await request.form()
         email = str(form.get("email", "")).strip().lower()
-        device, has_pc, area = (str(form.get(k, "")) for k in ("device", "has_pc", "area"))
-        times = [t for t in form.getlist("times") if t in TEST_TIMES]
+        device, area = (str(form.get(k, "")) for k in ("device", "area"))
+        times = [t for t in form.getlist("times") if t in TEST_TIME_CHOICES]
         back = "/vrchat" if form.get("back") == "/vrchat" else "/test"
-        if not (EMAIL_RE.match(email) and len(email) <= 255 and device in TEST_DEVICES and has_pc in TEST_PCS
-                and area in TEST_AREAS and form.get("adult") and form.get("agree")):
+        if not (EMAIL_RE.match(email) and len(email) <= 255 and device in TEST_DEVICES
+                and area in TEST_AREA_CHOICES and form.get("adult") and form.get("agree")):
             flash(request, "入っていない項目があります。たしかめて、もう一度送ってください。", "error")
             return redirect(f"{back}#register" if back == "/vrchat" else "/test")
         row = db.scalar(select(TesterSignup).where(TesterSignup.email == email))
         if row is None:
             row = TesterSignup(email=email)
             db.add(row)
-        row.discord = str(form.get("discord", "")).strip()[:64]
-        row.device, row.has_pc, row.area, row.times = device, has_pc, area, ",".join(times)
-        row.note = str(form.get("note", "")).strip()[:1000]
+        row.device, row.has_pc, row.area, row.times = device, "", area, ",".join(times)
         db.commit()
         for admin_email in sorted(settings.admin_emails):
             send_mail(admin_email, "Geaspec VR の先行登録がありました",
-                      f"{TEST_AREAS[area]} / {TEST_DEVICES[device]} / {TEST_PCS[has_pc]}\n"
-                      f"時間帯: {'、'.join(TEST_TIMES[t] for t in times) or 'なし'}\n"
-                      f"Discord: {row.discord or 'なし'}\nメモ: {row.note or 'なし'}\n\n一覧: /admin/testers")
+                      f"{TEST_AREAS[area]} / {TEST_DEVICES[device]}\n"
+                      f"ふだんの VRChat の時間: {'、'.join(TEST_TIMES[t] for t in times) or 'なし'}\n\n一覧: /admin/testers")
         return redirect("/vrchat?registered=1#register" if back == "/vrchat" else "/test?done=1")
 
     @app.get("/admin/testers", response_class=HTMLResponse)

@@ -9,6 +9,7 @@ AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download
 CHANGES: dict[str, list[str]] = {
     "0.7.53": [
         "Geaspec VR を「準備中」にして、入口のページに先行登録のフォームを直接置きました",
+        "先行登録で聞くことを、使う機器・都道府県・ふだん VRChat にいる時間・メールアドレスだけにしました",
     ],
     "0.7.52": [
         "スマホの Geaspec VR の「使い方」で、丸と丸の間の長さをそろえました",

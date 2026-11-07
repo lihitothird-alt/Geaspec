@@ -1832,8 +1832,8 @@ def test_tester_signup(tmp_path, now):
     c = TestClient(app)
     page = c.get("/test").text
     assert "最初にお知らせ" in page and "18歳以上" in page and 'name="agree"' in page
-    base = {"email": "Tester@Example.com", "device": "quest", "has_pc": "none", "area": "nagano",
-            "times": ["weekday_night", "holiday_day", "bogus"], "discord": "tester01"}
+    base = {"email": "Tester@Example.com", "device": "quest", "area": "長野県",
+            "times": ["night", "late", "bogus"]}
     r = c.post("/test", data=base, follow_redirects=False)
     assert r.headers["location"] == "/test"
     r = c.post("/test", data={**base, "adult": "1", "agree": "1"}, follow_redirects=False)
@@ -1841,7 +1841,7 @@ def test_tester_signup(tmp_path, now):
     assert "先行登録が完了しました" in c.get("/test?done=1").text
     from app.models import TesterSignup
     rows = db(app).query(TesterSignup).all()
-    assert [(t.email, t.times, t.discord) for t in rows] == [("tester@example.com", "weekday_night,holiday_day", "tester01")]
+    assert [(t.email, t.area, t.times) for t in rows] == [("tester@example.com", "長野県", "night,late")]
     assert "先行登録する" in c.get("/vrchat").text
     # Geaspec VR の入口にもフォームがあり、そこから送ると入口に戻る
     r = c.post("/test", data={**base, "email": "vr@example.com", "adult": "1", "agree": "1", "back": "/vrchat"},
@@ -1851,5 +1851,5 @@ def test_tester_signup(tmp_path, now):
     admin = TestClient(app)
     signup(admin, "admin@example.com")
     page = admin.get("/admin/testers").text
-    assert "先行登録（2 件）" in page and "長野県" in page and "平日の夜" in page
+    assert "先行登録（2 件）" in page and "長野県" in page and "夜（20〜24時）" in page
     assert TestClient(app).get("/admin/testers", follow_redirects=False).status_code in (303, 401, 403)
