@@ -1853,3 +1853,26 @@ def test_tester_signup(tmp_path, now):
     page = admin.get("/admin/testers").text
     assert "先行登録（2 件）" in page and "長野県" in page and "夜（20〜24時）" in page
     assert TestClient(app).get("/admin/testers", follow_redirects=False).status_code in (303, 401, 403)
+    # 表計算ソフトに持ち出せる (Excel で文字化けしないよう BOM 付き)。管理者だけ
+    csv_text = admin.get("/admin/testers.csv").content.decode("utf-8")
+    assert csv_text.startswith("\ufeff日時,都道府県") and "長野県" in csv_text and "tester@example.com" in csv_text
+    assert TestClient(app).get("/admin/testers.csv", follow_redirects=False).status_code in (303, 401, 403)
+
+
+def test_daily_database_backup(tmp_path):
+    """データベースのコピーを backups/ に取り、古いものは決まった数だけ残す。"""
+    import datetime as dt
+    import sqlite3
+    from app import backup
+    db_file = tmp_path / "geaspec.db"
+    with sqlite3.connect(db_file) as con:
+        con.execute("create table t (x)")
+        con.execute("insert into t values (1)")
+    url = f"sqlite:///{db_file.as_posix()}"
+    for day in range(1, 5):
+        path = backup.backup_once(url, today=dt.date(2026, 11, day), keep=2)
+    assert path.name == "geaspec-2026-11-04.db"
+    assert sorted(p.name for p in (tmp_path / "backups").glob("*.db")) == ["geaspec-2026-11-03.db", "geaspec-2026-11-04.db"]
+    with sqlite3.connect(path) as con:
+        assert con.execute("select x from t").fetchall() == [(1,)]
+    assert backup.backup_once("postgresql://x") is None

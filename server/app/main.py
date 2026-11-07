@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import json
 import logging
@@ -31,6 +32,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import account_links, clock, feedback, invite, services, social, web_test
 from .config import Settings
 from .db import Base, add_missing_columns, make_engine, make_sessionmaker
+from . import backup
 from .models import Booking, BookingStatus, Feedback, Host, Slot, TesterSignup, User, WaitlistEntry
 from .payments import PROVIDER_LABELS, PaymentGateway, build_payments
 from .security import connection_code, hash_password, hash_token, new_agent_token, verify_password
@@ -75,7 +77,12 @@ def create_app(
     Base.metadata.create_all(engine)
     add_missing_columns(engine)
 
-    app = FastAPI(title=settings.service_name, docs_url=None, redoc_url=None)
+    @contextlib.asynccontextmanager
+    async def lifespan(_app):
+        backup.start_daily(settings.database_url)  # 1日1回、データベースのコピーを取る
+        yield
+
+    app = FastAPI(title=settings.service_name, docs_url=None, redoc_url=None, lifespan=lifespan)
     app.state.settings = settings
     Slot.turnover = dt.timedelta(minutes=max(0, settings.turnover_minutes))
     app.state.Session = make_sessionmaker(engine)
@@ -438,6 +445,21 @@ def create_app(
         require_admin(request, db)
         rows = db.scalars(select(TesterSignup).order_by(TesterSignup.created_at.desc())).all()
         return render(request, db, "admin/testers.html", rows=rows, **test_choices)
+
+    @app.get("/admin/testers.csv")
+    def admin_testers_csv(request: Request, db: Session = Depends(get_db)):
+        require_admin(request, db)
+        import csv
+        import io
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["日時", "都道府県", "使う機器", "ふだんの時間", "メールアドレス"])
+        for r in db.scalars(select(TesterSignup).order_by(TesterSignup.created_at)).all():
+            w.writerow([templates.env.filters["jst"](r.created_at), TEST_AREAS.get(r.area, r.area),
+                        TEST_DEVICES.get(r.device, r.device),
+                        "、".join(TEST_TIMES.get(t, t) for t in r.times.split(",") if t), r.email])
+        return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": 'attachment; filename="geaspec-vr-preregistration.csv"'})
 
     @app.get("/admin/waitlist", response_class=HTMLResponse)
     def admin_waitlist(request: Request, db: Session = Depends(get_db)):

@@ -2,7 +2,7 @@
 {% block title %}先行登録 | 管理{% endblock %}
 {% block content %}
 <section class="wrap section tight">
-  <header class="page-head"><h1>先行登録（{{ rows|length }} 件）</h1></header>
+  <header class="page-head"><h1>先行登録（{{ rows|length }} 件）</h1>{% if rows %}<p><a class="btn small" href="/admin/testers.csv">CSV でダウンロード</a></p>{% endif %}</header>
   {% if rows %}
   <div class="table-wrap"><table class="table">
     <thead><tr><th>日時</th><th>地域</th><th>機器</th><th>ふだんの時間</th><th>メール</th></tr></thead>
