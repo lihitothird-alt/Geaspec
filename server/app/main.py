@@ -330,7 +330,8 @@ def create_app(
             request.session["ref"] = ref
         slots = services.available_slots(db, clock.utcnow(), settings.hold_minutes)
         min_price = min((s.price_yen for s in slots), default=None)
-        return render(request, db, template, slot_count=len(slots), min_price=min_price)
+        return render(request, db, template, slot_count=len(slots), min_price=min_price,
+                      discord_url=settings.discord_invite_url, **test_choices)
 
     # VRAM の階層ごとに、向いている仕事 (AI の仕事を振り分ける目安)
     VRAM_TIERS = (
@@ -409,10 +410,11 @@ def create_app(
         email = str(form.get("email", "")).strip().lower()
         device, has_pc, area = (str(form.get(k, "")) for k in ("device", "has_pc", "area"))
         times = [t for t in form.getlist("times") if t in TEST_TIMES]
+        back = "/vrchat" if form.get("back") == "/vrchat" else "/test"
         if not (EMAIL_RE.match(email) and len(email) <= 255 and device in TEST_DEVICES and has_pc in TEST_PCS
                 and area in TEST_AREAS and form.get("adult") and form.get("agree")):
             flash(request, "入っていない項目があります。たしかめて、もう一度送ってください。", "error")
-            return redirect("/test")
+            return redirect(f"{back}#register" if back == "/vrchat" else "/test")
         row = db.scalar(select(TesterSignup).where(TesterSignup.email == email))
         if row is None:
             row = TesterSignup(email=email)
@@ -426,7 +428,7 @@ def create_app(
                       f"{TEST_AREAS[area]} / {TEST_DEVICES[device]} / {TEST_PCS[has_pc]}\n"
                       f"時間帯: {'、'.join(TEST_TIMES[t] for t in times) or 'なし'}\n"
                       f"Discord: {row.discord or 'なし'}\nメモ: {row.note or 'なし'}\n\n一覧: /admin/testers")
-        return redirect("/test?done=1")
+        return redirect("/vrchat?registered=1#register" if back == "/vrchat" else "/test?done=1")
 
     @app.get("/admin/testers", response_class=HTMLResponse)
     def admin_testers(request: Request, db: Session = Depends(get_db)):

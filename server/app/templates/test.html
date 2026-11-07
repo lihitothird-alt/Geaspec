@@ -22,27 +22,7 @@
     <li><b>18歳以上</b><span>ご自身の VRChat アカウントで</span></li>
     <li><b>東京23区・長野県から</b><span>この地域から始める予定です</span></li>
   </ul>
-  <form class="form test-form" method="post" action="/test">
-    <fieldset><legend>使う機器</legend>
-      {% for k, v in devices.items() %}<label class="check"><input type="radio" name="device" value="{{ k }}" required> {{ v }}</label>{% endfor %}
-    </fieldset>
-    <fieldset><legend>パソコン</legend>
-      {% for k, v in pcs.items() %}<label class="check"><input type="radio" name="has_pc" value="{{ k }}" required> {{ v }}</label>{% endfor %}
-    </fieldset>
-    <fieldset><legend>住んでいるところ</legend>
-      {% for k, v in areas.items() %}<label class="check"><input type="radio" name="area" value="{{ k }}" required> {{ v }}</label>{% endfor %}
-    </fieldset>
-    <fieldset><legend>遊べる時間帯<span class="muted small">いくつでも</span></legend>
-      {% for k, v in times.items() %}<label class="check"><input type="checkbox" name="times" value="{{ k }}"> {{ v }}</label>{% endfor %}
-    </fieldset>
-    <label>メールアドレス<input type="email" name="email" required autocomplete="email" inputmode="email" value="{{ user.email if user else '' }}"></label>
-    <label>Discord のユーザー名<span class="muted small">なくてもかまいません</span><input name="discord" maxlength="64" autocomplete="off"></label>
-    <label>ひとこと<span class="muted small">なくてもかまいません</span><textarea name="note" rows="2" maxlength="1000"></textarea></label>
-    <label class="check"><input type="checkbox" name="adult" value="1" required> 18歳以上です</label>
-    <label class="check"><input type="checkbox" name="agree" value="1" required> <span><a href="/legal/terms" target="_blank">利用規約</a>と<a href="/legal/privacy" target="_blank">プライバシーポリシー</a>に同意します</span></label>
-    <button class="btn">先行登録する</button>
-  </form>
-  <p class="muted small">いただいた連絡先は、Geaspec VR のご案内にだけ使います。</p>
+  {% include "_tester_form.html" %}
   {% endif %}
 </section>
 {% endblock %}

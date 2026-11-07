@@ -165,7 +165,7 @@ def test_landing_page_renders(tmp_path, now):
     # Geaspec VR のページは淡い青 (ロゴも Geaspec VR)。トップはミントのまま
     assert 'class=" theme-vr"' in v.text and '<a class="logo-sub" href="/vrchat">VR</a>' in v.text and '<a class="logo" href="/"' in v.text
     assert "theme-vr" not in r.text and "theme-vr" in c.get("/slots").text
-    assert "PC版VRChat</mark>を。" in v.text and "<title>Geaspec VR | PC版VRChat" in v.text and 'href="/slots"' in v.text and "必要なもの" in v.text
+    assert "PC版VRChat</mark>を。" in v.text and "<title>Geaspec VR | PC版VRChat" in v.text and 'id="register"' in v.text and "準備中" in v.text and "必要なもの" in v.text
 
 
 def test_slot_creation_converts_jst_to_utc(setup):
@@ -1843,8 +1843,13 @@ def test_tester_signup(tmp_path, now):
     rows = db(app).query(TesterSignup).all()
     assert [(t.email, t.times, t.discord) for t in rows] == [("tester@example.com", "weekday_night,holiday_day", "tester01")]
     assert "先行登録する" in c.get("/vrchat").text
+    # Geaspec VR の入口にもフォームがあり、そこから送ると入口に戻る
+    r = c.post("/test", data={**base, "email": "vr@example.com", "adult": "1", "agree": "1", "back": "/vrchat"},
+               follow_redirects=False)
+    assert r.headers["location"] == "/vrchat?registered=1#register"
+    assert 'name="adult"' in c.get("/vrchat").text and "先行登録が完了しました" in c.get("/vrchat?registered=1").text
     admin = TestClient(app)
     signup(admin, "admin@example.com")
     page = admin.get("/admin/testers").text
-    assert "先行登録（1 件）" in page and "長野県" in page and "平日の夜" in page
+    assert "先行登録（2 件）" in page and "長野県" in page and "平日の夜" in page
     assert TestClient(app).get("/admin/testers", follow_redirects=False).status_code in (303, 401, 403)
