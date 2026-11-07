@@ -1855,3 +1855,5 @@ body.theme-ai::before, body.theme-gamedev::before { display: none; }
 .test-form { max-width: 560px; }
 .test-form fieldset { border: 0; padding: 0; margin: 0 0 6px; display: grid; gap: 2px; }
 .test-form legend { font-weight: 700; margin-bottom: 4px; display: flex; gap: 8px; align-items: baseline; }
+.soon-note { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 14px; }
+.register-sec .test-page { max-width: 640px; }

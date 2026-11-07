@@ -6,10 +6,9 @@
     <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Geaspec VR</p>
     <h1 id="hero-title"><span class="ln">ゲーミングPCが</span><span class="ln">なくても、</span><br><span class="ln"><mark class="hl">PC版VRChat</mark>を。</span></h1>
     <p class="lead">Quest ひとつで、だれかのゲーミングPCに<span class="nowrap">インターネット越しに接続。</span><span class="nowrap">遊びたい時間だけ。</span></p>
+    <p class="soon-note"><span class="badge completed">準備中</span>いまは先行登録を受け付けています。始まったら、登録した人に最初にお知らせします。</p>
     <div class="cta-row">
-      <a class="btn lg" href="/slots">予約する{% if slot_count %}（空き {{ slot_count }} 件）{% endif %}<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-      <a class="btn lg ghost" href="/test">先行登録する</a>
-      {% if not free_mode and min_price %}<p class="price-tag">1枠 <span class="num">{{ min_price|yen }}</span>〜</p>{% endif %}
+      <a class="btn lg" href="#register">先行登録する<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
     </div>
     <ul class="trust" aria-label="安心の理由">
       <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-user"/></svg></span>自分の VRChat アカウントで</li>
@@ -23,6 +22,21 @@
       <div><dt>接続アプリ</dt><dd>Virtual Desktop</dd><small>Meta のストアで購入</small></div>
       <div><dt>対応</dt><dd>Quest 2・3・3S・Pro</dd><small>自分の VRChat アカウント</small></div>
     </dl>
+  </div>
+</section>
+
+<section class="section register-sec" id="register" aria-labelledby="register-title">
+  <div class="wrap test-page">
+    {% if request.query_params.get("registered") %}
+    <h2 id="register-title">先行登録が完了しました</h2>
+    <p>使えるようになったら、最初にお知らせします。</p>
+    {% if discord_url %}<p><a class="btn" href="{{ discord_url }}" target="_blank" rel="noopener">Discord に参加する</a></p>
+    <p class="muted small">Discord では、最新のお知らせや、VR・パソコンまわりの情報交換ができます。</p>{% endif %}
+    {% else %}
+    <h2 id="register-title">先行登録</h2>
+    <p class="muted">登録は無料・18歳以上。東京23区・長野県から始める予定です。</p>
+    {% set back = "/vrchat" %}{% include "_tester_form.html" %}
+    {% endif %}
   </div>
 </section>
 

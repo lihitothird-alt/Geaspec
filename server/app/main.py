@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import json
 import logging
@@ -31,6 +32,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import account_links, clock, feedback, invite, services, social, web_test
 from .config import Settings
 from .db import Base, add_missing_columns, make_engine, make_sessionmaker
+from . import backup
 from .models import Booking, BookingStatus, Feedback, Host, Slot, TesterSignup, User, WaitlistEntry
 from .payments import PROVIDER_LABELS, PaymentGateway, build_payments
 from .security import connection_code, hash_password, hash_token, new_agent_token, verify_password
@@ -75,7 +77,12 @@ def create_app(
     Base.metadata.create_all(engine)
     add_missing_columns(engine)
 
-    app = FastAPI(title=settings.service_name, docs_url=None, redoc_url=None)
+    @contextlib.asynccontextmanager
+    async def lifespan(_app):
+        backup.start_daily(settings.database_url)  # 1日1回、データベースのコピーを取る
+        yield
+
+    app = FastAPI(title=settings.service_name, docs_url=None, redoc_url=None, lifespan=lifespan)
     app.state.settings = settings
     Slot.turnover = dt.timedelta(minutes=max(0, settings.turnover_minutes))
     app.state.Session = make_sessionmaker(engine)
@@ -330,7 +337,8 @@ def create_app(
             request.session["ref"] = ref
         slots = services.available_slots(db, clock.utcnow(), settings.hold_minutes)
         min_price = min((s.price_yen for s in slots), default=None)
-        return render(request, db, template, slot_count=len(slots), min_price=min_price)
+        return render(request, db, template, slot_count=len(slots), min_price=min_price,
+                      discord_url=settings.discord_invite_url, **test_choices)
 
     # VRAM の階層ごとに、向いている仕事 (AI の仕事を振り分ける目安)
     VRAM_TIERS = (
@@ -393,11 +401,17 @@ def create_app(
 
     TEST_DEVICES = {"quest": "Quest など単体の VR ヘッドセット", "pcvr": "PC につなぐ VR ヘッドセット",
                     "desktop": "VR なし（パソコンの画面）", "phone": "スマホ"}
-    TEST_PCS = {"gaming": "ゲーミング PC がある", "normal": "ふつうの PC はある", "none": "PC はない"}
-    TEST_AREAS = {"tokyo": "東京23区", "nagano": "長野県", "other": "そのほか"}
-    TEST_TIMES = {"weekday_day": "平日の昼", "weekday_night": "平日の夜", "holiday_day": "休日の昼",
+    TEST_PCS = {"gaming": "ゲーミング PC がある", "normal": "ふつうの PC はある", "none": "PC はない"}  # 前の版の登録の表示用
+    TEST_AREAS = {p: p for p in """北海道 青森県 岩手県 宮城県 秋田県 山形県 福島県 茨城県 栃木県 群馬県 埼玉県 千葉県 東京都 神奈川県 新潟県 富山県 石川県 福井県 山梨県 長野県 岐阜県 静岡県 愛知県 三重県 滋賀県 京都府 大阪府 兵庫県 奈良県 和歌山県 鳥取県 島根県 岡山県 広島県 山口県 徳島県 香川県 愛媛県 高知県 福岡県 佐賀県 長崎県 熊本県 大分県 宮崎県 鹿児島県 沖縄県""".split()}
+    TEST_AREAS.update({"overseas": "海外", "tokyo": "東京23区", "nagano": "長野県", "other": "そのほか"})
+    TEST_AREA_CHOICES = [p for p in TEST_AREAS if p not in ("tokyo", "nagano", "other")]
+    TEST_TIMES = {"morning": "朝（6〜12時）", "day": "昼（12〜17時）", "evening": "夕方（17〜20時）",
+                  "night": "夜（20〜24時）", "late": "深夜（0〜6時）",
+                  "weekday_day": "平日の昼", "weekday_night": "平日の夜", "holiday_day": "休日の昼",
                   "holiday_night": "休日の夜"}
-    test_choices = dict(devices=TEST_DEVICES, pcs=TEST_PCS, areas=TEST_AREAS, times=TEST_TIMES)
+    TEST_TIME_CHOICES = ["morning", "day", "evening", "night", "late"]
+    test_choices = dict(devices=TEST_DEVICES, pcs=TEST_PCS, areas=TEST_AREAS, times=TEST_TIMES,
+                        area_choices=TEST_AREA_CHOICES, time_choices=TEST_TIME_CHOICES)
 
     @app.get("/test", response_class=HTMLResponse)
     def test_page(request: Request, db: Session = Depends(get_db)):
@@ -407,32 +421,45 @@ def create_app(
     async def test_join(request: Request, db: Session = Depends(get_db)):
         form = await request.form()
         email = str(form.get("email", "")).strip().lower()
-        device, has_pc, area = (str(form.get(k, "")) for k in ("device", "has_pc", "area"))
-        times = [t for t in form.getlist("times") if t in TEST_TIMES]
-        if not (EMAIL_RE.match(email) and len(email) <= 255 and device in TEST_DEVICES and has_pc in TEST_PCS
-                and area in TEST_AREAS and form.get("adult") and form.get("agree")):
+        device, area = (str(form.get(k, "")) for k in ("device", "area"))
+        times = [t for t in form.getlist("times") if t in TEST_TIME_CHOICES]
+        back = "/vrchat" if form.get("back") == "/vrchat" else "/test"
+        if not (EMAIL_RE.match(email) and len(email) <= 255 and device in TEST_DEVICES
+                and area in TEST_AREA_CHOICES and form.get("adult") and form.get("agree")):
             flash(request, "入っていない項目があります。たしかめて、もう一度送ってください。", "error")
-            return redirect("/test")
+            return redirect(f"{back}#register" if back == "/vrchat" else "/test")
         row = db.scalar(select(TesterSignup).where(TesterSignup.email == email))
         if row is None:
             row = TesterSignup(email=email)
             db.add(row)
-        row.discord = str(form.get("discord", "")).strip()[:64]
-        row.device, row.has_pc, row.area, row.times = device, has_pc, area, ",".join(times)
-        row.note = str(form.get("note", "")).strip()[:1000]
+        row.device, row.has_pc, row.area, row.times = device, "", area, ",".join(times)
         db.commit()
         for admin_email in sorted(settings.admin_emails):
             send_mail(admin_email, "Geaspec VR の先行登録がありました",
-                      f"{TEST_AREAS[area]} / {TEST_DEVICES[device]} / {TEST_PCS[has_pc]}\n"
-                      f"時間帯: {'、'.join(TEST_TIMES[t] for t in times) or 'なし'}\n"
-                      f"Discord: {row.discord or 'なし'}\nメモ: {row.note or 'なし'}\n\n一覧: /admin/testers")
-        return redirect("/test?done=1")
+                      f"{TEST_AREAS[area]} / {TEST_DEVICES[device]}\n"
+                      f"ふだんの VRChat の時間: {'、'.join(TEST_TIMES[t] for t in times) or 'なし'}\n\n一覧: /admin/testers")
+        return redirect("/vrchat?registered=1#register" if back == "/vrchat" else "/test?done=1")
 
     @app.get("/admin/testers", response_class=HTMLResponse)
     def admin_testers(request: Request, db: Session = Depends(get_db)):
         require_admin(request, db)
         rows = db.scalars(select(TesterSignup).order_by(TesterSignup.created_at.desc())).all()
         return render(request, db, "admin/testers.html", rows=rows, **test_choices)
+
+    @app.get("/admin/testers.csv")
+    def admin_testers_csv(request: Request, db: Session = Depends(get_db)):
+        require_admin(request, db)
+        import csv
+        import io
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["日時", "都道府県", "使う機器", "ふだんの時間", "メールアドレス"])
+        for r in db.scalars(select(TesterSignup).order_by(TesterSignup.created_at)).all():
+            w.writerow([templates.env.filters["jst"](r.created_at), TEST_AREAS.get(r.area, r.area),
+                        TEST_DEVICES.get(r.device, r.device),
+                        "、".join(TEST_TIMES.get(t, t) for t in r.times.split(",") if t), r.email])
+        return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": 'attachment; filename="geaspec-vr-preregistration.csv"'})
 
     @app.get("/admin/waitlist", response_class=HTMLResponse)
     def admin_waitlist(request: Request, db: Session = Depends(get_db)):

@@ -101,7 +101,7 @@
 
       {#- サイトごとのメニュー: 予約する・一覧・貸し出し -#}
       {%- if vr_area -%}
-        {%- set site_nav = [("/slots", "Book" if en else "予約する", "#i-calendar", true),
+        {%- set site_nav = [(vr_home ~ "#register" if not en else "/slots", "Book" if en else "先行登録", "#i-calendar", true),
                             ("/bookings", "My bookings" if en else "自分の予約", "#i-list", user),
                             ("/lend", "Lend" if en else "貸し出し", "#i-pc", user)] -%}
       {%- elif area in ("ai", "gamedev") -%}
@@ -128,7 +128,7 @@
       </nav>
 
       <div class="nav-mobile">
-        {% if vr_area and path not in ("/slots", "/vrchat", "/en/vr") %}<a class="btn small" href="/slots">{{ "Book" if en else "予約する" }}</a>{% endif %}
+        {% if vr_area and path not in ("/slots", "/vrchat", "/en/vr") %}<a class="btn small" href="{{ '/slots' if en else '/vrchat#register' }}">{{ "Book" if en else "先行登録" }}</a>{% endif %}
         <details class="menu">
           <summary><svg class="i ic-open"><use href="#i-menu"/></svg><svg class="i ic-close"><use href="#i-close"/></svg><span class="visually-hidden">メニュー</span></summary>
           <nav class="menu-panel" aria-label="メニュー">
