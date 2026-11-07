@@ -1865,14 +1865,17 @@ def test_daily_database_backup(tmp_path):
     import sqlite3
     from app import backup
     db_file = tmp_path / "geaspec.db"
-    with sqlite3.connect(db_file) as con:
-        con.execute("create table t (x)")
-        con.execute("insert into t values (1)")
+    con = sqlite3.connect(db_file)
+    con.execute("create table t (x)")
+    con.execute("insert into t values (1)")
+    con.commit()
+    con.close()
     url = f"sqlite:///{db_file.as_posix()}"
     for day in range(1, 5):
         path = backup.backup_once(url, today=dt.date(2026, 11, day), keep=2)
     assert path.name == "geaspec-2026-11-04.db"
     assert sorted(p.name for p in (tmp_path / "backups").glob("*.db")) == ["geaspec-2026-11-03.db", "geaspec-2026-11-04.db"]
-    with sqlite3.connect(path) as con:
-        assert con.execute("select x from t").fetchall() == [(1,)]
+    con = sqlite3.connect(path)
+    assert con.execute("select x from t").fetchall() == [(1,)]
+    con.close()
     assert backup.backup_once("postgresql://x") is None

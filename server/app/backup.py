@@ -31,8 +31,13 @@ def backup_once(database_url: str, today: dt.date | None = None, keep: int = KEE
     folder.mkdir(parents=True, exist_ok=True)
     dest = folder / f"{src.stem}-{(today or dt.date.today()).isoformat()}.db"
     tmp = dest.with_suffix(".tmp")
-    with sqlite3.connect(src) as a, sqlite3.connect(tmp) as b:
+    # with sqlite3.connect() は閉じないので、明示的に閉じる (Windows では開いたままだと名前を変えられない)
+    a, b = sqlite3.connect(src), sqlite3.connect(tmp)
+    try:
         a.backup(b)
+    finally:
+        b.close()
+        a.close()
     tmp.replace(dest)
     for old in sorted(folder.glob(f"{src.stem}-*.db"))[:-keep]:
         old.unlink(missing_ok=True)
