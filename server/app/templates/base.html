@@ -15,8 +15,8 @@
   {% else %}
   <meta name="robots" content="noindex, nofollow">
   {% endif %}
-  <title>{% block title %}{{ settings.service_name }} | VR ヘッドセットひとつで PC版VRChat を時間単位で{% endblock %}</title>
-  <meta name="description" content="{% block description %}ゲーミングPCがなくても、VR ヘッドセット（Quest など）ひとつで PC 版 VRChat を。ご自身のアカウントで、予約した時間だけ。終了時にログイン情報やキャッシュは自動で削除されます。{% endblock %}">
+  <title>{% block title %}{{ settings.service_name }} | みんなで使う、みんなのパソコン{% endblock %}</title>
+  <meta name="description" content="{% block description %}使っていない時間のパソコンを、必要な人と分け合う。AI・ゲーム開発・VR に使えるパソコンのシェアサービスです。{% endblock %}">
   <meta property="og:site_name" content="{{ settings.service_name }}">
   <meta property="og:type" content="website">
   <meta property="og:url" content="{{ page_url(request) }}">
@@ -128,7 +128,7 @@
       </nav>
 
       <div class="nav-mobile">
-        {% if vr_area and path != "/slots" %}<a class="btn small" href="/slots">{{ "Book" if en else "空き枠を見る" }}</a>{% endif %}
+        {% if vr_area and path not in ("/slots", "/vrchat", "/en/vr") %}<a class="btn small" href="/slots">{{ "Book" if en else "予約する" }}</a>{% endif %}
         <details class="menu">
           <summary><svg class="i ic-open"><use href="#i-menu"/></svg><svg class="i ic-close"><use href="#i-close"/></svg><span class="visually-hidden">メニュー</span></summary>
           <nav class="menu-panel" aria-label="メニュー">
@@ -179,10 +179,12 @@
         {% if en %}
         <div><h3>Geaspec</h3><a href="{{ vr_home if vr_area else main_url ~ '/' }}" hreflang="ja" lang="ja">日本語</a><a href="{{ main_url }}/about" hreflang="ja">Where the name comes from</a></div>
         <div><h3>Geaspec VR</h3><a href="/guide" hreflang="ja">Getting started (Japanese)</a></div>
+        <div><h3>Contact</h3><a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a>{% if settings.discord_invite_url %}<a href="{{ settings.discord_invite_url }}" target="_blank" rel="noopener">Discord (news and chat)</a>{% endif %}</div>
         <div><h3>Terms</h3><a href="/legal/terms" hreflang="ja">Terms</a><a href="/legal/privacy" hreflang="ja">Privacy</a><a href="/legal/platforms" hreflang="ja">VRChat and Steam terms</a></div>
         {% else %}
         <div><h3>Geaspec</h3><a href="{{ main_url }}/">トップ</a><a href="{{ main_url }}/about">名前の由来</a><a href="{{ vr_en_home if vr_area else main_url ~ '/en' }}" hreflang="en" lang="en">English</a>{% if not simple %}<a href="/app">スマホのアプリとして使う</a>{% endif %}</div>
         <div><h3>サービス</h3><a href="{{ main_url }}/ai">Geaspec AI</a><a href="{{ main_url }}/gamedev">Geaspec Studio</a><a href="{{ vr_home }}">Geaspec VR</a><a href="/guide">VR のはじめ方</a></div>
+        <div><h3>お問い合わせ</h3><a href="mailto:geaspec.contact@gmail.com">geaspec.contact@gmail.com</a>{% if settings.discord_invite_url %}<a href="{{ settings.discord_invite_url }}" target="_blank" rel="noopener">Discord（お知らせ・情報交換）</a>{% endif %}</div>
         <div><h3>規約</h3><a href="/legal/terms">利用規約</a><a href="/legal/privacy">プライバシーポリシー</a><a href="/legal/platforms">VRChat・Steam の規約について</a>{% if not free_mode %}<a href="/legal/tokushoho">特定商取引法に基づく表記</a>{% endif %}</div>
         {% endif %}
       </nav>
