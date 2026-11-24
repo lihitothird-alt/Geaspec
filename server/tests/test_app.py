@@ -150,7 +150,7 @@ def test_landing_page_renders(tmp_path, now):
     assert 'href="/ai"' not in nav and 'href="/gamedev"' not in nav and 'href="/vrchat"' not in nav
     # レンタルの言葉や、VRAM を合算して 1 つのメモリに見せる表現は使わない
     assert "GPU をさがす" not in r.text and "VRAM増強" not in r.text and "28GB" not in r.text
-    assert "何台ものパソコン" in r.text and "1 つの大きなメモリにはなりません" in c.get("/ai").text
+    assert "だれかのパソコンの AI が答えます" in r.text and "1 つの大きなメモリにはなりません" in c.get("/ai").text
     # Geaspec AI: 頼む・依頼一覧・貸し出し (どれも準備中で、始まったら知らせる登録)
     for path in ("/ai", "/ai/requests", "/ai/host", "/gamedev", "/gamedev/requests", "/gamedev/host"):
         page = c.get(path)
@@ -1707,10 +1707,10 @@ def test_english_top_page(tmp_path, now):
     assert "geaspec.contact@gmail.com" in r.text and 'href="/"' in r.text and 'href="/en/vr"' in r.text
     r = c.get("/en/vr")
     assert r.status_code == 200
-    assert '<html lang="en">' in r.text and "Play VRChat in <mark" in r.text and "Sign up" in r.text and "theme-vr" in r.text
+    assert '<html lang="en">' in r.text and "Play VRChat in <mark" in r.text and "Create account" in r.text and "theme-vr" in r.text
     assert "geaspec.contact@gmail.com" in r.text and 'href="/vrchat"' in r.text  # 日本語の VR へ戻るリンク
     ja = c.get("/").text
-    assert '<html lang="ja">' in ja and 'href="/en"' in ja and "新規登録" in ja
+    assert '<html lang="ja">' in ja and 'href="/en"' in ja and "アカウントを作る" in ja
 
 
 def test_agent_download_button_points_to_this_version(tmp_path, now):
@@ -1842,7 +1842,7 @@ def test_tester_signup(tmp_path, now):
     from app.models import TesterSignup
     rows = db(app).query(TesterSignup).all()
     assert [(t.email, t.area, t.times) for t in rows] == [("tester@example.com", "長野県", "night,late")]
-    assert "先行登録する" in c.get("/vrchat").text
+    assert "開始したらメールで知らせてもらう" in c.get("/vrchat").text
     # Geaspec VR の入口にもフォームがあり、そこから送ると入口に戻る
     r = c.post("/test", data={**base, "email": "vr@example.com", "adult": "1", "agree": "1", "back": "/vrchat"},
                follow_redirects=False)

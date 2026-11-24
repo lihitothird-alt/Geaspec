@@ -400,18 +400,25 @@ def create_app(
         return redirect(back)
 
     TEST_DEVICES = {"quest": "Quest など単体の VR ヘッドセット", "pcvr": "PC につなぐ VR ヘッドセット",
-                    "desktop": "VR なし（パソコンの画面）", "phone": "スマホ"}
+                    "desktop": "VR なし（パソコンの画面で VRChat）", "phone": "スマホ（VRChat のスマホ版）"}
     TEST_PCS = {"gaming": "ゲーミング PC がある", "normal": "ふつうの PC はある", "none": "PC はない"}  # 前の版の登録の表示用
     TEST_AREAS = {p: p for p in """北海道 青森県 岩手県 宮城県 秋田県 山形県 福島県 茨城県 栃木県 群馬県 埼玉県 千葉県 東京都 神奈川県 新潟県 富山県 石川県 福井県 山梨県 長野県 岐阜県 静岡県 愛知県 三重県 滋賀県 京都府 大阪府 兵庫県 奈良県 和歌山県 鳥取県 島根県 岡山県 広島県 山口県 徳島県 香川県 愛媛県 高知県 福岡県 佐賀県 長崎県 熊本県 大分県 宮崎県 鹿児島県 沖縄県""".split()}
     TEST_AREAS.update({"overseas": "海外", "tokyo": "東京23区", "nagano": "長野県", "other": "そのほか"})
     TEST_AREA_CHOICES = [p for p in TEST_AREAS if p not in ("tokyo", "nagano", "other")]
+    _regions = [("北海道・東北", 7), ("関東", 7), ("中部", 9), ("近畿", 7), ("中国", 5), ("四国", 4), ("九州・沖縄", 8)]
+    TEST_AREA_GROUPS, _i = [], 0
+    for _name, _n in _regions:  # 選びやすいように地方ごとにまとめる
+        TEST_AREA_GROUPS.append((_name, TEST_AREA_CHOICES[_i:_i + _n]))
+        _i += _n
+    TEST_AREA_GROUPS.append(("そのほか", TEST_AREA_CHOICES[_i:]))
     TEST_TIMES = {"morning": "朝（6〜12時）", "day": "昼（12〜17時）", "evening": "夕方（17〜20時）",
                   "night": "夜（20〜24時）", "late": "深夜（0〜6時）",
                   "weekday_day": "平日の昼", "weekday_night": "平日の夜", "holiday_day": "休日の昼",
                   "holiday_night": "休日の夜"}
     TEST_TIME_CHOICES = ["morning", "day", "evening", "night", "late"]
     test_choices = dict(devices=TEST_DEVICES, pcs=TEST_PCS, areas=TEST_AREAS, times=TEST_TIMES,
-                        area_choices=TEST_AREA_CHOICES, time_choices=TEST_TIME_CHOICES)
+                        area_choices=TEST_AREA_CHOICES, area_groups=TEST_AREA_GROUPS,
+                        time_choices=TEST_TIME_CHOICES)
 
     @app.get("/test", response_class=HTMLResponse)
     def test_page(request: Request, db: Session = Depends(get_db)):

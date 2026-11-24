@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 {% from "_waitlist.html" import waitlist_form %}
-{% block title %}Geaspec Studio | ゲーム作りの作業を、AI のチームに{% endblock %}
-{% block description %}ゲームの仕組みの設計、オブジェクトの生成、色の設定、軽量化を、役割を分けた AI のチームに頼めます（準備中）。{% endblock %}
+{% block title %}Geaspec Studio | パソコンを、まるごと借りる{% endblock %}
+{% block description %}だれかの高性能なパソコンを、まるごと時間で借りる。ゲーム開発や重い作業に（準備中）。{% endblock %}
 {% block content %}
 <div class="wrap">
   <header class="page-head big">
     <p class="eyebrow"><span class="dot" aria-hidden="true"></span>準備中</p>
-    <h1>ゲーム作りの作業を、<br>AI のチームに。</h1>
-    <p class="muted">作る役、テストする役、確かめる役。何台ものパソコンで動く AI のチームが、くり返し直しながら仕上げます。</p>
+    <h1>パソコンを、<br>まるごと借りる。</h1>
+    <p class="muted">だれかの高性能なパソコンを、決めた時間だけまるごと使えます。ゲーム開発や、手元のパソコンでは重い作業に。</p>
   </header>
 </div>
 
 <section class="wrap section tight" aria-labelledby="jobs">
-  <h2 id="jobs" class="sub-head">頼める作業</h2>
+  <h2 id="jobs" class="sub-head">こんな作業に</h2>
   <ul class="uses four">
     <li class="use-card ready"><div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-gear"/></svg></span></div><h3>ゲームの仕組み</h3><p>ゲームを動かす仕組みの設計と実装。</p></li>
     <li class="use-card ready"><div class="use-top"><span class="use-ic" aria-hidden="true"><svg class="i"><use href="#i-pc"/></svg></span></div><h3>オブジェクトの生成</h3><p>ゲームに置く 3D の物体を作ります。</p></li>
@@ -24,13 +24,13 @@
 <section class="wrap section flush-top" aria-labelledby="flow">
   <h2 id="flow" class="sub-head">使い方</h2>
   <ol class="steps three">
-    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></div><h3>作業を選ぶ</h3><p>頼みたい作業と、ほしい形を選びます。</p></li>
-    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-mail"/></svg></div><h3>一部を渡す</h3><p>プロジェクトから、頼みたい部分だけを切り出して渡します。公開前の秘密の部分は渡さないでください。</p></li>
-    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></div><h3>受け取って、直してもらう</h3><p>できたものを受け取り、直してほしいところを返します。</p></li>
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg></div><h3>時間を選ぶ</h3><p>使いたいパソコンと時間を選びます。</p></li>
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-mail"/></svg></div><h3>まるごと使う</h3><p>借りたパソコンに遠くからつないで、自分の作業をします。</p></li>
+    <li class="step"><div class="step-top"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></div><h3>終わったら消える</h3><p>時間が来ると、作業の中身は貸す人のパソコンから消されます。</p></li>
   </ol>
 </section>
 
 <section class="wrap section flush-top" aria-label="登録">
-  {{ waitlist_form("gamedev", "guest", user, "/gamedev", "作っているゲームと、頼みたいこと", "例：Unity で作っている VR ゲームの軽量化") }}
+  {{ waitlist_form("gamedev", "guest", user, "/gamedev", "使いたいことと、必要な性能", "例：Unity のビルドを速くしたい。GPU は RTX 4070 以上") }}
 </section>
 {% endblock %}

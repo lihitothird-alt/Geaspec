@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}新規登録 | {{ settings.service_name }}{% endblock %}
+{% block title %}アカウントを作る | {{ settings.service_name }}{% endblock %}
 {% block content %}
 <section class="wrap auth">
   <div class="auth-card">
-    <h1>新規登録</h1>
+    <h1>アカウントを作る</h1>
     {% set invite_meta = request.session.get("invite_meta") %}
     {% if invite_meta %}
     <p class="intro">Meta ユーザー名は、Discord で申し込んだときの <strong>{{ invite_meta }}</strong> を使います。メールアドレスとパスワードを決めれば、すぐに予約できます。</p>
@@ -15,7 +15,7 @@
       <label>メールアドレス<input type="email" name="email" value="{{ email or '' }}" required autocomplete="email" inputmode="email"></label>
       <label><span>パスワード <span class="opt">（8文字以上）</span></span><input type="password" name="password" minlength="8" required autocomplete="new-password"></label>
       <label class="check"><input type="checkbox" name="agree" value="1" required> <span><a href="/legal/terms" target="_blank">利用規約</a>と<a href="/legal/privacy" target="_blank">プライバシーポリシー</a>に同意します</span></label>
-      <button class="btn block lg">登録する</button>
+      <button class="btn block lg">アカウントを作る</button>
     </form>
     <p class="auth-foot muted">登録済みの方は <a href="/login">ログイン</a></p>
   </div>
