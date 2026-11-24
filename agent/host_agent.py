@@ -1014,9 +1014,12 @@ class HostAgent:
         if is_interface_up(iface):
             log.info("VPN インターフェース '%s' は有効です", iface)
             return True
+        # Tailscale などの VPN は必須ではない (Virtual Desktop はインターネット越しに直接つなぐ)。
+        # 設定に残っていても、つながっていないことを知らせるだけで、貸し出しは止めない
         available = ", ".join(sorted(psutil.net_if_stats().keys()))
-        log.error("VPN インターフェース '%s' が有効ではありません。利用可能: %s", iface, available)
-        return False
+        log.warning("VPN '%s' はつながっていません (なくても貸し出せます)。利用可能: %s", iface, available)
+        self.warnings.append(f"VPN「{iface}」がつながっていません（なくても貸し出せます）")
+        return True
 
     # --- 2. 前処理 -------------------------------------------------------
 
@@ -2037,8 +2040,8 @@ def run_setup_wizard(path: Path, input_fn=input) -> bool:
     if token is None:
         return False
     vpn = ask(
-        "VPN のインターフェース名 (Tailscale なら通常 Tailscale。確認しない場合は - )",
-        current.get("vpn_interface", "Tailscale"),
+        "VPN のインターフェース名 (使っていなければ - )",
+        current.get("vpn_interface", "-"),
         lambda v: None,
     )
     if vpn is None:

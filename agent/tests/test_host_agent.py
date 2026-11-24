@@ -415,7 +415,7 @@ class ConfigFileTest(unittest.TestCase):
             "https://geaspec.example/",
             "abc",                        # トークンでない → 聞き直し
             "pcvr_0123456789abcdef",
-            "",                           # 既定値 Tailscale
+            "",                           # 既定値: VPN は使わない
         ])
         with mock.patch("builtins.print"):
             ok = host_agent.run_setup_wizard(self.path, input_fn=lambda _: next(answers))
@@ -424,7 +424,6 @@ class ConfigFileTest(unittest.TestCase):
         self.assertEqual(saved, {
             "server": "https://geaspec.example",
             "token": "pcvr_0123456789abcdef",
-            "vpn_interface": "Tailscale",
         })
 
     def test_setup_wizard_can_skip_vpn_check(self):
@@ -711,3 +710,13 @@ class AIShareOptInTest(unittest.TestCase):
 
     def test_runs_when_lender_opts_in(self):
         self._serve_once(True).assert_called_once()
+
+
+class VpnIsOptionalTest(unittest.TestCase):
+    """設定に Tailscale が残っていて、つながっていなくても、貸し出しは止めない。"""
+
+    def test_missing_vpn_only_warns(self):
+        agent = HostAgent(AgentConfig(None, dry_run=True, vpn_interface="Tailscale"), Path(tempfile.mkdtemp()))
+        with mock.patch.object(host_agent, "is_interface_up", return_value=False):
+            self.assertTrue(agent.check_vpn())
+        self.assertTrue(any("Tailscale" in w for w in agent.warnings))
