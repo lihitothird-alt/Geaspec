@@ -1917,3 +1917,10 @@ def test_ai_chat_prototype(setup):
     # 会話を消すと、サイトからも消える
     user.post(f"/ai/chat/{cid}/delete")
     assert "元気です" not in user.get(f"/ai/chat?c={cid}").text
+
+
+def test_footer_has_lender_app_download(tmp_path, now):
+    app, _ = make_app(tmp_path)
+    c = TestClient(app)
+    for path in ("/", "/vrchat", "/ai", "/en"):
+        assert '/download/agent">' in c.get(path).text, path
