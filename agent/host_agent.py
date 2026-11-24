@@ -1017,8 +1017,9 @@ class HostAgent:
         # Tailscale などの VPN は必須ではない (Virtual Desktop はインターネット越しに直接つなぐ)。
         # 設定に残っていても、つながっていないことを知らせるだけで、貸し出しは止めない
         available = ", ".join(sorted(psutil.net_if_stats().keys()))
-        log.warning("VPN '%s' はつながっていません (なくても貸し出せます)。利用可能: %s", iface, available)
-        self.warnings.append(f"VPN「{iface}」がつながっていません（なくても貸し出せます）")
+        log.warning("VPN '%s' はつながっていません (同じ家の中や、ポート開放をしてあれば VPN なしで貸し出せます)。利用可能: %s",
+                    iface, available)
+        self.warnings.append(f"VPN「{iface}」がつながっていません（同じ家の中か、ポート開放をしてあれば VPN なしでつながります）")
         return True
 
     # --- 2. 前処理 -------------------------------------------------------
