@@ -1862,7 +1862,7 @@ body.theme-ai::before, body.theme-gamedev::before { display: none; }
 .ai-chat { max-width: 760px; }
 .chat-log { display: grid; gap: 10px; margin: 8px 0 16px; }
 .chat-msg { padding: 12px 14px; border-radius: 14px; white-space: pre-wrap; line-height: 1.7; max-width: 92%; }
-.chat-msg.user { justify-self: end; background: var(--primary); color: #fff; }
+.chat-msg.user { justify-self: end; background: var(--primary); color: var(--text); }
 .chat-msg.assistant { justify-self: start; background: var(--surface-3, #eef1f5); }
 .chat-msg.pending { color: var(--muted); }
 .chat-msg.error { justify-self: start; background: #fdecec; color: #8a1f1f; }
