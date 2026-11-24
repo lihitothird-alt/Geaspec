@@ -689,3 +689,25 @@ class AIWorkerDuringVRTest(unittest.TestCase):
             host_agent.ai_worker(client, stop)
         client.ai_next.assert_not_called()
         self.assertEqual(waits, [5])
+
+
+class AIShareOptInTest(unittest.TestCase):
+    """貸す人が設定で選ぶまで、この PC の AI は貸さない。"""
+
+    def _serve_once(self, share):
+        import threading
+        stop = threading.Event()
+        cfg = AgentConfig(None, dry_run=True, ai_share=share)
+        client = mock.Mock()
+        client.poll.side_effect = lambda: stop.set() or {"action": "none"}
+        with mock.patch.object(host_agent, "ai_worker") as worker, \
+             mock.patch.object(host_agent, "detect_specs", return_value={}):
+            host_agent.serve(cfg, client, Path(tempfile.mkdtemp()), 0.01, stop)
+        return worker
+
+    def test_off_by_default(self):
+        self.assertFalse(AgentConfig(None).ai_share)
+        self._serve_once(False).assert_not_called()
+
+    def test_runs_when_lender_opts_in(self):
+        self._serve_once(True).assert_called_once()

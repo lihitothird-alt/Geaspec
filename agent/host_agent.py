@@ -128,6 +128,9 @@ class AgentConfig:
     vr_timer: bool = True
     kill_timeout_sec: float = 10.0
     vpn_interface: str | None = None
+    # Geaspec AI の試作: この PC の AI (Ollama) を貸すか (貸す人が設定で選ぶ。最初は貸さない)
+    ai_share: bool = False
+    ai_model: str = ""
     registry_baseline: Path | None = None
     keep_screenshots: bool = False
     report_dir: Path | None = None
@@ -1887,8 +1890,9 @@ def serve(cfg: AgentConfig, client: ServerClient, home: Path, poll_interval: flo
     set_task_manager_locked(False)
     install_console_handler()
     specs_sent = False
-    threading.Thread(target=ai_worker, args=(client, stop, str(getattr(cfg, "ai_model", "") or "")),
-                     name="ai-worker", daemon=True).start()
+    if cfg.ai_share:
+        threading.Thread(target=ai_worker, args=(client, stop, cfg.ai_model),
+                         name="ai-worker", daemon=True).start()
     try:
         while not stop.is_set():
             job = client.poll()
@@ -1944,6 +1948,9 @@ CONFIG_KEYS = {
     "machine_id": str,
     # 貸し出し専用として確かめた Steam のアカウント名 (ふだんのアカウントで貸さないため)
     "lending_steam_account": str,
+    # この PC の AI (Ollama) を Geaspec AI に貸すか、使うモデル名
+    "ai_share": bool,
+    "ai_model": str,
 }
 
 
@@ -2313,6 +2320,8 @@ def _run(args: argparse.Namespace) -> int:
         return 2
 
     if args.server:
+        file_cfg = load_config_file(args.config or default_config_path())
+        cfg.ai_share, cfg.ai_model = bool(file_cfg.get("ai_share", False)), str(file_cfg.get("ai_model", ""))
         return serve(cfg, ServerClient(args.server, args.token), home, args.poll_interval)
 
     agent = HostAgent(cfg, home)
