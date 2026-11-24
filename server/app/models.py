@@ -269,3 +269,43 @@ class TesterSignup(Base):
     times: Mapped[str] = mapped_column(String(100), default="")  # weekday_day,weekday_night,... のカンマ区切り
     note: Mapped[str] = mapped_column(String(1000), default="")
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+
+
+class AIJob(Base):
+    """Geaspec AI の試作: 借りる人がサイトで送った質問。貸す人の PC の AI (Ollama) が受け取って答える。"""
+
+    __tablename__ = "ai_jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    conversation_id: Mapped[int | None] = mapped_column(ForeignKey("ai_conversations.id"), default=None, index=True)
+    messages_json: Mapped[str] = mapped_column(Text)  # 貸す人の PC に渡す会話 [{"role", "content"}]
+    status: Mapped[str] = mapped_column(String(10), default="queued", index=True)  # queued | running | done | error
+    answer: Mapped[str] = mapped_column(Text, default="")
+    model: Mapped[str] = mapped_column(String(100), default="")
+    host_id: Mapped[int | None] = mapped_column(ForeignKey("hosts.id"), default=None)
+    created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+    started_at: Mapped[dt.datetime | None] = mapped_column(default=None)
+
+
+class AIConversation(Base):
+    """Geaspec AI の会話。中身はサイト (クラウド) にだけ残し、貸す人の PC には残さない。"""
+
+    __tablename__ = "ai_conversations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(String(60), default="")
+    created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+
+
+class AIMessage(Base):
+    __tablename__ = "ai_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conversation_id: Mapped[int] = mapped_column(ForeignKey("ai_conversations.id"), index=True)
+    role: Mapped[str] = mapped_column(String(10))  # user | assistant
+    content: Mapped[str] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(String(100), default="")
+    created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)

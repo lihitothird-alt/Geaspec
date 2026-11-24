@@ -1,12 +1,21 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.53"
+VERSION = "0.7.54"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 # 貸す人の Windows アプリ (サイトと同じ版のもの)
 AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.54": [
+        "Geaspec AI の試作: サイトで質問すると、貸す人のパソコンの AI（Ollama）が答えるようにしました",
+        "AI との会話は Geaspec のサーバーに保存し、あとから開き直せるようにしました。答えを作るパソコンには残しません",
+        "貸す人は、貸し出しアプリの「詳しい設定」で「この PC の AI を貸す」を選んだときだけ AI の質問を受けます",
+        "VR の貸し出し中は、AI の質問を受けないようにしました（GPU を VR に回すため）",
+        "ボタンの言葉を「押すと何が起きるか」が分かる言葉にし、主ボタンの色を全サービスで1色にそろえました",
+        "トップのカードの状態とサービスの説明を、AI＝チャット・Studio＝まるごと貸し出し・VR＝VRChat 専用に書き分けました",
+        "フォームに必須・任意を出し、都道府県を地方ごとにまとめました。空き枠が0件のときは開始のお知らせボタンを出します",
+    ],
     "0.7.53": [
         "Geaspec VR を「準備中」にして、入口のページに先行登録のフォームを直接置きました",
         "先行登録で聞くことを、使う機器・都道府県・ふだん VRChat にいる時間・メールアドレスだけにしました",

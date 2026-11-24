@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
@@ -33,7 +33,7 @@ from . import account_links, clock, feedback, invite, services, social, web_test
 from .config import Settings
 from .db import Base, add_missing_columns, make_engine, make_sessionmaker
 from . import backup
-from .models import Booking, BookingStatus, Feedback, Host, Slot, TesterSignup, User, WaitlistEntry
+from .models import AIConversation, AIJob, AIMessage, Booking, BookingStatus, Feedback, Host, Slot, TesterSignup, User, WaitlistEntry
 from .payments import PROVIDER_LABELS, PaymentGateway, build_payments
 from .security import connection_code, hash_password, hash_token, new_agent_token, verify_password
 from .mail import Mailer, build_mailer
@@ -400,18 +400,25 @@ def create_app(
         return redirect(back)
 
     TEST_DEVICES = {"quest": "Quest など単体の VR ヘッドセット", "pcvr": "PC につなぐ VR ヘッドセット",
-                    "desktop": "VR なし（パソコンの画面）", "phone": "スマホ"}
+                    "desktop": "VR なし（パソコンの画面で VRChat）", "phone": "スマホ（VRChat のスマホ版）"}
     TEST_PCS = {"gaming": "ゲーミング PC がある", "normal": "ふつうの PC はある", "none": "PC はない"}  # 前の版の登録の表示用
     TEST_AREAS = {p: p for p in """北海道 青森県 岩手県 宮城県 秋田県 山形県 福島県 茨城県 栃木県 群馬県 埼玉県 千葉県 東京都 神奈川県 新潟県 富山県 石川県 福井県 山梨県 長野県 岐阜県 静岡県 愛知県 三重県 滋賀県 京都府 大阪府 兵庫県 奈良県 和歌山県 鳥取県 島根県 岡山県 広島県 山口県 徳島県 香川県 愛媛県 高知県 福岡県 佐賀県 長崎県 熊本県 大分県 宮崎県 鹿児島県 沖縄県""".split()}
     TEST_AREAS.update({"overseas": "海外", "tokyo": "東京23区", "nagano": "長野県", "other": "そのほか"})
     TEST_AREA_CHOICES = [p for p in TEST_AREAS if p not in ("tokyo", "nagano", "other")]
+    _regions = [("北海道・東北", 7), ("関東", 7), ("中部", 9), ("近畿", 7), ("中国", 5), ("四国", 4), ("九州・沖縄", 8)]
+    TEST_AREA_GROUPS, _i = [], 0
+    for _name, _n in _regions:  # 選びやすいように地方ごとにまとめる
+        TEST_AREA_GROUPS.append((_name, TEST_AREA_CHOICES[_i:_i + _n]))
+        _i += _n
+    TEST_AREA_GROUPS.append(("そのほか", TEST_AREA_CHOICES[_i:]))
     TEST_TIMES = {"morning": "朝（6〜12時）", "day": "昼（12〜17時）", "evening": "夕方（17〜20時）",
                   "night": "夜（20〜24時）", "late": "深夜（0〜6時）",
                   "weekday_day": "平日の昼", "weekday_night": "平日の夜", "holiday_day": "休日の昼",
                   "holiday_night": "休日の夜"}
     TEST_TIME_CHOICES = ["morning", "day", "evening", "night", "late"]
     test_choices = dict(devices=TEST_DEVICES, pcs=TEST_PCS, areas=TEST_AREAS, times=TEST_TIMES,
-                        area_choices=TEST_AREA_CHOICES, time_choices=TEST_TIME_CHOICES)
+                        area_choices=TEST_AREA_CHOICES, area_groups=TEST_AREA_GROUPS,
+                        time_choices=TEST_TIME_CHOICES)
 
     @app.get("/test", response_class=HTMLResponse)
     def test_page(request: Request, db: Session = Depends(get_db)):
@@ -1616,6 +1623,161 @@ def create_app(
         if not booking or booking.slot.host_id != host.id:
             raise HTTPException(404)
         return booking
+
+    # --- Geaspec AI の試作: 貸す人の PC の AI にチャットで聞く ------------------
+    # Geaspec のサイトが入り口。会話はサイト (クラウド) に保存し、貸す人の PC は計算だけして何も残さない。
+    AI_JOB_TIMEOUT = dt.timedelta(minutes=5)
+    AI_HOST_FRESH = dt.timedelta(seconds=15)  # PC は3秒ごとに問い合わせる。止まったらすぐ台数から外す
+    AI_HISTORY = 20  # 貸す人の PC に渡す、直近のやりとりの数
+    AI_HISTORY_CHARS = 12000  # 渡す文字数の上限 (長すぎると PC の AI が遅くなり、覚えきれない)
+    app.state.ai_hosts = {}  # host_id -> (最後に問い合わせてきた時刻, モデル名)
+
+    def ai_hosts_online(db: Session) -> list[str]:
+        """答えられる PC (最近問い合わせてきた PC と、いま答えを考えている PC)。"""
+        now = clock.utcnow()
+        busy = set(db.scalars(select(AIJob.host_id).where(AIJob.status == "running",
+                                                         AIJob.started_at > now - AI_JOB_TIMEOUT)).all())
+        return [m for hid, (t, m) in app.state.ai_hosts.items() if now - t < AI_HOST_FRESH or hid in busy]
+
+    def fail_ai_job(db: Session, job: AIJob, message: str) -> None:
+        """答えられなかった質問は会話から外す (送り直したときに、答えのない質問が AI に重ねて渡らないように)。"""
+        job.status, job.answer, job.messages_json = "error", message, "[]"
+        if job.conversation_id:
+            last = db.scalar(select(AIMessage).where(AIMessage.conversation_id == job.conversation_id)
+                             .order_by(AIMessage.id.desc()))
+            if last and last.role == "user":
+                db.delete(last)
+        db.commit()
+
+    def own_conversation(db: Session, user: User, cid: int | None) -> AIConversation | None:
+        conv = db.get(AIConversation, cid) if cid else None
+        return conv if conv and conv.user_id == user.id else None
+
+    @app.get("/ai/chat", response_class=HTMLResponse)
+    def ai_chat_page(request: Request, c: int = 0, db: Session = Depends(get_db)):
+        user = require_user(request, db)
+        convs = db.scalars(select(AIConversation).where(AIConversation.user_id == user.id)
+                           .order_by(AIConversation.updated_at.desc()).limit(50)).all()
+        conv = own_conversation(db, user, c)
+        msgs = db.scalars(select(AIMessage).where(AIMessage.conversation_id == conv.id)
+                          .order_by(AIMessage.id)).all() if conv else []
+        pending = db.scalar(select(AIJob).where(AIJob.conversation_id == conv.id,
+                                                AIJob.status.in_(("queued", "running")))) if conv else None
+        return render(request, db, "ai_chat.html", online=ai_hosts_online(db), convs=convs, conv=conv,
+                      msgs=msgs, pending_id=pending.id if pending else 0)
+
+    @app.post("/ai/chat")
+    async def ai_chat_send(request: Request, db: Session = Depends(get_db)):
+        user = require_user(request, db)
+        if not request.headers.get("content-type", "").startswith("application/json"):
+            raise HTTPException(415)  # よそのサイトのフォームから送らせない
+        try:
+            body = await request.json()
+        except ValueError:
+            body = {}
+        text = str(body.get("content", "")).strip()[:8000]
+        if not text:
+            return JSONResponse({"error": "メッセージを入れてください"}, status_code=400)
+        busy = db.scalar(select(AIJob).where(AIJob.user_id == user.id, AIJob.status.in_(("queued", "running"))))
+        if busy:
+            return JSONResponse({"error": "前の質問の答えを待っています"}, status_code=429)
+        conv = own_conversation(db, user, int(body.get("conversation_id") or 0))
+        now = clock.utcnow()
+        if conv is None:
+            conv = AIConversation(user_id=user.id, title=text.splitlines()[0][:40], created_at=now)
+            db.add(conv)
+            db.flush()
+        conv.updated_at = now
+        db.add(AIMessage(conversation_id=conv.id, role="user", content=text, created_at=now))
+        db.flush()
+        recent = db.scalars(select(AIMessage).where(AIMessage.conversation_id == conv.id)
+                            .order_by(AIMessage.id.desc()).limit(AI_HISTORY)).all()[::-1]
+        history: list[dict] = []
+        total = 0
+        for m in reversed(recent):  # 新しい方から、上限に収まるぶんだけ (今回の質問は必ず入れる)
+            if history and total + len(m.content) > AI_HISTORY_CHARS:
+                break
+            history.insert(0, {"role": m.role, "content": m.content})
+            total += len(m.content)
+        job = AIJob(user_id=user.id, conversation_id=conv.id,
+                    messages_json=json.dumps(history, ensure_ascii=False))
+        db.add(job)
+        db.commit()
+        return {"id": job.id, "conversation_id": conv.id, "online": len(ai_hosts_online(db))}
+
+    @app.post("/ai/chat/{cid}/delete")
+    def ai_chat_delete(cid: int, request: Request, db: Session = Depends(get_db)):
+        user = require_user(request, db)
+        conv = own_conversation(db, user, cid)
+        if conv:
+            for m in db.scalars(select(AIMessage).where(AIMessage.conversation_id == cid)).all():
+                db.delete(m)
+            for j in db.scalars(select(AIJob).where(AIJob.conversation_id == cid)).all():
+                if j.status in ("queued", "running"):
+                    # 考えている途中の質問は取り消すだけにする (PC が答えを返しても捨てる)
+                    j.status, j.answer, j.messages_json, j.conversation_id = "error", "会話を消しました。", "[]", None
+                else:
+                    db.delete(j)
+            db.delete(conv)
+            db.commit()
+        return redirect("/ai/chat")
+
+    @app.get("/ai/chat/jobs/{job_id}")
+    def ai_chat_job(job_id: int, request: Request, db: Session = Depends(get_db)):
+        user = require_user(request, db)
+        job = db.get(AIJob, job_id)
+        if not job or job.user_id != user.id:
+            raise HTTPException(404)
+        now = clock.utcnow()
+        if job.status == "running" and job.started_at and now - job.started_at > AI_JOB_TIMEOUT:
+            fail_ai_job(db, job, "貸す人の PC から答えが返ってきませんでした。もう一度送ってください。")
+        elif job.status == "queued" and now - job.created_at > AI_JOB_TIMEOUT:
+            fail_ai_job(db, job, "いま答えられる PC がありません。少し待ってから送ってください。")
+        return {"status": job.status, "answer": job.answer, "model": job.model, "online": len(ai_hosts_online(db))}
+
+    @app.get("/api/agent/ai/next")
+    def agent_ai_next(request: Request, model: str = "", ctx: tuple[Host, Session] = Depends(agent_host)):
+        host, db = ctx
+        now = clock.utcnow()
+        if not host.active:  # 承認待ち・運営が止めている PC は、答えられる台数に数えない
+            app.state.ai_hosts.pop(host.id, None)
+            return {"job": None}
+        app.state.ai_hosts[host.id] = (now, model[:100])
+        # 2台が同時に問い合わせても、1つの質問を受け取るのは1台だけ (「まだ待っている」ときだけ書き換える)
+        for _ in range(3):
+            job = db.scalar(select(AIJob).where(AIJob.status == "queued",
+                                                AIJob.created_at > now - AI_JOB_TIMEOUT).order_by(AIJob.id))
+            if not job:
+                return {"job": None}
+            claimed = db.execute(update(AIJob).where(AIJob.id == job.id, AIJob.status == "queued").values(
+                status="running", host_id=host.id, started_at=now, model=model[:100])).rowcount
+            db.commit()
+            if claimed:
+                db.refresh(job)
+                return {"job": {"id": job.id, "messages": json.loads(job.messages_json)}}
+        return {"job": None}
+
+    @app.post("/api/agent/ai/{job_id}/result")
+    async def agent_ai_result(job_id: int, request: Request, ctx: tuple[Host, Session] = Depends(agent_host)):
+        host, db = ctx
+        job = db.get(AIJob, job_id)
+        if not job or job.host_id != host.id:
+            raise HTTPException(404)
+        if job.status != "running":  # 途中で取り消された・時間切れになった質問。答えは捨てる
+            return {"ok": True, "discarded": True}
+        body = await request.json()
+        if body.get("error"):
+            fail_ai_job(db, job, "貸す人の PC の AI でエラーが起きました。もう一度送ってください。")
+            return {"ok": True}
+        else:
+            job.status, job.answer = "done", str(body.get("answer", ""))[:20000]
+            if job.conversation_id:
+                db.add(AIMessage(conversation_id=job.conversation_id, role="assistant", content=job.answer,
+                                 model=job.model))
+        # 答えを返したら、貸す人の PC に渡した会話の写しは消す (会話そのものは会話の記録に残る)
+        job.messages_json = "[]"
+        db.commit()
+        return {"ok": True}
 
     @app.get("/api/agent/poll")
     def agent_poll(request: Request, ctx: tuple[Host, Session] = Depends(agent_host)):

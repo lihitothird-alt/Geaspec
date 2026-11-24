@@ -227,6 +227,8 @@ class AgentController:
         if not self.cfg.wipe_targets:
             self.cfg.wipe_targets = h.default_wipe_targets(self.cfg.keep_screenshots)
         self.poll_interval = float(self.config.get("poll_interval", POLL_INTERVAL_DEFAULT))
+        self.cfg.ai_share = bool(self.config.get("ai_share", False))
+        self.cfg.ai_model = str(self.config.get("ai_model", ""))
 
     @property
     def server(self) -> str:
@@ -242,7 +244,7 @@ class AgentController:
     def is_lending_user(self) -> bool:
         return h.is_confirmed_lending_user(self.config)
 
-    def save_settings(self, server: str, token: str, vpn: str) -> str | None:
+    def save_settings(self, server: str, token: str, vpn: str, ai_share: bool | None = None) -> str | None:
         server, token, vpn = server.strip().rstrip("/"), token.strip(), vpn.strip()
         if token.lower().startswith(h.CONNECTION_CODE_PREFIX):  # 管理画面の「接続コード」を貼った
             try:
@@ -257,6 +259,8 @@ class AgentController:
             data["vpn_interface"] = vpn
         else:
             data.pop("vpn_interface", None)
+        if ai_share is not None:
+            data["ai_share"] = bool(ai_share)
         h.save_config_file(self.config_path, data)
         self.reload()
         return None
@@ -1537,6 +1541,11 @@ class SettingsDialog:
             entry = ttk.Entry(body, textvariable=var, width=52, font=window.font, show=show)
             entry.grid(row=i * 2, column=0, columnspan=2, sticky="we", pady=(2, 10))
             self.entries.append(entry)
+        self.ai_share = tk.BooleanVar(value=bool(c.config.get("ai_share", False)))
+        ttk.Checkbutton(
+            body, variable=self.ai_share,
+            text="この PC の AI（Ollama）を Geaspec AI に貸す（試作）",
+        ).grid(row=7, column=0, columnspan=2, sticky="w", pady=(0, 4))
         buttons = tk.Frame(body, bg=COLORS["bg"])
         buttons.grid(row=8, column=0, columnspan=2, sticky="e", pady=(8, 0))
         ttk.Button(buttons, text="キャンセル", command=top.destroy).pack(side="right")
@@ -1547,7 +1556,7 @@ class SettingsDialog:
     def save(self) -> None:
         from tkinter import messagebox
 
-        error = self.w.c.save_settings(self.server.get(), self.token.get(), self.vpn.get())
+        error = self.w.c.save_settings(self.server.get(), self.token.get(), self.vpn.get(), self.ai_share.get())
         if error:
             messagebox.showwarning("詳しい設定", error, parent=self.top)
             return

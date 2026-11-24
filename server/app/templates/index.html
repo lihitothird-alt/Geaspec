@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}{{ settings.service_name }}（ギアスペック） | みんなで使う、みんなのパソコン{% endblock %}
-{% block description %}みんなで使う、みんなのパソコン。使っていない時間のパソコンを、必要な人と分け合う。AI やゲーム開発の仕事を頼んだり（準備中）、Quest からつないで PC版VRChat を遊んだり（準備中）できます。{% endblock %}
+{% block description %}みんなで使う、みんなのパソコン。使っていない時間のパソコンを、必要な人と分け合う。チャットで AI に質問したり（試作中）、パソコンをまるごと借りたり（準備中）、Quest からつないで PC版VRChat を遊んだり（準備中）できます。{% endblock %}
 {% block content %}
 <section class="hero hub" aria-labelledby="hero-title">
   <div class="wrap hero-grid">
     <div class="hero-copy">
       <h1 id="hero-title"><span class="ln">みんなで使う、</span><br><span class="ln"><mark class="hl">みんなのパソコン</mark>。</span></h1>
-      <p class="lead"><strong class="lead-key">使っていない時間の GPU を、必要な人と分け合う。</strong>AI の仕事を頼んだり、Quest からつないで PC版VRChat を遊んだり（準備中）できます。</p>
+      <p class="lead"><strong class="lead-key">使っていない時間の GPU を、必要な人と分け合う。</strong>チャットで AI に聞いたり、パソコンをまるごと借りたり、PC版VRChat を遊んだり。</p>
       <div class="cta-row role-row">
         <a class="btn lg" href="#services">パソコンを使いたい<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         <a class="btn lg ghost" href="#lend">パソコンを貸したい</a>
@@ -25,21 +25,21 @@
     <h2 id="services" class="visually-hidden">サービスを選ぶ</h2>
     <div class="svc-list">
       <a class="svc svc-ai svc-main" href="/ai">
-        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-robot"/></svg></span><span class="badge completed">準備中</span></div>
+        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-robot"/></svg></span><span class="badge pending">試作中</span></div>
         <h3>Geaspec AI</h3>
-        <p>AI の仕事を、何台ものパソコンで手分け。録音のまとめ、文章の分類、画像づくりなど。</p>
+        <p>チャットで、みんなのパソコンの計算力を使う。質問すると、だれかのパソコンの AI が答えます。</p>
         <span class="svc-go">Geaspec AI へ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></span>
       </a>
       <a class="svc svc-gamedev" href="/gamedev">
-        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span><span class="badge completed">準備中</span></div>
+        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-monitor"/></svg></span><span class="badge completed">開始をお知らせ</span></div>
         <h3>Geaspec Studio</h3>
-        <p>ゲーム作りの作業を、AI のチームに。仕組みの設計、オブジェクトの生成、色の設定、軽量化など。</p>
+        <p>パソコンを、まるごと借りる。ゲーム開発や重い作業に、時間を決めて使えます。</p>
         <span class="svc-go">Geaspec Studio へ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></span>
       </a>
       <a class="svc svc-vr" href="{{ vr_home }}">
-        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-quest"/></svg></span><span class="badge completed">準備中</span></div>
+        <div class="svc-top"><span class="svc-ic" aria-hidden="true"><svg class="i"><use href="#i-quest"/></svg></span><span class="badge pending">先行登録受付中</span></div>
         <h3>Geaspec VR</h3>
-        <p>Quest ひとつで、PC版VRChat。だれかのゲーミングPCに、遊びたい時間だけつなぎます。</p>
+        <p>VRChat 専用。Quest ひとつで、だれかのゲーミングPCの PC版VRChat に、遊びたい時間だけつなぎます。</p>
         <span class="svc-go">Geaspec VR へ<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></span>
       </a>
     </div>

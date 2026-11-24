@@ -89,7 +89,7 @@
   <a class="skip" href="#main">本文へスキップ</a>
   {% if free_mode %}
   {% if en %}<p class="experiment-bar">{{ settings.service_name }} is in a <strong>free test</strong>. Everything is free while the test runs.</p>
-  {% else %}<p class="experiment-bar">{{ settings.service_name }} は、いま<strong>{{ "コミュニティ限定の" if settings.invite_only or settings.site_password else "" }}実験段階</strong>です。実験のあいだ、利用はすべて無料です。<a href="/legal/terms">くわしく</a></p>{% endif %}
+  {% else %}<p class="experiment-bar">{{ settings.service_name }} は、いま<strong>{{ "コミュニティ限定の" if settings.invite_only or settings.site_password else "" }}実験段階</strong>です。実験のあいだ、利用はすべて無料です。<a href="/legal/terms" class="nowrap">実験について</a></p>{% endif %}
   {% endif %}
   <header class="site-header">
     <div class="wrap header-inner">
@@ -123,7 +123,7 @@
           <form method="post" action="/logout" class="inline"><button class="nav-link logout"><svg class="i" aria-hidden="true"><use href="#i-logout"/></svg>{{ "Log out" if en else "ログアウト" }}</button></form>
         {% else %}
           <a class="nav-link" href="/login"{% if path == "/login" %} aria-current="page"{% endif %}>{{ "Log in" if en else "ログイン" }}</a>
-          <a class="btn small" href="/signup">{{ "Sign up" if en else "新規登録" }}</a>
+          <a class="btn small" href="/signup">{{ "Create account" if en else "アカウントを作る" }}</a>
         {% endif %}
       </nav>
 
@@ -144,7 +144,7 @@
               <form method="post" action="/logout" class="inline"><button class="nav-link logout"><svg class="i"><use href="#i-logout"/></svg>{{ "Log out" if en else "ログアウト" }}</button></form>
             {% else %}
               <a class="nav-link" href="/login"{% if path == "/login" %} aria-current="page"{% endif %}><svg class="i"><use href="#i-user"/></svg>{{ "Log in" if en else "ログイン" }}</a>
-              <a class="btn" href="/signup">{{ "Sign up" if en else "新規登録" }}</a>
+              <a class="btn" href="/signup">{{ "Create account" if en else "アカウントを作る" }}</a>
             {% endif %}
           </nav>
         </details>

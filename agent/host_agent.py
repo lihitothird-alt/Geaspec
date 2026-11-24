@@ -57,7 +57,7 @@ else:  # テスト・dry-run 用に Windows 以外でも import できるよう�
     winreg = None  # type: ignore[assignment]
 
 AGENT_NAME = "GeaspecAgent"
-AGENT_VERSION = "0.7.53"
+AGENT_VERSION = "0.7.54"
 log = logging.getLogger(AGENT_NAME)
 
 # ---------------------------------------------------------------------------
@@ -128,6 +128,9 @@ class AgentConfig:
     vr_timer: bool = True
     kill_timeout_sec: float = 10.0
     vpn_interface: str | None = None
+    # Geaspec AI の試作: この PC の AI (Ollama) を貸すか (貸す人が設定で選ぶ。最初は貸さない)
+    ai_share: bool = False
+    ai_model: str = ""
     registry_baseline: Path | None = None
     keep_screenshots: bool = False
     report_dir: Path | None = None
@@ -1623,6 +1626,13 @@ class ServerClient:
     def poll(self) -> dict | None:
         return self._request("GET", "/api/agent/poll")
 
+    def ai_next(self, model: str) -> dict | None:
+        """Geaspec AI の試作: 答える質問を1つ受け取る ({"job": None} なら待ち)。"""
+        return self._request("GET", "/api/agent/ai/next?model=" + urllib.parse.quote(model))
+
+    def ai_result(self, job_id: int, answer: str = "", error: str = "") -> None:
+        self._request("POST", f"/api/agent/ai/{job_id}/result", {"answer": answer, "error": error})
+
     def login(self, email: str, password: str, pc_name: str, machine_id: str) -> dict | None:
         """貸し手のメールアドレスとパスワードで、この PC を予約サイトに登録する。
 
@@ -1809,6 +1819,69 @@ def detect_specs() -> dict:
     return specs
 
 
+# --- Geaspec AI の試作: この PC の Ollama で、サイトに届いた質問に答える -------------
+OLLAMA_URL = "http://127.0.0.1:11434"
+
+
+def ollama_model(preferred: str = "") -> str | None:
+    """Ollama が動いていれば使うモデル名を返す (設定がなければ最初に入っているもの)。動いていなければ None。"""
+    try:
+        with urllib.request.urlopen(OLLAMA_URL + "/api/tags", timeout=3) as resp:
+            models = [m.get("name", "") for m in json.loads(resp.read()).get("models", [])]
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+    models = [m for m in models if m]
+    if not models:
+        return None
+    return preferred if preferred in models else models[0]
+
+
+def ollama_chat(model: str, messages: list[dict], timeout: float = 240) -> str:
+    body = json.dumps({"model": model, "messages": messages, "stream": False}).encode("utf-8")
+    req = urllib.request.Request(OLLAMA_URL + "/api/chat", data=body, method="POST",
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return str(json.loads(resp.read()).get("message", {}).get("content", "")).strip()
+
+
+def ai_worker(client: "ServerClient", stop: threading.Event, preferred_model: str = "",
+              interval: float = 3.0) -> None:
+    """Ollama が動いているあいだ、サイトに質問がないか数秒ごとに確かめて答える。"""
+    announced = False
+    while not stop.is_set():
+        model = ollama_model(preferred_model)
+        if model is None:  # Ollama が止まっている。この PC の中を確かめるだけなので、短い間隔で見直す
+            if announced:
+                log.info("AI (Ollama) が止まったので、質問の受け付けを休みます")
+            announced = False
+            stop.wait(5)
+            continue
+        if STATUS.state in ("session", "cleaning"):
+            # VR の貸し出し中・後片付け中は、GPU を VR に回すため AI の質問は受けない
+            stop.wait(5)
+            continue
+        if not announced:
+            log.info("AI の質問を受け付けます (モデル: %s)", model)
+            announced = True
+        try:
+            reply = client.ai_next(model)
+        except AuthError:
+            return
+        job = (reply or {}).get("job")
+        if not job:
+            stop.wait(interval)
+            continue
+        try:
+            answer = ollama_chat(model, job.get("messages") or [])
+            if answer:
+                client.ai_result(int(job["id"]), answer=answer)
+            else:  # 空の答えは失敗として返す (借りる人には「もう一度送って」と出る)
+                client.ai_result(int(job["id"]), error="empty answer")
+        except Exception as exc:  # noqa: BLE001 - AI が失敗しても貸し出しは続ける
+            log.warning("AI の質問に答えられませんでした: %s", exc)
+            client.ai_result(int(job["id"]), error=str(exc)[:200])
+
+
 def serve(cfg: AgentConfig, client: ServerClient, home: Path, poll_interval: float,
           stop: threading.Event | None = None) -> int:
     stop = stop or threading.Event()
@@ -1817,6 +1890,9 @@ def serve(cfg: AgentConfig, client: ServerClient, home: Path, poll_interval: flo
     set_task_manager_locked(False)
     install_console_handler()
     specs_sent = False
+    if cfg.ai_share:
+        threading.Thread(target=ai_worker, args=(client, stop, cfg.ai_model),
+                         name="ai-worker", daemon=True).start()
     try:
         while not stop.is_set():
             job = client.poll()
@@ -1872,6 +1948,9 @@ CONFIG_KEYS = {
     "machine_id": str,
     # 貸し出し専用として確かめた Steam のアカウント名 (ふだんのアカウントで貸さないため)
     "lending_steam_account": str,
+    # この PC の AI (Ollama) を Geaspec AI に貸すか、使うモデル名
+    "ai_share": bool,
+    "ai_model": str,
 }
 
 
@@ -2241,6 +2320,8 @@ def _run(args: argparse.Namespace) -> int:
         return 2
 
     if args.server:
+        file_cfg = load_config_file(args.config or default_config_path())
+        cfg.ai_share, cfg.ai_model = bool(file_cfg.get("ai_share", False)), str(file_cfg.get("ai_model", ""))
         return serve(cfg, ServerClient(args.server, args.token), home, args.poll_interval)
 
     agent = HostAgent(cfg, home)

@@ -150,7 +150,7 @@ def test_landing_page_renders(tmp_path, now):
     assert 'href="/ai"' not in nav and 'href="/gamedev"' not in nav and 'href="/vrchat"' not in nav
     # レンタルの言葉や、VRAM を合算して 1 つのメモリに見せる表現は使わない
     assert "GPU をさがす" not in r.text and "VRAM増強" not in r.text and "28GB" not in r.text
-    assert "何台ものパソコン" in r.text and "1 つの大きなメモリにはなりません" in c.get("/ai").text
+    assert "だれかのパソコンの AI が答えます" in r.text and "1 つの大きなメモリにはなりません" in c.get("/ai").text
     # Geaspec AI: 頼む・依頼一覧・貸し出し (どれも準備中で、始まったら知らせる登録)
     for path in ("/ai", "/ai/requests", "/ai/host", "/gamedev", "/gamedev/requests", "/gamedev/host"):
         page = c.get(path)
@@ -1707,10 +1707,10 @@ def test_english_top_page(tmp_path, now):
     assert "geaspec.contact@gmail.com" in r.text and 'href="/"' in r.text and 'href="/en/vr"' in r.text
     r = c.get("/en/vr")
     assert r.status_code == 200
-    assert '<html lang="en">' in r.text and "Play VRChat in <mark" in r.text and "Sign up" in r.text and "theme-vr" in r.text
+    assert '<html lang="en">' in r.text and "Play VRChat in <mark" in r.text and "Create account" in r.text and "theme-vr" in r.text
     assert "geaspec.contact@gmail.com" in r.text and 'href="/vrchat"' in r.text  # 日本語の VR へ戻るリンク
     ja = c.get("/").text
-    assert '<html lang="ja">' in ja and 'href="/en"' in ja and "新規登録" in ja
+    assert '<html lang="ja">' in ja and 'href="/en"' in ja and "アカウントを作る" in ja
 
 
 def test_agent_download_button_points_to_this_version(tmp_path, now):
@@ -1842,7 +1842,7 @@ def test_tester_signup(tmp_path, now):
     from app.models import TesterSignup
     rows = db(app).query(TesterSignup).all()
     assert [(t.email, t.area, t.times) for t in rows] == [("tester@example.com", "長野県", "night,late")]
-    assert "先行登録する" in c.get("/vrchat").text
+    assert "開始したらメールで知らせてもらう" in c.get("/vrchat").text
     # Geaspec VR の入口にもフォームがあり、そこから送ると入口に戻る
     r = c.post("/test", data={**base, "email": "vr@example.com", "adult": "1", "agree": "1", "back": "/vrchat"},
                follow_redirects=False)
@@ -1879,3 +1879,41 @@ def test_daily_database_backup(tmp_path):
     assert con.execute("select x from t").fetchall() == [(1,)]
     con.close()
     assert backup.backup_once("postgresql://x") is None
+
+
+def test_ai_chat_prototype(setup):
+    """借りる人がサイトで聞いた質問を、貸す人の PC (Agent) が受け取って答える。会話はサイトに残る。"""
+    app, _vpn, user, agent = setup
+    assert "いま答えられるパソコンはありません" in user.get("/ai/chat").text
+    # よそのサイトのフォームからは送れない
+    assert user.post("/ai/chat", data={"content": "x"}).status_code == 415
+    r = user.post("/ai/chat", json={"content": "こんにちは"}).json()
+    job_id, cid = r["id"], r["conversation_id"]
+    assert user.post("/ai/chat", json={"content": "もう1つ", "conversation_id": cid}).status_code == 429
+    assert user.get(f"/ai/chat/jobs/{job_id}").json()["status"] == "queued"
+    got = agent.get("/api/agent/ai/next", params={"model": "qwen2.5"}).json()["job"]
+    assert got["id"] == job_id and got["messages"] == [{"role": "user", "content": "こんにちは"}]
+    assert agent.get("/api/agent/ai/next").json()["job"] is None
+    agent.post(f"/api/agent/ai/{job_id}/result", json={"answer": "こんにちは！"})
+    assert user.get(f"/ai/chat/jobs/{job_id}").json() == {"status": "done", "answer": "こんにちは！", "model": "qwen2.5", "online": 1}
+    # 同じ答えを2回送っても、2回目は捨てる。PC に渡した会話の写しは消える
+    assert agent.post(f"/api/agent/ai/{job_id}/result", json={"answer": "x"}).json()["discarded"] is True
+    assert user.get(f"/ai/chat/jobs/{job_id}").json()["answer"] == "こんにちは！"
+    from app.models import AIJob
+    assert db(app).get(AIJob, job_id).messages_json == "[]"
+    # 続けて聞くと、前のやりとりも一緒に PC に渡る。会話はサイトに残っていて、開き直しても見える
+    job2 = user.post("/ai/chat", json={"content": "元気？", "conversation_id": cid}).json()["id"]
+    got = agent.get("/api/agent/ai/next", params={"model": "qwen2.5"}).json()["job"]
+    assert got["id"] == job2 and [m["content"] for m in got["messages"]] == ["こんにちは", "こんにちは！", "元気？"]
+    agent.post(f"/api/agent/ai/{job2}/result", json={"answer": "元気です"})
+    page = user.get(f"/ai/chat?c={cid}").text
+    assert "元気です" in page and "いま答えられるパソコン: 1 台" in page and '>こんにちは</a>' in page
+    # ほかの人の会話や質問は見られない。ログインしていなければログインへ
+    other = TestClient(app)
+    signup(other, "other@example.com")
+    assert other.get(f"/ai/chat/jobs/{job_id}").status_code == 404
+    assert "元気です" not in other.get(f"/ai/chat?c={cid}").text
+    assert TestClient(app).get("/ai/chat", follow_redirects=False).status_code == 303
+    # 会話を消すと、サイトからも消える
+    user.post(f"/ai/chat/{cid}/delete")
+    assert "元気です" not in user.get(f"/ai/chat?c={cid}").text
