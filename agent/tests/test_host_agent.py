@@ -632,3 +632,40 @@ class CliTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AIWorkerTest(unittest.TestCase):
+    """Geaspec AI の試作: Ollama が動いていれば、サイトの質問に答えて返す。"""
+
+    def test_answers_one_job_with_ollama(self):
+        import threading
+        stop = threading.Event()
+        sent = {}
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = 0
+
+            def ai_next(self, model):
+                self.calls += 1
+                if self.calls == 1:
+                    return {"job": {"id": 7, "messages": [{"role": "user", "content": "hi"}]}}
+                stop.set()
+                return {"job": None}
+
+            def ai_result(self, job_id, answer="", error=""):
+                sent.update(job_id=job_id, answer=answer, error=error)
+
+        with mock.patch.object(host_agent, "ollama_model", return_value="llama3.2"), \
+             mock.patch.object(host_agent, "ollama_chat", return_value="hello") as chat:
+            host_agent.ai_worker(FakeClient(), stop, interval=0)
+        chat.assert_called_once_with("llama3.2", [{"role": "user", "content": "hi"}])
+        self.assertEqual(sent, {"job_id": 7, "answer": "hello", "error": ""})
+
+    def test_waits_when_ollama_is_not_running(self):
+        import threading
+        stop = threading.Event()
+        client = mock.Mock()
+        with mock.patch.object(host_agent, "ollama_model", side_effect=lambda *_: stop.set()):
+            host_agent.ai_worker(client, stop)
+        client.ai_next.assert_not_called()

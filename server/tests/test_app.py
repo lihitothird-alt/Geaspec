@@ -1879,3 +1879,28 @@ def test_daily_database_backup(tmp_path):
     assert con.execute("select x from t").fetchall() == [(1,)]
     con.close()
     assert backup.backup_once("postgresql://x") is None
+
+
+def test_ai_chat_prototype(setup):
+    """借りる人がサイトで聞いた質問を、貸す人の PC (Agent) が受け取って答える。"""
+    app, _vpn, user, agent = setup
+    assert "いま答えられるパソコンはありません" in user.get("/ai/chat").text
+    # よそのサイトのフォームからは送れない
+    assert user.post("/ai/chat", data={"messages": "x"}).status_code == 415
+    r = user.post("/ai/chat", json={"messages": [{"role": "user", "content": "こんにちは"}]})
+    job_id = r.json()["id"]
+    assert user.post("/ai/chat", json={"messages": [{"role": "user", "content": "もう1つ"}]}).status_code == 429
+    assert user.get(f"/ai/chat/jobs/{job_id}").json()["status"] == "queued"
+    got = agent.get("/api/agent/ai/next", params={"model": "llama3.2"}).json()["job"]
+    assert got["id"] == job_id and got["messages"][-1]["content"] == "こんにちは"
+    assert agent.get("/api/agent/ai/next").json()["job"] is None
+    assert user.get(f"/ai/chat/jobs/{job_id}").json()["status"] == "running"
+    agent.post(f"/api/agent/ai/{job_id}/result", json={"answer": "こんにちは！"})
+    s = user.get(f"/ai/chat/jobs/{job_id}").json()
+    assert s == {"status": "done", "answer": "こんにちは！", "model": "llama3.2", "online": 1}
+    assert "いま答えられるパソコン: 1 台" in user.get("/ai/chat").text
+    # ほかの人の質問は見られない。ログインしていなければログインへ
+    other = TestClient(app)
+    signup(other, "other@example.com")
+    assert other.get(f"/ai/chat/jobs/{job_id}").status_code == 404
+    assert TestClient(app).get("/ai/chat", follow_redirects=False).status_code == 303

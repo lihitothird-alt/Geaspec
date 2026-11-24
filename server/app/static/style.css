@@ -1857,3 +1857,15 @@ body.theme-ai::before, body.theme-gamedev::before { display: none; }
 .test-form legend { font-weight: 700; margin-bottom: 4px; display: flex; gap: 8px; align-items: baseline; }
 .soon-note { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 14px; }
 .register-sec .test-page { max-width: 640px; }
+
+/* Geaspec AI の試作チャット (/ai/chat) */
+.ai-chat { max-width: 760px; }
+.chat-log { display: grid; gap: 10px; margin: 8px 0 16px; }
+.chat-msg { padding: 12px 14px; border-radius: 14px; white-space: pre-wrap; line-height: 1.7; max-width: 92%; }
+.chat-msg.user { justify-self: end; background: var(--primary); color: #fff; }
+.chat-msg.assistant { justify-self: start; background: var(--surface-3, #eef1f5); }
+.chat-msg.pending { color: var(--muted); }
+.chat-msg.error { justify-self: start; background: #fdecec; color: #8a1f1f; }
+.chat-msg small { display: block; margin-top: 6px; font-size: .75rem; color: var(--muted); }
+.chat-form { display: grid; gap: 8px; }
+.chat-form textarea { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--line); font: inherit; }

@@ -269,3 +269,19 @@ class TesterSignup(Base):
     times: Mapped[str] = mapped_column(String(100), default="")  # weekday_day,weekday_night,... のカンマ区切り
     note: Mapped[str] = mapped_column(String(1000), default="")
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+
+
+class AIJob(Base):
+    """Geaspec AI の試作: 借りる人がサイトで送った質問。貸す人の PC の AI (Ollama) が受け取って答える。"""
+
+    __tablename__ = "ai_jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    messages_json: Mapped[str] = mapped_column(Text)  # [{"role": "user"|"assistant", "content": ...}]
+    status: Mapped[str] = mapped_column(String(10), default="queued", index=True)  # queued | running | done | error
+    answer: Mapped[str] = mapped_column(Text, default="")
+    model: Mapped[str] = mapped_column(String(100), default="")
+    host_id: Mapped[int | None] = mapped_column(ForeignKey("hosts.id"), default=None)
+    created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+    started_at: Mapped[dt.datetime | None] = mapped_column(default=None)

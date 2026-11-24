@@ -33,7 +33,7 @@ from . import account_links, clock, feedback, invite, services, social, web_test
 from .config import Settings
 from .db import Base, add_missing_columns, make_engine, make_sessionmaker
 from . import backup
-from .models import Booking, BookingStatus, Feedback, Host, Slot, TesterSignup, User, WaitlistEntry
+from .models import AIJob, Booking, BookingStatus, Feedback, Host, Slot, TesterSignup, User, WaitlistEntry
 from .payments import PROVIDER_LABELS, PaymentGateway, build_payments
 from .security import connection_code, hash_password, hash_token, new_agent_token, verify_password
 from .mail import Mailer, build_mailer
@@ -1616,6 +1616,86 @@ def create_app(
         if not booking or booking.slot.host_id != host.id:
             raise HTTPException(404)
         return booking
+
+    # --- Geaspec AI の試作: 貸す人の PC の AI にチャットで聞く ------------------
+    AI_JOB_TIMEOUT = dt.timedelta(minutes=5)
+    AI_HOST_FRESH = dt.timedelta(seconds=45)
+    app.state.ai_hosts = {}  # host_id -> (最後に問い合わせてきた時刻, モデル名)
+
+    def ai_hosts_online() -> list[str]:
+        now = clock.utcnow()
+        return [m for t, m in app.state.ai_hosts.values() if now - t < AI_HOST_FRESH]
+
+    @app.get("/ai/chat", response_class=HTMLResponse)
+    def ai_chat_page(request: Request, db: Session = Depends(get_db)):
+        require_user(request, db)
+        return render(request, db, "ai_chat.html", online=ai_hosts_online())
+
+    @app.post("/ai/chat")
+    async def ai_chat_send(request: Request, db: Session = Depends(get_db)):
+        user = require_user(request, db)
+        if not request.headers.get("content-type", "").startswith("application/json"):
+            raise HTTPException(415)  # よそのサイトのフォームから送らせない
+        try:
+            body = await request.json()
+        except ValueError:
+            body = {}
+        msgs = [{"role": m.get("role"), "content": str(m.get("content", ""))[:8000]}
+                for m in (body.get("messages") or [])[-20:]
+                if isinstance(m, dict) and m.get("role") in ("user", "assistant")]
+        if not msgs or msgs[-1]["role"] != "user" or not msgs[-1]["content"].strip():
+            return JSONResponse({"error": "メッセージを入れてください"}, status_code=400)
+        busy = db.scalar(select(AIJob).where(AIJob.user_id == user.id, AIJob.status.in_(("queued", "running"))))
+        if busy:
+            return JSONResponse({"error": "前の質問の答えを待っています"}, status_code=429)
+        job = AIJob(user_id=user.id, messages_json=json.dumps(msgs, ensure_ascii=False))
+        db.add(job)
+        db.commit()
+        return {"id": job.id, "online": len(ai_hosts_online())}
+
+    @app.get("/ai/chat/jobs/{job_id}")
+    def ai_chat_job(job_id: int, request: Request, db: Session = Depends(get_db)):
+        user = require_user(request, db)
+        job = db.get(AIJob, job_id)
+        if not job or job.user_id != user.id:
+            raise HTTPException(404)
+        now = clock.utcnow()
+        if job.status == "running" and job.started_at and now - job.started_at > AI_JOB_TIMEOUT:
+            job.status, job.answer = "error", "貸す人の PC から答えが返ってきませんでした。もう一度送ってください。"
+            db.commit()
+        elif job.status == "queued" and now - job.created_at > AI_JOB_TIMEOUT:
+            job.status, job.answer = "error", "いま答えられる PC がありません。少し待ってから送ってください。"
+            db.commit()
+        return {"status": job.status, "answer": job.answer, "model": job.model, "online": len(ai_hosts_online())}
+
+    @app.get("/api/agent/ai/next")
+    def agent_ai_next(request: Request, model: str = "", ctx: tuple[Host, Session] = Depends(agent_host)):
+        host, db = ctx
+        now = clock.utcnow()
+        app.state.ai_hosts[host.id] = (now, model[:100])
+        if not host.active:
+            return {"job": None}
+        job = db.scalar(select(AIJob).where(AIJob.status == "queued",
+                                            AIJob.created_at > now - AI_JOB_TIMEOUT).order_by(AIJob.id))
+        if not job:
+            return {"job": None}
+        job.status, job.host_id, job.started_at, job.model = "running", host.id, now, model[:100]
+        db.commit()
+        return {"job": {"id": job.id, "messages": json.loads(job.messages_json)}}
+
+    @app.post("/api/agent/ai/{job_id}/result")
+    async def agent_ai_result(job_id: int, request: Request, ctx: tuple[Host, Session] = Depends(agent_host)):
+        host, db = ctx
+        job = db.get(AIJob, job_id)
+        if not job or job.host_id != host.id:
+            raise HTTPException(404)
+        body = await request.json()
+        if body.get("error"):
+            job.status, job.answer = "error", "貸す人の PC の AI でエラーが起きました。もう一度送ってください。"
+        else:
+            job.status, job.answer = "done", str(body.get("answer", ""))[:20000]
+        db.commit()
+        return {"ok": True}
 
     @app.get("/api/agent/poll")
     def agent_poll(request: Request, ctx: tuple[Host, Session] = Depends(agent_host)):
