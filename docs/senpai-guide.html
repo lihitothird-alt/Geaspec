@@ -1,0 +1,207 @@
+<title>Geaspec VR テストの案内</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+  /* 1 列の手順書。上から順にやれば終わる並び。チェックはその人のブラウザにだけ残る */
+  :root {
+    --bg: #f1f5f9;
+    --paper: #ffffff;
+    --ink: #17222c;
+    --muted: #51606d;
+    --line: #d8e2ea;
+    --accent: #1f6aa3;
+    --accent-soft: #e3eef7;
+    --warn: #8a5a00;
+    --warn-soft: #fbf1dc;
+    --ok: #1b7a55;
+    --font-head: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+    --font-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f161c; --paper: #17212a; --ink: #e5edf3; --muted: #a2b2bf; --line: #2b3a46;
+      --accent: #7fbbe8; --accent-soft: #1b2e3d; --warn: #f0c46b; --warn-soft: #33290f; --ok: #5fd0a0;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f161c; --paper: #17212a; --ink: #e5edf3; --muted: #a2b2bf; --line: #2b3a46;
+    --accent: #7fbbe8; --accent-soft: #1b2e3d; --warn: #f0c46b; --warn-soft: #33290f; --ok: #5fd0a0;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink); font: 16px/1.8 var(--font-body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 32px 64px;
+  }
+  .page { max-width: 720px; margin: 0 auto; display: grid; gap: 28px; }
+  h1, h2, h3 { font-family: var(--font-head); line-height: 1.35; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.2rem); font-weight: 800; }
+  h2 { font-size: 1.3rem; font-weight: 800; display: flex; align-items: baseline; gap: 10px; }
+  h3 { font-size: 1.05rem; font-weight: 700; }
+  p { margin: 0; }
+  .lead { color: var(--muted); }
+  .tag { font: 700 .78rem/1 var(--font-head); letter-spacing: .08em; color: var(--accent); }
+  section { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: grid; gap: 14px; min-width: 0; }
+  .step-key { display: inline-grid; place-items: center; min-width: 2em; height: 2em; padding: 0 .5em; border-radius: 8px;
+    background: var(--accent-soft); color: var(--accent); font: 800 .95rem/1 var(--font-head); }
+  .who { font: 500 .85rem/1.4 var(--font-body); color: var(--muted); }
+  ul.check { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  ul.check label { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; cursor: pointer; padding: 6px 4px; border-radius: 8px; }
+  ul.check label:hover { background: var(--accent-soft); }
+  ul.check input { width: 18px; height: 18px; margin: 5px 0 0; accent-color: var(--accent); }
+  ul.check input:checked + span { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+  .note { background: var(--warn-soft); color: var(--ink); border-radius: 10px; padding: 12px 14px; display: grid; gap: 4px; }
+  .note strong { color: var(--warn); }
+  .good { border-left: 4px solid var(--ok); padding-left: 12px; }
+  .route { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .route > div { border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 6px; min-width: 0; }
+  .route b { font-family: var(--font-head); }
+  code, .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em; background: var(--accent-soft); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+  table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+  .table-wrap { overflow-x: auto; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-top: 1px solid var(--line); }
+  th { font-weight: 700; white-space: nowrap; }
+  a { color: var(--accent); }
+  .contact { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .copy { font: 500 .85rem var(--font-body); border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+  .copy:focus-visible, ul.check input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 560px) { .route { grid-template-columns: 1fr; } section { padding: 18px; } }
+</style>
+
+<main class="page">
+  <header style="display:grid;gap:10px">
+    <p class="tag">GEASPEC VR ・ 先行テスト</p>
+    <h1>Geaspec VR テストの案内</h1>
+    <p class="lead">ゲーミング PC を貸して、別の場所の Quest から PC版VRChat を遊べるかを試します。上から順に進めれば、30〜60 分で終わります。チェックはこのブラウザにだけ残ります。</p>
+  </header>
+
+  <section>
+    <h2><span class="step-key">0</span>この日にやること</h2>
+    <div class="route">
+      <div><b>① 先輩の家の中だけで試す</b><p class="who">貸す人も借りる人も先輩。PC と Quest を同じ Wi-Fi で。</p><p>サイト・アプリ・VRChat の起動と片付けが動くかを確かめます。</p></div>
+      <div><b>② 別の家から試す</b><p class="who">貸す人は先輩、借りる人は杉井。</p><p>①が通ってから。インターネット越しにつながるかを確かめます。</p></div>
+    </div>
+    <p class="good">Tailscale（VPN）は使いません。アプリの「詳しい設定」の「VPN の名前」は空のままにしてください。</p>
+  </section>
+
+  <section>
+    <h2><span class="step-key">1</span>用意するもの</h2>
+    <ul class="check" data-group="prep">
+      <li><label><input type="checkbox" id="p1"><span>Windows のゲーミング PC（NVIDIA の GPU）</span></label></li>
+      <li><label><input type="checkbox" id="p2"><span>Steam と VRChat（PC 版）。貸し出し専用の Steam アカウントがあればそちらで</span></label></li>
+      <li><label><input type="checkbox" id="p3"><span>Virtual Desktop Streamer（PC に入れる。無料。<a href="https://www.vrdesktop.net/" target="_blank" rel="noopener">vrdesktop.net</a> の「Download Streamer」）</span></label></li>
+      <li><label><input type="checkbox" id="p4"><span>Quest と、Quest に入れた Virtual Desktop（Meta のストアで買うアプリ）</span></label></li>
+      <li><label><input type="checkbox" id="p5"><span>メールアドレス 2 つ（貸す用・借りる用。①で両方やるため）</span></label></li>
+      <li><label><input type="checkbox" id="p6"><span>Meta（Quest）のユーザー名。Meta Horizon アプリのプロフィールで見られます</span></label></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="step-key">2</span>②の前に、家のネットの確認（5 分）</h2>
+    <p>別の家から PC につなぐには、<strong>PC がある家（先輩の家）のルーター</strong>が外からの接続を通す必要があります。</p>
+    <ul class="check" data-group="net">
+      <li><label><input type="checkbox" id="n1"><span>プロバイダの契約に「v6プラス」「transix」「クロスパス」「OCN バーチャルコネクト」などの名前があるか見る（あれば杉井に伝える）</span></label></li>
+      <li><label><input type="checkbox" id="n2"><span>ルーターの設定画面（シールに書いてある <span class="mono">192.168.x.1</span> など）で「UPnP」がオンか見る</span></label></li>
+      <li><label><input type="checkbox" id="n3"><span>Windows セキュリティ →「ファイアウォールによるアプリケーションの許可」で、Virtual Desktop Streamer の「プライベート」「パブリック」両方にチェック</span></label></li>
+    </ul>
+    <div class="note"><strong>分からなくても大丈夫です</strong><p>当日つながらなかったら、画面に出た文字の写真を送ってください。一緒に原因を探します。</p></div>
+  </section>
+
+  <section>
+    <h2><span class="step-key">A</span>貸す人として <span class="who">先輩の PC で</span></h2>
+    <ul class="check" data-group="a">
+      <li><label><input type="checkbox" id="a1"><span><a href="https://geaspec.com/" target="_blank" rel="noopener">geaspec.com</a> を開き、右上の「アカウントを作る」（貸す用のメールアドレス）</span></label></li>
+      <li><label><input type="checkbox" id="a2"><span>いちばん下の「貸し出しアプリ（Windows）をダウンロード」でアプリを入れる。「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」</span></label></li>
+      <li><label><input type="checkbox" id="a3"><span>アプリを開き、同じメールアドレスとパスワードでログイン</span></label></li>
+      <li><label><input type="checkbox" id="a4"><span>杉井に「登録した」と連絡 → 杉井が承認する（数分）</span></label></li>
+      <li><label><input type="checkbox" id="a5"><span>サイトの「貸し出し」ページのカレンダーで、いまか次の時間のマスを押して「保存」（始まっている時間も、残り 25 分以上なら選べます）</span></label></li>
+      <li><label><input type="checkbox" id="a6"><span>アプリで受付を始める（画面右下の小さなアイコンで動き続けます）</span></label></li>
+      <li><label><input type="checkbox" id="a7"><span>Virtual Desktop Streamer を開き「Allow remote connections」にチェック</span></label></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="step-key">B</span>借りる人として <span class="who">①は先輩の Quest かスマホ、②は杉井</span></h2>
+    <ul class="check" data-group="b">
+      <li><label><input type="checkbox" id="b1"><span>geaspec.com → Geaspec VR を開く</span></label></li>
+      <li><label><input type="checkbox" id="b2"><span>「テストに参加している方は 空き枠を見て予約する」を押す</span></label></li>
+      <li><label><input type="checkbox" id="b3"><span>借りる用のメールアドレスで「アカウントを作る」</span></label></li>
+      <li><label><input type="checkbox" id="b4"><span>枠を選ぶ → 初回だけ Meta のユーザー名を入れる → 「予約する」</span></label></li>
+      <li><label><input type="checkbox" id="b5"><span>予約ページに「接続手順」が出るのを確かめる</span></label></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="step-key">C</span>つなぐ前に <span class="who">先輩の PC で</span></h2>
+    <ul class="check" data-group="c">
+      <li><label><input type="checkbox" id="c1"><span>「貸し出し」ページの「これからの予約」に出ている Meta ユーザー名を見る</span></label></li>
+      <li><label><input type="checkbox" id="c2"><span>その名前を Virtual Desktop Streamer のユーザー名の欄に入れて保存（ここだけ手作業です）</span></label></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="step-key">D</span>遊ぶ</h2>
+    <ul class="check" data-group="d">
+      <li><label><input type="checkbox" id="d1"><span>予約の時間になると、アプリが VRChat を起動する</span></label></li>
+      <li><label><input type="checkbox" id="d2"><span>Quest の Virtual Desktop で、先輩の PC を選んでつなぐ</span></label></li>
+      <li><label><input type="checkbox" id="d3"><span>借りる人の VRChat アカウントでログインして、少し遊ぶ</span></label></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="step-key">E</span>終わる</h2>
+    <ul class="check" data-group="e">
+      <li><label><input type="checkbox" id="e1"><span>予約ページの「いま終わる（PC を返す）」を押す（押さなくても時間で終わります）</span></label></li>
+      <li><label><input type="checkbox" id="e2"><span>30 秒ほどで、アプリが VRChat を閉じてログイン情報を消す</span></label></li>
+      <li><label><input type="checkbox" id="e3"><span>予約ページが「終了」になる</span></label></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>見てほしいところ</h2>
+    <div class="table-wrap"><table>
+      <tr><th>つながり</th><td>Quest から PC につながったか。つながるまでの時間、遅れ（Virtual Desktop の表示で何 ms か）</td></tr>
+      <tr><th>始まり</th><td>VRChat が自動で起動したか</td></tr>
+      <tr><th>守り</th><td>SteamVR のメニューが開けないか。PC のスピーカーとマイクが消音になっているか</td></tr>
+      <tr><th>終わり</th><td>VRChat が閉じたか。PC の VRChat からログイン情報が消えたか</td></tr>
+      <tr><th>迷ったところ</th><td>分かりにくかった画面や言葉。写真があると助かります</td></tr>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>困ったとき</h2>
+    <p>画面に出た文字や、その画面の写真を送ってください。</p>
+    <div class="contact">
+      <span class="mono" id="mail">geaspec.contact@gmail.com</span>
+      <button type="button" class="copy" data-copy="mail">コピー</button>
+      <a href="https://discord.gg/rct4gGBCnR" target="_blank" rel="noopener">Discord（お知らせ・情報交換）</a>
+    </div>
+  </section>
+</main>
+
+<script>
+  (function () {
+    var KEY = "geaspec-senpai-guide";
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { saved = {}; }
+    document.querySelectorAll("ul.check input[type=checkbox]").forEach(function (box) {
+      if (saved[box.id]) box.checked = true;
+      box.addEventListener("change", function () {
+        saved[box.id] = box.checked;
+        try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+      });
+    });
+    document.querySelectorAll("[data-copy]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var el = document.getElementById(btn.dataset.copy), text = el.textContent.trim();
+        var done = function () { btn.textContent = "コピーしました"; setTimeout(function () { btn.textContent = "コピー"; }, 1500); };
+        var select = function () { var r = document.createRange(); r.selectNodeContents(el); var s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, select); else select();
+      });
+    });
+  })();
+</script>
