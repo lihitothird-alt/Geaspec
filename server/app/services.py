@@ -189,8 +189,8 @@ def slot_state(db: Session, slot: Slot, now: dt.datetime, hold_minutes: int) -> 
     booking = blocking_booking(db, slot, now, hold_minutes)
     if booking is not None:
         return "booked" if booking.status in TAKEN_STATUSES else "holding"
-    if slot.start_at <= now:
-        return "past"
+    if slot.start_at <= now and slot.play_end_at - now < NOW_MIN_PLAY:
+        return "past"  # 始まっている枠も、まだ 20 分以上遊べるうちは受付中として扱う (今すぐ入れる)
     return "closed" if slot.closed else "open"
 
 
@@ -267,8 +267,8 @@ def set_hourly_slots(db: Session, host: Host, start: dt.datetime, end: dt.dateti
     for s in sorted(starts):
         if s in by_start:
             continue
-        if s <= now:
-            continue  # 過去の時間には作らない
+        if s + SCHEDULE_CELL - Slot.turnover - now < NOW_MIN_PLAY:
+            continue  # 過去の時間・残りが短すぎる時間には作らない (始まっている時間も、20 分以上遊べるなら作る)
         overlap = db.scalar(
             select(Slot).where(
                 Slot.host_id == host.id, Slot.start_at < s + SCHEDULE_CELL, Slot.end_at > s, Slot.closed.is_(False)

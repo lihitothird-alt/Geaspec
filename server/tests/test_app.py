@@ -763,6 +763,14 @@ def test_agent_calendar_adds_and_removes_hourly_slots(setup, now):
     r = agent.put("/api/agent/schedule", json={**body, "starts": ["2026-10-10T02:00:00Z"]}).json()
     assert r["added"] == 0  # 過去の時間には作らない
 
+    # 始まっている時間も、20 分以上遊べるなら作れる (すぐに試したいとき)。残りが短ければ作らない
+    now["t"] = dt.datetime(2026, 10, 10, 3, 30)
+    r = agent.put("/api/agent/schedule", json={**body, "starts": ["2026-10-10T03:00:00Z", "2026-10-10T06:00:00Z"]}).json()
+    assert r["errors"] == [] and {"2026-10-10T03:00:00Z", "2026-10-10T06:00:00Z"} <= {x["start"] for x in r["slots"]}
+    now["t"] = dt.datetime(2026, 10, 10, 7, 40)
+    r = agent.put("/api/agent/schedule", json={**body, "starts": ["2026-10-10T07:00:00Z"]}).json()
+    assert r["added"] == 0
+
 
 def test_removed_slot_with_history_is_closed_not_deleted(setup, now):
     app, vpn, user, agent = setup
@@ -1924,3 +1932,24 @@ def test_footer_has_lender_app_download(tmp_path, now):
     c = TestClient(app)
     for path in ("/", "/vrchat", "/ai", "/en"):
         assert '/download/agent">' in c.get(path).text, path
+
+
+def test_vr_entrance_links_testers_to_slots_when_there_are_slots(setup, now):
+    """VR は準備中でも、空き枠があるときはテストの人が予約へ進める。"""
+    app, _vpn, user, _agent = setup
+    page = user.get("/vrchat").text
+    assert "テストに参加している方は" in page and 'href="/slots"' in page
+
+
+def test_meta_username_then_back_to_the_chosen_slot(tmp_path, now):
+    """枠を選んでから Meta のユーザー名を入れた人は、その枠の確認画面に戻る。よそのページへは戻さない。"""
+    app, _ = make_app(tmp_path)
+    c = TestClient(app)
+    signup(c, "new@example.com", meta=None)
+    r = c.get("/slots/1/confirm", follow_redirects=False)
+    assert r.headers["location"] == "/account?next=/slots/1/confirm"
+    assert 'name="next" value="/slots/1/confirm"' in c.get("/account?next=/slots/1/confirm").text
+    r = c.post("/account", data={"meta_username": "new.quest", "next": "/slots/1/confirm"}, follow_redirects=False)
+    assert r.headers["location"] == "/slots/1/confirm"
+    r = c.post("/account", data={"meta_username": "new.quest", "next": "https://evil.example"}, follow_redirects=False)
+    assert r.headers["location"] == "/slots"
