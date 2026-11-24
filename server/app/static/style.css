@@ -1903,3 +1903,122 @@ body.theme-ai::before, body.theme-gamedev::before { display: none; }
 /* 同意の行は行のどこを押してもチェックが入る (label 全体)。押せる範囲が分かるよう枠を付ける */
 .form label.check { cursor: pointer; }
 .badge.pending { background: color-mix(in srgb, var(--action) 12%, var(--surface)); color: var(--action); border-color: color-mix(in srgb, var(--action) 35%, transparent); }
+
+/* =====================================================================
+   デザインの数値ルール (2026-11-24) — ここが最終の決まり。上に書いた古い指定は、ここで上書きする。
+   色 10 個 / 文字 5 段 / 余白は 8 の倍数 / 幅 3 種 / カード 1 種。サービスごとの色は「バッジの点」だけ。
+   ===================================================================== */
+:root, .theme-vr, .theme-ai, .theme-gamedev {
+  /* 色 (10) */
+  --c-action: #15775a; --c-action-hover: #0f6149; --c-on-action: #ffffff;
+  --c-bg: #f3f5f5; --c-surface: #ffffff; --c-subtle: #eaeeee; --c-line: #d9dfde;
+  --c-text: #1d2424; --c-muted: #56615f; --c-danger: #b42318;
+  /* 古い名前もすべて上の色に寄せる (ページやサービスで色が変わらないように) */
+  --bg: var(--c-bg); --surface: var(--c-surface); --surface-2: var(--c-subtle); --surface-3: var(--c-subtle);
+  --text: var(--c-text); --text-muted: var(--c-muted); --link: var(--c-action);
+  --edge: var(--c-line); --line: var(--c-line); --shadow-c: transparent;
+  --primary: var(--c-action); --primary-hover: var(--c-action-hover); --on-primary: var(--c-on-action);
+  --action: var(--c-action); --action-hover: var(--c-action-hover); --on-action: var(--c-on-action);
+  --accent-text: var(--c-action); --focus: var(--c-action);
+  --mint: var(--c-action); --mint-soft: var(--c-subtle); --mint-ink: var(--c-action);
+  --hl: transparent; --danger: var(--c-danger); --danger-ink: var(--c-danger);
+  --shadow-s: none; --shadow: none; --shadow-l: none;
+  --area-pattern: transparent; --bg-grid: transparent;
+  /* 文字 (5 段) */
+  --fs-h1: 48px; --fs-h2: 32px; --fs-h3: 20px; --fs-body: 16px; --fs-small: 14px;
+  /* 余白 (8 の倍数) と幅 */
+  --sp-section: 80px; --sp-head: 24px; --sp-gap: 24px; --sp-card: 24px;
+  --wrap: 1120px; --w-form: 560px; --w-guide: 720px;
+  --radius-card: 12px;
+  /* サービスの色 (バッジの点だけに使う) */
+  --svc-dot: var(--c-action);
+}
+.theme-ai { --svc-dot: #d0574f; }
+.theme-gamedev { --svc-dot: #7a5fd0; }
+.theme-vr { --svc-dot: #3b8fd0; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]), :root:not([data-theme="light"]) .theme-vr,
+  :root:not([data-theme="light"]) .theme-ai, :root:not([data-theme="light"]) .theme-gamedev {
+    --c-action: #3fbf95; --c-action-hover: #5fd3ab; --c-on-action: #04231a;
+    --c-bg: #121716; --c-surface: #1a2120; --c-subtle: #232b2a; --c-line: #313b39;
+    --c-text: #e6eceb; --c-muted: #a3b0ae; --c-danger: #f97066;
+  }
+}
+:root[data-theme="dark"], :root[data-theme="dark"] .theme-vr, :root[data-theme="dark"] .theme-ai, :root[data-theme="dark"] .theme-gamedev {
+  --c-action: #3fbf95; --c-action-hover: #5fd3ab; --c-on-action: #04231a;
+  --c-bg: #121716; --c-surface: #1a2120; --c-subtle: #232b2a; --c-line: #313b39;
+  --c-text: #e6eceb; --c-muted: #a3b0ae; --c-danger: #f97066;
+}
+body, body.theme-vr, body.theme-ai, body.theme-gamedev { background: var(--c-bg); color: var(--c-text); font-size: var(--fs-body); }
+body.theme-vr::before, body.theme-vr::after, body.theme-ai::before, body.theme-gamedev::before { display: none; }
+::selection { background: color-mix(in srgb, var(--c-action) 25%, transparent); color: var(--c-text); }
+
+/* 文字 */
+h1, .hero h1, .page-head h1, .page-head.big h1, .vr-hero h1 { font-size: var(--fs-h1); line-height: 1.25; letter-spacing: 0; }
+h2, .sub-head, .vr-need h2, .waitlist-card h2, .section-head h2 { font-size: var(--fs-h2); line-height: 1.35; }
+h3, .svc h3, .use-card h3, .step h3 { font-size: var(--fs-h3); line-height: 1.4; }
+p, li, label, .lead, .page-head.big > p.muted { font-size: var(--fs-body); }
+small, .small, .muted.small, .badge, .form .opt, .footer-cols h3, .vrc-stats small, .vr-need small { font-size: var(--fs-small); }
+@media (max-width: 760px) {
+  :root, .theme-vr, .theme-ai, .theme-gamedev { --fs-h1: 32px; --fs-h2: 24px; --fs-h3: 18px; --sp-section: 56px; }
+}
+.hl, mark.hl { background: none; color: inherit; padding: 0; }
+
+/* 余白 */
+.section { padding-block: var(--sp-section); }
+.section.tight { padding-block: var(--sp-head) var(--sp-section); }
+.section.flush-top { padding-top: 0; }
+.section-head, .page-head { margin-bottom: var(--sp-head); }
+.svc-list, .uses, .steps, .vr-route, .test-facts, .chat-log { gap: var(--sp-gap); }
+
+/* 幅: 容器 1120 / フォーム 560 / ガイド 720 */
+.wrap { max-width: var(--wrap); }
+.auth-card, .test-form, .waitlist-card, .register-sec .test-page, .fb-form { max-width: var(--w-form); }
+.narrow, .guide, .guide-toc { max-width: var(--w-guide); }
+.vr-hero-copy, .vrc-strip, .vrc, .vr-link, .vr-faq, .ai-chat { max-width: none; }
+.vr-hero-copy .lead { margin-inline: auto; }
+
+/* カードは 1 種類: 白・枠線 1px・影なし */
+.card, .slot, .svc, .use-card, .step, .waitlist-card, .auth-card, .guide-toc, .vrc, .vrc-stats > div,
+.vr-need, .lend-band, .test-facts li, .safe-card, .hero-visual, .jm {
+  background: var(--c-surface); border: 1px solid var(--c-line); box-shadow: none; border-radius: var(--radius-card);
+}
+.card, .svc, .use-card, .step, .waitlist-card, .auth-card, .vr-need, .lend-band { padding: var(--sp-card); }
+.svc { border-top: 1px solid var(--c-line); }
+
+/* サービスの色は「バッジの点」だけ。アイコンの丸・番号・見出しの線は中立の色に */
+.svc-ic, .use-ic, .vr-route-num, .vr-need .box, .trust .ic { background: var(--c-subtle); color: var(--c-text); border: 0; }
+.svc .badge::before { background: var(--svc); }
+.eyebrow .dot { background: var(--svc-dot); border: 0; }
+.logo-sub, a.logo-sub { background: var(--c-subtle); color: var(--c-text); display: inline-flex; align-items: center; gap: 4px; }
+.logo-sub::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--svc-dot); }
+.svc-ai { --svc: #d0574f; } .svc-gamedev { --svc: #7a5fd0; } .svc-vr { --svc: #3b8fd0; }
+.svc-go { color: var(--c-action); }
+
+/* バッジは 2 種類だけ: ふつう (灰) と、受付中 (主色) */
+.badge, .badge.completed { background: var(--c-subtle); color: var(--c-text); border-color: transparent; }
+.badge.pending, .badge.confirmed, .badge.active { background: color-mix(in srgb, var(--c-action) 12%, var(--c-surface)); color: var(--c-action); border-color: transparent; }
+
+/* ボタン: 主 = 主色、副 = 白に枠線 (バナーやバッジの灰色と区別する) */
+.btn { background: var(--c-action); color: var(--c-on-action); border: 1px solid var(--c-action); border-radius: 8px; box-shadow: none; }
+.btn:hover { background: var(--c-action-hover); border-color: var(--c-action-hover); }
+.btn.ghost, .btn.quiet { background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-line); }
+.btn.ghost:hover, .btn.quiet:hover { background: var(--c-subtle); }
+.experiment-bar { background: var(--c-subtle); color: var(--c-muted); }
+
+/* リンクは 1 色 + 下線 */
+a { color: var(--c-action); }
+.chat-msg.user { background: color-mix(in srgb, var(--c-action) 14%, var(--c-surface)); color: var(--c-text); }
+.chat-msg.assistant { background: var(--c-subtle); }
+.lend-band h2 { font-size: var(--fs-h2); }
+.vr-route h3 { font-size: var(--fs-h3); }
+.svc .svc-btn { background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-line); }
+.svc .svc-btn:hover { background: var(--c-subtle); }
+.svc, .svc:hover { color: var(--c-text); text-decoration: none; }
+.theme-vr .hero::before { display: none; }
+.theme-vr .hero { padding-bottom: var(--sp-section); }
+.form label > .req, .form label > .opt-tag, .form legend > .req, .form legend > .opt-tag { justify-self: start; width: max-content; }
+.vr-hero-copy .soon-note { justify-content: center; }
+.label-line { display: inline-flex; align-items: center; gap: 0; }
+.use-card, .use-card.ready { border: 1px solid var(--c-line); }
+.page-head.big > p.muted + p { margin-top: var(--sp-head); }

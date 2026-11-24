@@ -244,7 +244,8 @@ class ReadinessTest(unittest.TestCase):
         self.assertEqual(items["Steam が入っている"][0], "ok")
         self.assertEqual(items["VRChat が入っている"], ("ng", "Steam で入れる"))
         self.assertEqual(items["Virtual Desktop Streamer が入っている"][0], "ng")
-        self.assertEqual(items["貸し出し用の標準ユーザーを使っている"], ("ng", "別に作ってください（やり方）"))
+        # 標準ユーザーの確認は試作のあいだは外している (管理者のユーザーでも出さない)
+        self.assertNotIn("貸し出し用の標準ユーザーを使っている", items)
 
         h.STATUS.state, h.STATUS.last_poll_at, h.STATUS.host_state = "unreachable", self.NOW, "pending"
         (steam / "steamapps" / "appmanifest_438100.acf").write_text("")
@@ -252,7 +253,7 @@ class ReadinessTest(unittest.TestCase):
             cached = {label: state for label, state, _ in c.readiness(now=10)}
             fresh = {label: state for label, state, _ in c.readiness(now=40)}
         self.assertEqual(cached["VRChat が入っている"], "ng")  # ファイルは 30 秒ごとにだけ見直す
-        self.assertEqual((fresh["VRChat が入っている"], fresh["貸し出し用の標準ユーザーを使っている"]), ("ok", "ok"))
+        self.assertEqual(fresh["VRChat が入っている"], "ok")
         self.assertEqual((fresh["予約サイトにつながっている"], fresh["運営の承認"]), ("ng", "wait"))
 
     def test_lending_needs_a_steam_account_kept_only_for_lending(self):

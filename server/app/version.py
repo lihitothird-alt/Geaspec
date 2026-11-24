@@ -9,6 +9,8 @@ AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download
 CHANGES: dict[str, list[str]] = {
     "0.7.55": [
         "いちばん下の案内に、貸し出しアプリ（Windows）のダウンロードを足しました",
+        "デザインの数値ルールを決めて、全ページ（Geaspec VR・案内のページも）を同じルールにそろえました。背景は1色、主ボタンとリンクは濃い緑、サービスの色はバッジの点だけです",
+        "貸し出しアプリで、貸し出し用の標準ユーザーの確認を外しました（試作のあいだは、ふだんのユーザーでも貸し出せます）",
     ],
     "0.7.54": [
         "Geaspec AI の試作: サイトで質問すると、貸す人のパソコンの AI（Ollama）が答えるようにしました",
