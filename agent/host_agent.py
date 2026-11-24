@@ -1864,7 +1864,10 @@ def ai_worker(client: "ServerClient", stop: threading.Event, preferred_model: st
             continue
         try:
             answer = ollama_chat(model, job.get("messages") or [])
-            client.ai_result(int(job["id"]), answer=answer or "（答えが空でした）")
+            if answer:
+                client.ai_result(int(job["id"]), answer=answer)
+            else:  # 空の答えは失敗として返す (借りる人には「もう一度送って」と出る)
+                client.ai_result(int(job["id"]), error="empty answer")
         except Exception as exc:  # noqa: BLE001 - AI が失敗しても貸し出しは続ける
             log.warning("AI の質問に答えられませんでした: %s", exc)
             client.ai_result(int(job["id"]), error=str(exc)[:200])
