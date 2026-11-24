@@ -86,7 +86,7 @@
       <div><b>② 別の家から試す</b><p class="who">貸す人は先輩、借りる人は杉井。</p><p>①が通ってから。インターネット越しにつながるかを確かめます。</p></div>
     </div>
     <p class="good">①（同じ家の中）は Tailscale もポート開放もいりません。アプリの「詳しい設定」の「VPN の名前」は空のままにしてください。</p>
-    <div class="note"><strong>②（別の家から）はポート開放が必要です</strong><p>Tailscale を使わない場合、PC がある家（先輩の家）のルーターで、Virtual Desktop のポートを開ける必要があります。ルーターの UPnP がオンなら自動で開くこともありますが、確実ではありません。この形でつながるかは、まだ一度も確かめられていません。</p></div>
+    <div class="note"><strong>②（別の家から）は、つなぎ方を 2 つのうちから選びます</strong><p><b>つなぎ方 X：Tailscale（おすすめ）</b> — 先輩の PC と杉井の Quest を Tailscale でつなぐ。ルーターの設定はいりません。杉井が以前 Tailscale で動かしたことのあるつなぎ方です。</p><p><b>つなぎ方 Y：ポート開放</b> — 先輩の家のルーターで Virtual Desktop のポートを開ける。Tailscale はいりませんが、回線によってはできず、この形でつながるかはまだ確かめられていません。</p></div>
   </section>
 
   <section>
@@ -102,7 +102,18 @@
   </section>
 
   <section>
-    <h2><span class="step-key">2</span>②の前に、家のネットの確認とポート開放</h2>
+    <h2><span class="step-key">X</span>②の前に：Tailscale でつなぐ準備 <span class="who">おすすめ</span></h2>
+    <ul class="check" data-group="ts">
+      <li><label><input type="checkbox" id="t1"><span>杉井から Tailscale の招待リンクをもらう</span></label></li>
+      <li><label><input type="checkbox" id="t2"><span>先輩の PC に Tailscale（<a href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download</a> の Windows 版）を入れ、招待リンクからログインする</span></label></li>
+      <li><label><input type="checkbox" id="t3"><span>Tailscale のアイコンが「接続中」になっているのを確かめる（テストのあいだはつないだままにする）</span></label></li>
+      <li><label><input type="checkbox" id="t4"><span>杉井の Quest も同じ Tailscale につなぐ（杉井の準備）</span></label></li>
+    </ul>
+    <p class="who">テストが終わったら、先輩の PC の Tailscale はログアウトして消してかまいません。</p>
+  </section>
+
+  <section>
+    <h2><span class="step-key">Y</span>（つなぎ方 Y にする場合）家のネットの確認とポート開放</h2>
     <p>別の家から PC につなぐには、<strong>PC がある家（先輩の家）のルーター</strong>で、外からの接続を PC に通す設定（ポート開放）が必要です。</p>
     <ul class="check" data-group="net">
       <li><label><input type="checkbox" id="n1"><span>プロバイダの契約に「v6プラス」「transix」「クロスパス」「OCN バーチャルコネクト」などの名前があるか見る（あれば杉井に伝える）</span></label></li>
@@ -110,7 +121,7 @@
       <li><label><input type="checkbox" id="n3"><span>Windows セキュリティ →「ファイアウォールによるアプリケーションの許可」で、Virtual Desktop Streamer の「プライベート」「パブリック」両方にチェック</span></label></li>
       <li><label><input type="checkbox" id="n4"><span>ルーターの「ポート開放（ポートマッピング）」で、PC あてに TCP <span class="mono">38810</span>・<span class="mono">38820</span>・<span class="mono">38830</span>・<span class="mono">38840</span> を開ける（Virtual Desktop の公式ではなく、ポート開放の案内サイトに載っている番号です。UDP が必要かは分かっていません）</span></label></li>
     </ul>
-    <div class="note"><strong>ポート開放ができない場合</strong><p>「v6プラス」などの回線では、ポート開放ができないか、使えるポートが限られることが多いです。その場合、この日は②をやめて、①だけにしてください。②には Tailscale などの別の方法が必要になります。</p><p>つながらなかったら、画面に出た文字の写真を送ってください。一緒に原因を探します。</p></div>
+    <div class="note"><strong>ポート開放ができない場合</strong><p>「v6プラス」などの回線では、ポート開放ができないか、使えるポートが限られることが多いです。その場合は、つなぎ方 X（Tailscale）にしてください。</p><p>つながらなかったら、画面に出た文字の写真を送ってください。一緒に原因を探します。</p></div>
   </section>
 
   <section>
