@@ -1718,9 +1718,10 @@ def create_app(
     def agent_ai_next(request: Request, model: str = "", ctx: tuple[Host, Session] = Depends(agent_host)):
         host, db = ctx
         now = clock.utcnow()
-        app.state.ai_hosts[host.id] = (now, model[:100])
-        if not host.active:
+        if not host.active:  # 承認待ち・運営が止めている PC は、答えられる台数に数えない
+            app.state.ai_hosts.pop(host.id, None)
             return {"job": None}
+        app.state.ai_hosts[host.id] = (now, model[:100])
         # 2台が同時に問い合わせても、1つの質問を受け取るのは1台だけ (「まだ待っている」ときだけ書き換える)
         for _ in range(3):
             job = db.scalar(select(AIJob).where(AIJob.status == "queued",
