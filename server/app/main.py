@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
@@ -1628,6 +1628,16 @@ def create_app(
         now = clock.utcnow()
         return [m for t, m in app.state.ai_hosts.values() if now - t < AI_HOST_FRESH]
 
+    def fail_ai_job(db: Session, job: AIJob, message: str) -> None:
+        """答えられなかった質問は会話から外す (送り直したときに、答えのない質問が AI に重ねて渡らないように)。"""
+        job.status, job.answer, job.messages_json = "error", message, "[]"
+        if job.conversation_id:
+            last = db.scalar(select(AIMessage).where(AIMessage.conversation_id == job.conversation_id)
+                             .order_by(AIMessage.id.desc()))
+            if last and last.role == "user":
+                db.delete(last)
+        db.commit()
+
     def own_conversation(db: Session, user: User, cid: int | None) -> AIConversation | None:
         conv = db.get(AIConversation, cid) if cid else None
         return conv if conv and conv.user_id == user.id else None
@@ -1699,11 +1709,9 @@ def create_app(
             raise HTTPException(404)
         now = clock.utcnow()
         if job.status == "running" and job.started_at and now - job.started_at > AI_JOB_TIMEOUT:
-            job.status, job.answer = "error", "貸す人の PC から答えが返ってきませんでした。もう一度送ってください。"
-            db.commit()
+            fail_ai_job(db, job, "貸す人の PC から答えが返ってきませんでした。もう一度送ってください。")
         elif job.status == "queued" and now - job.created_at > AI_JOB_TIMEOUT:
-            job.status, job.answer = "error", "いま答えられる PC がありません。少し待ってから送ってください。"
-            db.commit()
+            fail_ai_job(db, job, "いま答えられる PC がありません。少し待ってから送ってください。")
         return {"status": job.status, "answer": job.answer, "model": job.model, "online": len(ai_hosts_online())}
 
     @app.get("/api/agent/ai/next")
@@ -1713,13 +1721,19 @@ def create_app(
         app.state.ai_hosts[host.id] = (now, model[:100])
         if not host.active:
             return {"job": None}
-        job = db.scalar(select(AIJob).where(AIJob.status == "queued",
-                                            AIJob.created_at > now - AI_JOB_TIMEOUT).order_by(AIJob.id))
-        if not job:
-            return {"job": None}
-        job.status, job.host_id, job.started_at, job.model = "running", host.id, now, model[:100]
-        db.commit()
-        return {"job": {"id": job.id, "messages": json.loads(job.messages_json)}}
+        # 2台が同時に問い合わせても、1つの質問を受け取るのは1台だけ (「まだ待っている」ときだけ書き換える)
+        for _ in range(3):
+            job = db.scalar(select(AIJob).where(AIJob.status == "queued",
+                                                AIJob.created_at > now - AI_JOB_TIMEOUT).order_by(AIJob.id))
+            if not job:
+                return {"job": None}
+            claimed = db.execute(update(AIJob).where(AIJob.id == job.id, AIJob.status == "queued").values(
+                status="running", host_id=host.id, started_at=now, model=model[:100])).rowcount
+            db.commit()
+            if claimed:
+                db.refresh(job)
+                return {"job": {"id": job.id, "messages": json.loads(job.messages_json)}}
+        return {"job": None}
 
     @app.post("/api/agent/ai/{job_id}/result")
     async def agent_ai_result(job_id: int, request: Request, ctx: tuple[Host, Session] = Depends(agent_host)):
@@ -1729,7 +1743,8 @@ def create_app(
             raise HTTPException(404)
         body = await request.json()
         if body.get("error"):
-            job.status, job.answer = "error", "貸す人の PC の AI でエラーが起きました。もう一度送ってください。"
+            fail_ai_job(db, job, "貸す人の PC の AI でエラーが起きました。もう一度送ってください。")
+            return {"ok": True}
         else:
             job.status, job.answer = "done", str(body.get("answer", ""))[:20000]
             if job.conversation_id:

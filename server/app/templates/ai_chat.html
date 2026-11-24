@@ -50,12 +50,12 @@
         if (s.model) { const m = document.createElement("small"); m.textContent = s.model; pending.appendChild(m); }
         return;
       }
-      if (s.status === "error") { pending.className = "chat-msg error"; pending.textContent = s.answer; return; }
+      if (s.status === "error") { pending.className = "chat-msg error"; pending.textContent = s.answer; return "error"; }
     }
   };
   const run = async (jobId, pending) => {
     send.disabled = true;
-    try { await follow(jobId, pending); }
+    try { return await follow(jobId, pending); }
     catch (err) { pending.className = "chat-msg error"; pending.textContent = "通信が切れました。ページを開き直してください。"; }
     finally { send.disabled = false; input.focus(); }
   };
@@ -73,7 +73,7 @@
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "送れませんでした");
       if (!conv) { conv = String(d.conversation_id); history.replaceState(null, "", "/ai/chat?c=" + conv); }
-      await run(d.id, pending);
+      if (await run(d.id, pending) === "error" && !input.value) input.value = text;  // すぐ送り直せるように戻す
     } catch (err) {
       pending.className = "chat-msg error"; pending.textContent = err.message; send.disabled = false;
     }
