@@ -7,6 +7,7 @@
     <p class="intro">{{ user.email }}</p>
     {% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
     <form method="post" class="form">
+      <input type="hidden" name="next" value="{{ request.query_params.get('next', '') }}">
       <label>ニックネーム（ほかの人に見える名前）
         <input name="nickname" value="{{ user.nickname }}" maxlength="32" autocomplete="nickname" placeholder="例：ひかり" aria-describedby="nick-hint">
       </label>

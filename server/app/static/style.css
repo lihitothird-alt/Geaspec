@@ -1891,3 +1891,4 @@ body.theme-ai::before, body.theme-gamedev::before { display: none; }
 .form label.check { cursor: pointer; }
 .badge.pending { background: color-mix(in srgb, var(--link) 12%, var(--surface)); color: var(--link); border-color: color-mix(in srgb, var(--link) 35%, transparent); }
 .vr-hero-copy .soon-note { justify-content: center; }
+.tester-link { margin: 12px 0 0; font-size: .92rem; color: var(--text-muted); }

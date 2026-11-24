@@ -10,6 +10,7 @@
     <div class="cta-row">
       <a class="btn lg" href="#register">開始したらメールで知らせてもらう<svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></a>
     </div>
+    {% if slot_count %}<p class="tester-link">テストに参加している方は <a href="/slots">空き枠を見て予約する（{{ slot_count }} 件）</a></p>{% endif %}
     <ul class="trust" aria-label="安心の理由">
       <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-user"/></svg></span>自分の VRChat アカウントで</li>
       <li><span class="ic" aria-hidden="true"><svg class="i"><use href="#i-trash"/></svg></span>終わったらデータを自動で削除</li>

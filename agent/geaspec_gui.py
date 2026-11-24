@@ -1526,11 +1526,11 @@ class SettingsDialog:
         c = window.c
         self.server = tk.StringVar(value=c.server)
         self.token = tk.StringVar(value=c.token)
-        self.vpn = tk.StringVar(value=c.config.get("vpn_interface", "Tailscale"))
+        self.vpn = tk.StringVar(value=c.config.get("vpn_interface", ""))
         fields = [
             ("予約サイトのアドレス", self.server, ""),
             ("合言葉（pcvr_ か geaspec1: で始まる文字）", self.token, "•"),
-            ("VPN の名前（ふつうは Tailscale のまま）", self.vpn, ""),
+            ("VPN の名前（使っていなければ空のまま）", self.vpn, ""),
         ]
         self.entries = []
         for i, (label, var, show) in enumerate(fields, start=1):

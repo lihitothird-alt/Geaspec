@@ -75,6 +75,7 @@
         <div class="person-main">
           <span class="td-strong num">{{ b.slot.start_at|jst("%m/%d") }}（{{ b.slot.start_at|wday }}） {{ b.slot.start_at|jst("%H:%M") }}〜{{ b.slot.end_at|jst("%H:%M") }}</span>
           <div class="person-tags"><span>{{ b.user.display_name }} さん</span>{{ stars(ratings.get(b.user_id, (None, 0))) }}<span class="muted">{{ b.slot.host.name }}</span></div>
+          {% if b.user.meta_username %}<p class="muted small">Virtual Desktop Streamer の「Oculus/Meta username」に入れる名前: <strong>{{ b.user.meta_username }}</strong></p>{% endif %}
         </div>
       </li>
       {% endfor %}
@@ -123,8 +124,11 @@
       var week = jstMidnight(Date.now()), data = null, now = Date.now();
       var locked = {}, original = {}, selected = {}, painting = null;
       function dirty() { var k; for (k in selected) if (!original[k]) return true; for (k in original) if (!selected[k]) return true; return false; }
-      function state(t) { if (locked[t]) return locked[t]; if (t < now) return "past"; return selected[t] ? "open" : "empty"; }
-      function editable(t) { return !locked[t] && t >= now; }
+      // 始まっている時間も、残りが 25 分以上 (遊べる 20 分 + 片付け 5 分) あれば貸し出せる
+      var MIN_LEFT = 25 * 60e3;
+      function open_ok(t) { return t + HOUR - now >= MIN_LEFT; }
+      function state(t) { if (locked[t]) return locked[t]; if (!open_ok(t) && !selected[t]) return "past"; return selected[t] ? "open" : "empty"; }
+      function editable(t) { return !locked[t] && open_ok(t); }
       function load() {
         msg.textContent = "";
         fetch("/lend/hosts/" + host + "/schedule?start=" + encodeURIComponent(iso(week)) + "&days=" + DAYS, {credentials: "same-origin"})
@@ -185,7 +189,7 @@
         });
       });
       save.addEventListener("click", function () {
-        var starts = Object.keys(selected).map(Number).filter(function (t) { return t >= now; }).sort(function (a, b) { return a - b; }).map(iso);
+        var starts = Object.keys(selected).map(Number).filter(open_ok).sort(function (a, b) { return a - b; }).map(iso);
         save.disabled = true; msg.textContent = "保存しています…";
         fetch("/lend/hosts/" + host + "/schedule", {method: "PUT", credentials: "same-origin",
           headers: {"Content-Type": "application/json"},

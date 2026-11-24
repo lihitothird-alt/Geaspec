@@ -1,12 +1,19 @@
 """予約サイト一式の版。agent/host_agent.py の AGENT_VERSION と同じにする (リリースは同じタグで出る)。"""
 
-VERSION = "0.7.55"
+VERSION = "0.7.56"
 RELEASE_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/tag/agent-v{VERSION}"
 # 貸す人の Windows アプリ (サイトと同じ版のもの)
 AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download/agent-v{VERSION}/GeaspecAgent-Setup-{VERSION}.exe"
 
 # Discord の「更新情報」に書く変更点 (テスターと運営が読む)。新しい版を出すときに足す
 CHANGES: dict[str, list[str]] = {
+    "0.7.56": [
+        "Geaspec VR の入口に、空き枠があるときだけ「テストに参加している方は 空き枠を見て予約する」を出しました",
+        "貸す人が、始まっている時間も（残りが 25 分以上あれば）貸し出しにできるようにしました",
+        "Meta のユーザー名を入れたあと、選んだ枠の確認画面にそのまま戻るようにしました",
+        "貸し出しページの「これからの予約」に、Virtual Desktop に入れる借りる人の Meta ユーザー名を出しました",
+        "貸し出しアプリが、Tailscale などの VPN がなくても貸し出しを始めるようにしました（設定に残っていても注意を出すだけ）",
+    ],
     "0.7.55": [
         "いちばん下の案内に、貸し出しアプリ（Windows）のダウンロードを足しました",
         "貸し出しアプリで、貸し出し用の標準ユーザーの確認を外しました（試作のあいだは、ふだんのユーザーでも貸し出せます）",

@@ -806,7 +806,8 @@ def create_app(
 
     @app.post("/account")
     def account_save(
-        request: Request, meta_username: str = Form(""), nickname: str = Form(""), db: Session = Depends(get_db)
+        request: Request, meta_username: str = Form(""), nickname: str = Form(""), next: str = Form(""),
+        db: Session = Depends(get_db)
     ):
         user = require_user(request, db)
         meta_username = meta_username.strip()
@@ -825,7 +826,8 @@ def create_app(
         user.nickname = nickname
         db.commit()
         flash(request, "保存しました")
-        return redirect("/slots")
+        # 枠を選んでからここに来た人は、その枠の確認画面へ戻す
+        return redirect(next if re.fullmatch(r"/slots/\d+/confirm", next) else "/slots")
 
     # --- 予約 ---------------------------------------------------------------
 
@@ -869,7 +871,7 @@ def create_app(
         user = require_user(request, db)
         if not user.meta_username:
             flash(request, "先に Meta (Quest) のユーザー名を登録してください", "error")
-            return redirect("/account")
+            return redirect(f"/account?next=/slots/{slot_id}/confirm")
         if needs_email_check(user):
             flash(request, "予約の前に、メールアドレスの確認をお願いします（届いたメールのリンクを開いてください）", "error")
             return redirect("/slots")
