@@ -9,6 +9,7 @@ AGENT_SETUP_URL = f"https://github.com/lihitothird-alt/Geaspec/releases/download
 CHANGES: dict[str, list[str]] = {
     "0.7.54": [
         "Geaspec AI の試作: サイトで質問すると、貸す人のパソコンの AI（Ollama）が答えるようにしました",
+        "AI との会話は Geaspec のサーバーに保存し、あとから開き直せるようにしました。答えを作るパソコンには残しません",
     ],
     "0.7.53": [
         "Geaspec VR を「準備中」にして、入口のページに先行登録のフォームを直接置きました",

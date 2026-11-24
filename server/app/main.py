@@ -33,7 +33,7 @@ from . import account_links, clock, feedback, invite, services, social, web_test
 from .config import Settings
 from .db import Base, add_missing_columns, make_engine, make_sessionmaker
 from . import backup
-from .models import AIJob, Booking, BookingStatus, Feedback, Host, Slot, TesterSignup, User, WaitlistEntry
+from .models import AIConversation, AIJob, AIMessage, Booking, BookingStatus, Feedback, Host, Slot, TesterSignup, User, WaitlistEntry
 from .payments import PROVIDER_LABELS, PaymentGateway, build_payments
 from .security import connection_code, hash_password, hash_token, new_agent_token, verify_password
 from .mail import Mailer, build_mailer
@@ -1618,18 +1618,32 @@ def create_app(
         return booking
 
     # --- Geaspec AI の試作: 貸す人の PC の AI にチャットで聞く ------------------
+    # Geaspec のサイトが入り口。会話はサイト (クラウド) に保存し、貸す人の PC は計算だけして何も残さない。
     AI_JOB_TIMEOUT = dt.timedelta(minutes=5)
     AI_HOST_FRESH = dt.timedelta(seconds=45)
+    AI_HISTORY = 20  # 貸す人の PC に渡す、直近のやりとりの数
     app.state.ai_hosts = {}  # host_id -> (最後に問い合わせてきた時刻, モデル名)
 
     def ai_hosts_online() -> list[str]:
         now = clock.utcnow()
         return [m for t, m in app.state.ai_hosts.values() if now - t < AI_HOST_FRESH]
 
+    def own_conversation(db: Session, user: User, cid: int | None) -> AIConversation | None:
+        conv = db.get(AIConversation, cid) if cid else None
+        return conv if conv and conv.user_id == user.id else None
+
     @app.get("/ai/chat", response_class=HTMLResponse)
-    def ai_chat_page(request: Request, db: Session = Depends(get_db)):
-        require_user(request, db)
-        return render(request, db, "ai_chat.html", online=ai_hosts_online())
+    def ai_chat_page(request: Request, c: int = 0, db: Session = Depends(get_db)):
+        user = require_user(request, db)
+        convs = db.scalars(select(AIConversation).where(AIConversation.user_id == user.id)
+                           .order_by(AIConversation.updated_at.desc()).limit(50)).all()
+        conv = own_conversation(db, user, c)
+        msgs = db.scalars(select(AIMessage).where(AIMessage.conversation_id == conv.id)
+                          .order_by(AIMessage.id)).all() if conv else []
+        pending = db.scalar(select(AIJob).where(AIJob.conversation_id == conv.id,
+                                                AIJob.status.in_(("queued", "running")))) if conv else None
+        return render(request, db, "ai_chat.html", online=ai_hosts_online(), convs=convs, conv=conv,
+                      msgs=msgs, pending_id=pending.id if pending else 0)
 
     @app.post("/ai/chat")
     async def ai_chat_send(request: Request, db: Session = Depends(get_db)):
@@ -1640,18 +1654,42 @@ def create_app(
             body = await request.json()
         except ValueError:
             body = {}
-        msgs = [{"role": m.get("role"), "content": str(m.get("content", ""))[:8000]}
-                for m in (body.get("messages") or [])[-20:]
-                if isinstance(m, dict) and m.get("role") in ("user", "assistant")]
-        if not msgs or msgs[-1]["role"] != "user" or not msgs[-1]["content"].strip():
+        text = str(body.get("content", "")).strip()[:8000]
+        if not text:
             return JSONResponse({"error": "メッセージを入れてください"}, status_code=400)
         busy = db.scalar(select(AIJob).where(AIJob.user_id == user.id, AIJob.status.in_(("queued", "running"))))
         if busy:
             return JSONResponse({"error": "前の質問の答えを待っています"}, status_code=429)
-        job = AIJob(user_id=user.id, messages_json=json.dumps(msgs, ensure_ascii=False))
+        conv = own_conversation(db, user, int(body.get("conversation_id") or 0))
+        now = clock.utcnow()
+        if conv is None:
+            conv = AIConversation(user_id=user.id, title=text.splitlines()[0][:40], created_at=now)
+            db.add(conv)
+            db.flush()
+        conv.updated_at = now
+        db.add(AIMessage(conversation_id=conv.id, role="user", content=text, created_at=now))
+        db.flush()
+        recent = db.scalars(select(AIMessage).where(AIMessage.conversation_id == conv.id)
+                            .order_by(AIMessage.id.desc()).limit(AI_HISTORY)).all()[::-1]
+        history = [{"role": m.role, "content": m.content} for m in recent]
+        job = AIJob(user_id=user.id, conversation_id=conv.id,
+                    messages_json=json.dumps(history, ensure_ascii=False))
         db.add(job)
         db.commit()
-        return {"id": job.id, "online": len(ai_hosts_online())}
+        return {"id": job.id, "conversation_id": conv.id, "online": len(ai_hosts_online())}
+
+    @app.post("/ai/chat/{cid}/delete")
+    def ai_chat_delete(cid: int, request: Request, db: Session = Depends(get_db)):
+        user = require_user(request, db)
+        conv = own_conversation(db, user, cid)
+        if conv:
+            for m in db.scalars(select(AIMessage).where(AIMessage.conversation_id == cid)).all():
+                db.delete(m)
+            for j in db.scalars(select(AIJob).where(AIJob.conversation_id == cid)).all():
+                db.delete(j)
+            db.delete(conv)
+            db.commit()
+        return redirect("/ai/chat")
 
     @app.get("/ai/chat/jobs/{job_id}")
     def ai_chat_job(job_id: int, request: Request, db: Session = Depends(get_db)):
@@ -1687,13 +1725,18 @@ def create_app(
     async def agent_ai_result(job_id: int, request: Request, ctx: tuple[Host, Session] = Depends(agent_host)):
         host, db = ctx
         job = db.get(AIJob, job_id)
-        if not job or job.host_id != host.id:
+        if not job or job.host_id != host.id or job.status != "running":
             raise HTTPException(404)
         body = await request.json()
         if body.get("error"):
             job.status, job.answer = "error", "貸す人の PC の AI でエラーが起きました。もう一度送ってください。"
         else:
             job.status, job.answer = "done", str(body.get("answer", ""))[:20000]
+            if job.conversation_id:
+                db.add(AIMessage(conversation_id=job.conversation_id, role="assistant", content=job.answer,
+                                 model=job.model))
+        # 答えを返したら、貸す人の PC に渡した会話の写しは消す (会話そのものは会話の記録に残る)
+        job.messages_json = "[]"
         db.commit()
         return {"ok": True}
 

@@ -1869,3 +1869,14 @@ body.theme-ai::before, body.theme-gamedev::before { display: none; }
 .chat-msg small { display: block; margin-top: 6px; font-size: .75rem; color: var(--muted); }
 .chat-form { display: grid; gap: 8px; }
 .chat-form textarea { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--line); font: inherit; }
+.ai-chat-wrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
+.chat-side { display: grid; gap: 10px; position: sticky; top: 84px; }
+.chat-convs { display: grid; gap: 2px; max-height: 60vh; overflow: auto; }
+.chat-convs a { padding: 8px 10px; border-radius: 8px; color: var(--text); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .9rem; }
+.chat-convs a:hover, .chat-convs a[aria-current] { background: var(--surface-3, #eef1f5); }
+.link-btn { background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+@media (max-width: 760px) {
+  .ai-chat-wrap { grid-template-columns: 1fr; gap: 16px; }
+  .chat-side { position: static; }
+  .chat-convs { grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; max-height: none; }
+}

@@ -1882,25 +1882,37 @@ def test_daily_database_backup(tmp_path):
 
 
 def test_ai_chat_prototype(setup):
-    """借りる人がサイトで聞いた質問を、貸す人の PC (Agent) が受け取って答える。"""
+    """借りる人がサイトで聞いた質問を、貸す人の PC (Agent) が受け取って答える。会話はサイトに残る。"""
     app, _vpn, user, agent = setup
     assert "いま答えられるパソコンはありません" in user.get("/ai/chat").text
     # よそのサイトのフォームからは送れない
-    assert user.post("/ai/chat", data={"messages": "x"}).status_code == 415
-    r = user.post("/ai/chat", json={"messages": [{"role": "user", "content": "こんにちは"}]})
-    job_id = r.json()["id"]
-    assert user.post("/ai/chat", json={"messages": [{"role": "user", "content": "もう1つ"}]}).status_code == 429
+    assert user.post("/ai/chat", data={"content": "x"}).status_code == 415
+    r = user.post("/ai/chat", json={"content": "こんにちは"}).json()
+    job_id, cid = r["id"], r["conversation_id"]
+    assert user.post("/ai/chat", json={"content": "もう1つ", "conversation_id": cid}).status_code == 429
     assert user.get(f"/ai/chat/jobs/{job_id}").json()["status"] == "queued"
-    got = agent.get("/api/agent/ai/next", params={"model": "llama3.2"}).json()["job"]
-    assert got["id"] == job_id and got["messages"][-1]["content"] == "こんにちは"
+    got = agent.get("/api/agent/ai/next", params={"model": "qwen2.5"}).json()["job"]
+    assert got["id"] == job_id and got["messages"] == [{"role": "user", "content": "こんにちは"}]
     assert agent.get("/api/agent/ai/next").json()["job"] is None
-    assert user.get(f"/ai/chat/jobs/{job_id}").json()["status"] == "running"
     agent.post(f"/api/agent/ai/{job_id}/result", json={"answer": "こんにちは！"})
-    s = user.get(f"/ai/chat/jobs/{job_id}").json()
-    assert s == {"status": "done", "answer": "こんにちは！", "model": "llama3.2", "online": 1}
-    assert "いま答えられるパソコン: 1 台" in user.get("/ai/chat").text
-    # ほかの人の質問は見られない。ログインしていなければログインへ
+    assert user.get(f"/ai/chat/jobs/{job_id}").json() == {"status": "done", "answer": "こんにちは！", "model": "qwen2.5", "online": 1}
+    # 同じ答えを2回は受け付けない。PC に渡した会話の写しは消える
+    assert agent.post(f"/api/agent/ai/{job_id}/result", json={"answer": "x"}).status_code == 404
+    from app.models import AIJob
+    assert db(app).get(AIJob, job_id).messages_json == "[]"
+    # 続けて聞くと、前のやりとりも一緒に PC に渡る。会話はサイトに残っていて、開き直しても見える
+    job2 = user.post("/ai/chat", json={"content": "元気？", "conversation_id": cid}).json()["id"]
+    got = agent.get("/api/agent/ai/next", params={"model": "qwen2.5"}).json()["job"]
+    assert got["id"] == job2 and [m["content"] for m in got["messages"]] == ["こんにちは", "こんにちは！", "元気？"]
+    agent.post(f"/api/agent/ai/{job2}/result", json={"answer": "元気です"})
+    page = user.get(f"/ai/chat?c={cid}").text
+    assert "元気です" in page and "いま答えられるパソコン: 1 台" in page and '>こんにちは</a>' in page
+    # ほかの人の会話や質問は見られない。ログインしていなければログインへ
     other = TestClient(app)
     signup(other, "other@example.com")
     assert other.get(f"/ai/chat/jobs/{job_id}").status_code == 404
+    assert "元気です" not in other.get(f"/ai/chat?c={cid}").text
     assert TestClient(app).get("/ai/chat", follow_redirects=False).status_code == 303
+    # 会話を消すと、サイトからも消える
+    user.post(f"/ai/chat/{cid}/delete")
+    assert "元気です" not in user.get(f"/ai/chat?c={cid}").text
