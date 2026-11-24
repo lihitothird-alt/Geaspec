@@ -1620,14 +1620,17 @@ def create_app(
     # --- Geaspec AI の試作: 貸す人の PC の AI にチャットで聞く ------------------
     # Geaspec のサイトが入り口。会話はサイト (クラウド) に保存し、貸す人の PC は計算だけして何も残さない。
     AI_JOB_TIMEOUT = dt.timedelta(minutes=5)
-    AI_HOST_FRESH = dt.timedelta(seconds=45)
+    AI_HOST_FRESH = dt.timedelta(seconds=15)  # PC は3秒ごとに問い合わせる。止まったらすぐ台数から外す
     AI_HISTORY = 20  # 貸す人の PC に渡す、直近のやりとりの数
     AI_HISTORY_CHARS = 12000  # 渡す文字数の上限 (長すぎると PC の AI が遅くなり、覚えきれない)
     app.state.ai_hosts = {}  # host_id -> (最後に問い合わせてきた時刻, モデル名)
 
-    def ai_hosts_online() -> list[str]:
+    def ai_hosts_online(db: Session) -> list[str]:
+        """答えられる PC (最近問い合わせてきた PC と、いま答えを考えている PC)。"""
         now = clock.utcnow()
-        return [m for t, m in app.state.ai_hosts.values() if now - t < AI_HOST_FRESH]
+        busy = set(db.scalars(select(AIJob.host_id).where(AIJob.status == "running",
+                                                         AIJob.started_at > now - AI_JOB_TIMEOUT)).all())
+        return [m for hid, (t, m) in app.state.ai_hosts.items() if now - t < AI_HOST_FRESH or hid in busy]
 
     def fail_ai_job(db: Session, job: AIJob, message: str) -> None:
         """答えられなかった質問は会話から外す (送り直したときに、答えのない質問が AI に重ねて渡らないように)。"""
@@ -1653,7 +1656,7 @@ def create_app(
                           .order_by(AIMessage.id)).all() if conv else []
         pending = db.scalar(select(AIJob).where(AIJob.conversation_id == conv.id,
                                                 AIJob.status.in_(("queued", "running")))) if conv else None
-        return render(request, db, "ai_chat.html", online=ai_hosts_online(), convs=convs, conv=conv,
+        return render(request, db, "ai_chat.html", online=ai_hosts_online(db), convs=convs, conv=conv,
                       msgs=msgs, pending_id=pending.id if pending else 0)
 
     @app.post("/ai/chat")
@@ -1693,7 +1696,7 @@ def create_app(
                     messages_json=json.dumps(history, ensure_ascii=False))
         db.add(job)
         db.commit()
-        return {"id": job.id, "conversation_id": conv.id, "online": len(ai_hosts_online())}
+        return {"id": job.id, "conversation_id": conv.id, "online": len(ai_hosts_online(db))}
 
     @app.post("/ai/chat/{cid}/delete")
     def ai_chat_delete(cid: int, request: Request, db: Session = Depends(get_db)):
@@ -1723,7 +1726,7 @@ def create_app(
             fail_ai_job(db, job, "貸す人の PC から答えが返ってきませんでした。もう一度送ってください。")
         elif job.status == "queued" and now - job.created_at > AI_JOB_TIMEOUT:
             fail_ai_job(db, job, "いま答えられる PC がありません。少し待ってから送ってください。")
-        return {"status": job.status, "answer": job.answer, "model": job.model, "online": len(ai_hosts_online())}
+        return {"status": job.status, "answer": job.answer, "model": job.model, "online": len(ai_hosts_online(db))}
 
     @app.get("/api/agent/ai/next")
     def agent_ai_next(request: Request, model: str = "", ctx: tuple[Host, Session] = Depends(agent_host)):

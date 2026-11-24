@@ -1847,9 +1847,11 @@ def ai_worker(client: "ServerClient", stop: threading.Event, preferred_model: st
     announced = False
     while not stop.is_set():
         model = ollama_model(preferred_model)
-        if model is None:
+        if model is None:  # Ollama が止まっている。この PC の中を確かめるだけなので、短い間隔で見直す
+            if announced:
+                log.info("AI (Ollama) が止まったので、質問の受け付けを休みます")
             announced = False
-            stop.wait(30)
+            stop.wait(5)
             continue
         if not announced:
             log.info("AI の質問を受け付けます (モデル: %s)", model)
