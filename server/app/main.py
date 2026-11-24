@@ -1622,6 +1622,7 @@ def create_app(
     AI_JOB_TIMEOUT = dt.timedelta(minutes=5)
     AI_HOST_FRESH = dt.timedelta(seconds=45)
     AI_HISTORY = 20  # 貸す人の PC に渡す、直近のやりとりの数
+    AI_HISTORY_CHARS = 12000  # 渡す文字数の上限 (長すぎると PC の AI が遅くなり、覚えきれない)
     app.state.ai_hosts = {}  # host_id -> (最後に問い合わせてきた時刻, モデル名)
 
     def ai_hosts_online() -> list[str]:
@@ -1681,7 +1682,13 @@ def create_app(
         db.flush()
         recent = db.scalars(select(AIMessage).where(AIMessage.conversation_id == conv.id)
                             .order_by(AIMessage.id.desc()).limit(AI_HISTORY)).all()[::-1]
-        history = [{"role": m.role, "content": m.content} for m in recent]
+        history: list[dict] = []
+        total = 0
+        for m in reversed(recent):  # 新しい方から、上限に収まるぶんだけ (今回の質問は必ず入れる)
+            if history and total + len(m.content) > AI_HISTORY_CHARS:
+                break
+            history.insert(0, {"role": m.role, "content": m.content})
+            total += len(m.content)
         job = AIJob(user_id=user.id, conversation_id=conv.id,
                     messages_json=json.dumps(history, ensure_ascii=False))
         db.add(job)
