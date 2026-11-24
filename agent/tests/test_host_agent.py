@@ -669,3 +669,23 @@ class AIWorkerTest(unittest.TestCase):
         with mock.patch.object(host_agent, "ollama_model", side_effect=lambda *_: stop.set()):
             host_agent.ai_worker(client, stop)
         client.ai_next.assert_not_called()
+
+
+class AIWorkerDuringVRTest(unittest.TestCase):
+    def test_does_not_take_ai_jobs_during_a_vr_session(self):
+        import threading
+        stop = threading.Event()
+        client = mock.Mock()
+        waits = []
+
+        def fake_wait(sec):
+            waits.append(sec)
+            stop.set()
+            return True
+
+        stop.wait = fake_wait
+        with mock.patch.object(host_agent, "ollama_model", return_value="qwen2.5"), \
+             mock.patch.object(host_agent.STATUS, "state", "session"):
+            host_agent.ai_worker(client, stop)
+        client.ai_next.assert_not_called()
+        self.assertEqual(waits, [5])

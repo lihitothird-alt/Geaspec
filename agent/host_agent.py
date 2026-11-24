@@ -1853,6 +1853,10 @@ def ai_worker(client: "ServerClient", stop: threading.Event, preferred_model: st
             announced = False
             stop.wait(5)
             continue
+        if STATUS.state in ("session", "cleaning"):
+            # VR の貸し出し中・後片付け中は、GPU を VR に回すため AI の質問は受けない
+            stop.wait(5)
+            continue
         if not announced:
             log.info("AI の質問を受け付けます (モデル: %s)", model)
             announced = True
