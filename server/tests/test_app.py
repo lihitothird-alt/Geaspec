@@ -1896,8 +1896,9 @@ def test_ai_chat_prototype(setup):
     assert agent.get("/api/agent/ai/next").json()["job"] is None
     agent.post(f"/api/agent/ai/{job_id}/result", json={"answer": "こんにちは！"})
     assert user.get(f"/ai/chat/jobs/{job_id}").json() == {"status": "done", "answer": "こんにちは！", "model": "qwen2.5", "online": 1}
-    # 同じ答えを2回は受け付けない。PC に渡した会話の写しは消える
-    assert agent.post(f"/api/agent/ai/{job_id}/result", json={"answer": "x"}).status_code == 404
+    # 同じ答えを2回送っても、2回目は捨てる。PC に渡した会話の写しは消える
+    assert agent.post(f"/api/agent/ai/{job_id}/result", json={"answer": "x"}).json()["discarded"] is True
+    assert user.get(f"/ai/chat/jobs/{job_id}").json()["answer"] == "こんにちは！"
     from app.models import AIJob
     assert db(app).get(AIJob, job_id).messages_json == "[]"
     # 続けて聞くと、前のやりとりも一緒に PC に渡る。会話はサイトに残っていて、開き直しても見える

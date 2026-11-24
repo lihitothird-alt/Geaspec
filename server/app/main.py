@@ -1703,7 +1703,11 @@ def create_app(
             for m in db.scalars(select(AIMessage).where(AIMessage.conversation_id == cid)).all():
                 db.delete(m)
             for j in db.scalars(select(AIJob).where(AIJob.conversation_id == cid)).all():
-                db.delete(j)
+                if j.status in ("queued", "running"):
+                    # 考えている途中の質問は取り消すだけにする (PC が答えを返しても捨てる)
+                    j.status, j.answer, j.messages_json, j.conversation_id = "error", "会話を消しました。", "[]", None
+                else:
+                    db.delete(j)
             db.delete(conv)
             db.commit()
         return redirect("/ai/chat")
@@ -1747,8 +1751,10 @@ def create_app(
     async def agent_ai_result(job_id: int, request: Request, ctx: tuple[Host, Session] = Depends(agent_host)):
         host, db = ctx
         job = db.get(AIJob, job_id)
-        if not job or job.host_id != host.id or job.status != "running":
+        if not job or job.host_id != host.id:
             raise HTTPException(404)
+        if job.status != "running":  # 途中で取り消された・時間切れになった質問。答えは捨てる
+            return {"ok": True, "discarded": True}
         body = await request.json()
         if body.get("error"):
             fail_ai_job(db, job, "貸す人の PC の AI でエラーが起きました。もう一度送ってください。")
