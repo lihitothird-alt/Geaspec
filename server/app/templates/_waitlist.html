@@ -6,8 +6,8 @@
     <input type="hidden" name="service" value="{{ service }}">
     <input type="hidden" name="role" value="{{ role }}">
     <input type="hidden" name="back" value="{{ back }}">
-    <label>メールアドレス<span class="req">必須</span><input type="email" name="email" required autocomplete="email" inputmode="email" value="{{ user.email if user else '' }}"></label>
-    <label>{{ note_label }}<span class="opt-tag">任意</span><textarea name="note" rows="2" maxlength="1000" placeholder="{{ note_placeholder }}"></textarea></label>
+    <label><span class="label-line">メールアドレス<span class="req">必須</span></span><input type="email" name="email" required autocomplete="email" inputmode="email" value="{{ user.email if user else '' }}"></label>
+    <label><span class="label-line">{{ note_label }}<span class="opt-tag">任意</span></span><textarea name="note" rows="2" maxlength="1000" placeholder="{{ note_placeholder }}"></textarea></label>
     <button class="btn">開始したらメールで知らせてもらう</button>
   </form>
   <p class="muted small">このお知らせ以外には使いません。料金はまだ決まっていません。</p>

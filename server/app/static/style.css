@@ -1881,25 +1881,13 @@ body.theme-ai::before, body.theme-gamedev::before { display: none; }
   .chat-convs { grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; max-height: none; }
 }
 
-/* ---- わかりやすさの見直し (2026-11) ---------------------------------------
-   主ボタンは全サービスで1色 (濃い緑・白文字)。サービスの色はバッジと見出しだけに使う。 */
-:root { --action: #15775a; --action-hover: #0f6149; --on-action: #fff; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --action: #3fbf95; --action-hover: #5fd3ab; --on-action: #04231a; } }
-:root[data-theme="dark"] { --action: #3fbf95; --action-hover: #5fd3ab; --on-action: #04231a; }
-.btn { --btn-bg: var(--action); --btn-fg: var(--on-action); }
-.btn:hover { background: var(--action-hover); }
-/* 押せない説明 (安心の理由) はボタンに見せない: 枠と背景をなくして、文字とアイコンだけに */
-.trust li { background: none; border: 0; box-shadow: none; padding: 4px 0; font-weight: 600; }
-.trust .ic { background: none; border: 0; color: var(--text-muted); width: 20px; height: 20px; }
-/* 今いるページは、灰色のボタンではなく下線で示す */
-.nav-link[aria-current="page"] { background: none; box-shadow: inset 0 -2px 0 currentColor; border-radius: 0; }
-/* リンクの見た目は「色＋下線」に統一 (フッター・目次も) */
-.footer-cols a, .toc a, .guide-toc a { color: var(--link); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
-/* 補足の文字を読める濃さと大きさに */
-.muted.small, .form .opt, label .muted.small { color: var(--text-muted); font-size: .88rem; opacity: 1; }
+
+/* フォームの「必須」「任意」の印 (色はそのサイトの色) */
 .req, .opt-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 4px; font-size: .75rem; font-weight: 700; vertical-align: middle; }
-.req { background: color-mix(in srgb, var(--action) 14%, transparent); color: var(--action); }
+.req { background: color-mix(in srgb, var(--link) 14%, transparent); color: var(--link); }
 .opt-tag { background: var(--surface-3); color: var(--text-muted); }
-/* 同意の行は行のどこを押してもチェックが入る (label 全体)。押せる範囲が分かるよう枠を付ける */
+.label-line { display: inline-flex; align-items: center; }
+.form label > .req, .form label > .opt-tag, .form legend > .req, .form legend > .opt-tag { justify-self: start; width: max-content; }
 .form label.check { cursor: pointer; }
-.badge.pending { background: color-mix(in srgb, var(--action) 12%, var(--surface)); color: var(--action); border-color: color-mix(in srgb, var(--action) 35%, transparent); }
+.badge.pending { background: color-mix(in srgb, var(--link) 12%, var(--surface)); color: var(--link); border-color: color-mix(in srgb, var(--link) 35%, transparent); }
+.vr-hero-copy .soon-note { justify-content: center; }

@@ -4,11 +4,11 @@
     <fieldset><legend>使う機器<span class="req">必須</span></legend>
       {% for k, v in devices.items() %}<label class="check"><input type="radio" name="device" value="{{ k }}" required> {{ v }}</label>{% endfor %}
     </fieldset>
-    <label>住んでいる都道府県<span class="req">必須</span><select name="area" required><option value="">選んでください</option>{% for region, prefs in area_groups %}<optgroup label="{{ region }}">{% for k in prefs %}<option value="{{ k }}">{{ areas[k] }}</option>{% endfor %}</optgroup>{% endfor %}</select></label>
+    <label><span class="label-line">住んでいる都道府県<span class="req">必須</span></span><select name="area" required><option value="">選んでください</option>{% for region, prefs in area_groups %}<optgroup label="{{ region }}">{% for k in prefs %}<option value="{{ k }}">{{ areas[k] }}</option>{% endfor %}</optgroup>{% endfor %}</select></label>
     <fieldset><legend>ふだん VRChat にいる時間<span class="opt-tag">任意・いくつでも</span></legend>
       {% for k in time_choices %}<label class="check"><input type="checkbox" name="times" value="{{ k }}"> {{ times[k] }}</label>{% endfor %}
     </fieldset>
-    <label>メールアドレス<span class="req">必須</span><input type="email" name="email" required autocomplete="email" inputmode="email" value="{{ user.email if user else '' }}"></label>
+    <label><span class="label-line">メールアドレス<span class="req">必須</span></span><input type="email" name="email" required autocomplete="email" inputmode="email" value="{{ user.email if user else '' }}"></label>
     <label class="check"><input type="checkbox" name="adult" value="1" required> 18歳以上です<span class="req">必須</span></label>
     <label class="check"><input type="checkbox" name="agree" value="1" required> <span><a href="/legal/terms" target="_blank">利用規約</a>と<a href="/legal/privacy" target="_blank">プライバシーポリシー</a>に同意します<span class="req">必須</span></span></label>
     <button class="btn">開始したらメールで知らせてもらう</button>

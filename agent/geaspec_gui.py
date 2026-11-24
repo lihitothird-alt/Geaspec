@@ -420,8 +420,7 @@ class AgentController:
             items.append((label, "ng", f"いまは {steam_account} でログインしています"))
         else:
             items.append((label, "ok", ""))
-        items.append(("貸し出し用の標準ユーザーを使っている", {False: "ok", True: "ng", None: "wait"}[admin],
-                      "別に作ってください（やり方）" if admin else "確認中"))
+        # 貸し出し用の標準ユーザーの確認は、試作のあいだは外している (始めやすくするため)
         return items
 
     def home_summary(self, items: list[tuple[str, str, str]], now: dt.datetime) -> tuple[str, str, str, str]:
@@ -1212,7 +1211,7 @@ class SetupView:
         from tkinter import ttk
 
         user = h.current_windows_user()
-        admin = h.is_admin_account()
+        admin = None  # 試作のあいだは、ふだんの (管理者の) ユーザーでも貸し出せる。標準ユーザーの確認は外している
         self.heading(
             f"このユーザー（{user}）は貸し出しに使えません" if admin else f"Windows ユーザー「{user}」を貸し出し専用にします",
             "借りた人のデータを残さないよう、利用が終わるたびに、このユーザーの次のものを消します（元に戻せません）。",
